@@ -1,11 +1,11 @@
-# DeepGraphBench
+# GraphAIBench
 
-DeepGraphBench is a C++ implemented Benchmark Suite for Graph Neural Networks (GNN).
+GraphAIBench is a C++ implemented Benchmark Suite for Graph Neural Networks (GNN).
 
-DeepGraphBench is parallelized using OpenMP and CUDA, same as [DGL](https://github.com/dmlc/dgl/), but runs much faster than DGL. 
+GraphAIBench is parallelized using OpenMP and CUDA, same as [DGL](https://github.com/dmlc/dgl/), but runs much faster than DGL. 
 Please see [1] for evaluation details.
 
-Therefore, compared to DGL and [PyG](https://github.com/pyg-team/pytorch_geometric), DeepGraphBench is better suited for evaluating specialized hardware design or low-level library (e.g. SpMM) implementations for GNNs.
+Therefore, compared to DGL and [PyG](https://github.com/pyg-team/pytorch_geometric), GraphAIBench is better suited for evaluating specialized hardware design or low-level library (e.g. SpMM) implementations for GNNs.
 
 [1] Loc Hoang, Xuhao Chen, Hochan Lee, Roshan Dathathri, Gurbinder Gill, Keshav Pingali.
 Efficient Distribution for Deep Learning on Large Graphs, GNNSys 2021
