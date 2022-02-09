@@ -8,7 +8,7 @@ ODIR=./obj
 CUDA_HOME=/usr/local/cuda
 #CUDA_HOME=/org/centers/cdgc/cuda/cuda-10.2
 #CUDA_HOME=/jet/packages/spack/opt/spack/linux-centos8-zen/gcc-8.3.1/cuda-10.2.89-kz7u4ix6ed53nioz4ycqin3kujcim3bs
-OPENBLAS_DIR=/usr/local/OpenBLAS/build
+OPENBLAS_DIR=/usr/local/openblas
 #OPENBLAS_DIR=/org/centers/cdgc/openblas/ubuntu-gcc7.5
 #OPENBLAS_DIR=/org/centers/cdgc/openblas/centos-gcc9.2
 #OPENBLAS_DIR=/ocean/projects/cie170003p/shared/OpenBLAS/build
@@ -16,7 +16,7 @@ CUB_DIR=../cub
 #CUB_DIR=/ocean/projects/cie170003p/shared/cub
 MKL_DIR=/opt/apps/sysnet/intel/20.0/mkl
 CFLAGS=-I./include -fopenmp -pthread -Wall --std=c++11 -lboost_thread -lboost_system -I$(CUDA_HOME)/include
-CUFLAGS=-I./include -DENABLE_GPU -I${CUB_DIR} -lcudart -lcublas -lcusparse -lcurand -lboost_thread -lboost_system -I$(CUDA_HOME)/include
+CUFLAGS=-I./include -DENABLE_GPU -I${OPENBLAS_DIR}/include -lcudart -lcublas -lcusparse -lcurand -lboost_thread -lboost_system -I$(CUDA_HOME)/include
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -g -O0

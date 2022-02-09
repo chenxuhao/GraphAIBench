@@ -368,6 +368,8 @@ void csrmm_gpu(const int M, const int N, const int K, const int nnz,
                const int* A_nnz_idx, const float* B, const float beta,
                float* transpose_C, float* C, bool transA) {
   //std::cout << "[debug] csrmm_gpu m=" << M << ", n=" << N << ", k=" << K << ", nnz=" << nnz << "\n";
+
+#if 0
   cusparseOperation_t TransA = transA ? CUSPARSE_OPERATION_TRANSPOSE : CUSPARSE_OPERATION_NON_TRANSPOSE;
   cusparseOperation_t TransB = CUSPARSE_OPERATION_TRANSPOSE;
   CUSPARSE_CHECK(cusparseScsrmm2(gpu_context::cusparse_handle(), TransA, TransB,
@@ -378,12 +380,11 @@ void csrmm_gpu(const int M, const int N, const int K, const int nnz,
   const float zero = 0.0;
   CUBLAS_CHECK(cublasSgeam(gpu_context::cublas_handle(), CUBLAS_OP_T, CUBLAS_OP_T,
                            N, M, &one, transpose_C, M, &zero, NULL, M, C, N));
-  CudaTest("solving csrmm kernel failed");
-}
-
-void csrmm_gpu_new(const int M, const int N, const int K, const int nnz, const float alpha,
-                   const float* A_nonzeros, const int* A_idx_ptr, const int* A_nnz_idx,
-                   const float* B, const float beta, float *transpose_C, float* C, bool transA) {
+//}
+#else
+//void csrmm_gpu_new(const int M, const int N, const int K, const int nnz, const float alpha,
+//                   const float* A_nonzeros, const int* A_idx_ptr, const int* A_nnz_idx,
+//                   const float* B, const float beta, float *transpose_C, float* C, bool transA) {
   //std::cout << "[debug]: csrmm_gpu_new m=" << M << ", n=" << N << ", k=" << K << ", nnz=" << nnz << "\n";
   cusparseOperation_t TransA = transA ? CUSPARSE_OPERATION_TRANSPOSE : CUSPARSE_OPERATION_NON_TRANSPOSE;
   //cusparseOperation_t TransB = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -412,6 +413,7 @@ void csrmm_gpu_new(const int M, const int N, const int K, const int nnz, const f
   const float zero = 0.0;
   CUBLAS_CHECK(cublasSgeam(gpu_context::cublas_handle(), CUBLAS_OP_T,
                CUBLAS_OP_T, N, M, &one, transpose_C, M, &zero, NULL, M, C, N));
+#endif
 }
 
 void spmm(size_t x, size_t y, size_t z, size_t nnz,
