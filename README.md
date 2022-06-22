@@ -12,29 +12,25 @@ It includes the following benchmarks:
 + Linear Assignment: Hungarian algorithm.
 + Link Analysis: PageRank (PR).
 + Link Prediction: Node2vec.
++ Mining [1]: triangle counting, clique finding, motif counting, frequent subgraph mining (FSM).
 + Sampling: Random walk.
 + Structure: Graph coarsening.
 + Traversal: Breadth-First Search (BFS) and Single-Source Shortest Paths (SSSP).
 
 GraphAIBench is parallelized using OpenMP and CUDA, same as [DGL](https://github.com/dmlc/dgl/), but runs much faster than DGL. 
-Please see [1] for evaluation details.
+Please see [2] for evaluation details.
 
 Therefore, compared to DGL and [PyG](https://github.com/pyg-team/pytorch_geometric), GraphAIBench is better suited for evaluating specialized hardware design or low-level library (e.g. SpMM) implementations for GNNs.
 
 Datasets are available [here](https://www.dropbox.com/sh/i1jq1uwtkcd2qo0/AADJck_u3kx7FeSR5BvdrkqYa?dl=0).
 Please contact [the author](http://people.csail.mit.edu/xchen/) for more datasets.
 
-[1] Xuhao Chen, Roshan Dathathri, Gurbinder Gill, Keshav Pingali.
-[Pangolin: An Efficient and Flexible Graph Pattern Mining System on CPU and GPU](http://www.vldb.org/pvldb/vol13/p1190-chen.pdf). VLDB 2020
+[1] Xuhao Chen, Arvind.
+[Efficient and Scalable Graph Pattern Mining on GPUs](https://arxiv.org/pdf/2112.09761.pdf), OSDI 2022
 
-[2] Xuhao Chen, Roshan Dathathri, Gurbinder Gill, Loc Hoang, Keshav Pingali.
-[Sandslash: A Two-Level Framework for Efficient Graph Pattern Mining](http://people.csail.mit.edu/xchen/docs/ics-2021.pdf), ICS 2021
-
-[3] Xuhao Chen, Tianhao Huang, Shuotao Xu, Thomas Bourgeat, Chanwoo Chung, Arvind.
-[FlexMiner: A Pattern-Aware Accelerator for Graph Pattern Mining](http://people.csail.mit.edu/xchen/docs/isca-2021.pdf), ISCA 2021
-
-[4] Xuhao Chen, Arvind.
-[Efficient and Scalable Graph Pattern Mining on GPUs](https://arxiv.org/pdf/2112.09761.pdf), OSDI 2022 [Artifact](OSDI-experiments-guide.md)
+[2] Loc Hoang, Xuhao Chen, Hochan Lee, Roshan Dathathri, Gurbinder Gill, Keshav Pingali,
+[Efficient Distribution for Deep Learning on Large Graphs](https://people.csail.mit.edu/xchen/docs/gnnsys-2021.pdf),
+Workshop on Graph Neural Networks and Systems (GNNSys), 2021
 
 ## Getting Started ##
 
@@ -78,11 +74,7 @@ Run triangle counting with an undirected toy graph on CPU:
 
     $ ./tc_omp_base ../inputs/citeseer/graph
     
-Run subgraph listing/counting for the `diamond` pattern with the LiveJournal graph on GPU:
-
-    $./sgl_gpu_base ../inputs/livej/graph diamond
-
-You can find the expected outputs in the README of each benchmark [see here for triangle](https://github.com/chenxuhao/GraphMiner/blob/master/src/triangle/README.md).
+You can find the expected outputs in the README of each benchmark [see here for triangle](https://github.com/chenxuhao/GraphAIBench/blob/master/src/triangle/README.md).
 
 To control the number of threads, set the following environment variable:
 
