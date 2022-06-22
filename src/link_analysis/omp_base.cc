@@ -1,11 +1,9 @@
 // Copyright 2020 MIT
 // Authors: Xuhao Chen <cxh@mit.edu>
-#include "pr.h"
-#include "timer.h"
-#include <omp.h>
+#include "graph.h"
 #include <stdlib.h>
 
-void PRSolver(Graph &g, ScoreT *scores) {
+void PRSolver(Graph &g, score_t *scores) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -13,8 +11,8 @@ void PRSolver(Graph &g, ScoreT *scores) {
   }
   printf("Launching OpenMP PR solver (%d threads) ...\n", num_threads);
   auto m = g.V();
-  const ScoreT base_score = (1.0f - kDamp) / m;
-  ScoreT *outgoing_contrib = (ScoreT *) malloc(m * sizeof(ScoreT));
+  const score_t base_score = (1.0f - kDamp) / m;
+  score_t *outgoing_contrib = (score_t *) malloc(m * sizeof(score_t));
   int iter;
   Timer t;
   t.Start();
@@ -25,10 +23,10 @@ void PRSolver(Graph &g, ScoreT *scores) {
       outgoing_contrib[n] = scores[n] / g.get_degree(n);
     #pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
     for (int dst = 0; dst < m; dst ++) {
-      ScoreT incoming_total = 0;
+      score_t incoming_total = 0;
       for (auto src : g.in_neigh(dst))
         incoming_total += outgoing_contrib[src];
-      ScoreT old_score = scores[dst];
+      score_t old_score = scores[dst];
       scores[dst] = base_score + kDamp * incoming_total;
       error += fabs(scores[dst] - old_score);
     }   

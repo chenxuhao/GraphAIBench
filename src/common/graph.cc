@@ -116,6 +116,31 @@ VertexSet Graph::N(vidType vid) const {
   return VertexSet(edges + begin, end - begin, vid);
 }
 
+VertexSet Graph::out_neigh(vidType vid) const {
+  assert(vid >= 0);
+  assert(vid < n_vertices);
+  eidType begin = vertices[vid], end = vertices[vid+1];
+  if (begin > end) {
+    fprintf(stderr, "vertex %u bounds error: [%lu, %lu)\n", vid, begin, end);
+    exit(1);
+  }
+  assert(end <= n_edges);
+  return VertexSet(edges + begin, end - begin, vid);
+}
+
+// TODO: fix for directed graph
+VertexSet Graph::in_neigh(vidType vid) const {
+  assert(vid >= 0);
+  assert(vid < n_vertices);
+  eidType begin = vertices[vid], end = vertices[vid+1];
+  if (begin > end) {
+    fprintf(stderr, "vertex %u bounds error: [%lu, %lu)\n", vid, begin, end);
+    exit(1);
+  }
+  assert(end <= n_edges);
+  return VertexSet(edges + begin, end - begin, vid);
+}
+
 void Graph::allocateFrom(vidType nv, eidType ne) {
   n_vertices = nv;
   n_edges    = ne;

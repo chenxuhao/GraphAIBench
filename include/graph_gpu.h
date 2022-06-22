@@ -58,6 +58,7 @@ public:
   inline __device__ __host__ eidType edge_begin(vidType src) { return d_rowptr[src]; }
   inline __device__ __host__ eidType edge_end(vidType src) { return d_rowptr[src+1]; }
   inline __device__ __host__ vlabel_t getData(vidType vid) { return d_vlabels[vid]; }
+  inline __device__ __host__ elabel_t getEdgeData(eidType eid) { return d_elabels[eid]; }
   inline __device__ __host__ vidType getLabelsFrequency(vlabel_t label) { return d_vlabels_frequency[label]; }
   inline __device__ __host__ vlabel_t* getVlabelPtr() { return d_vlabels; }
   inline __device__ __host__ elabel_t* getElabelPtr() { return d_elabels; }

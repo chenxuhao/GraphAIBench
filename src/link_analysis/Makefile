@@ -1,31 +1,23 @@
 include ../common.mk
-INCLUDES+=-I$(CUB_DIR)
-CXXFLAGS+=-std=c++11 -march=core-avx2
 SRC=main.cu
-OBJS=base.o warp.o main.o verifier.o omp_base.o
-
-all: $(OBJS) pr_base pr_warp pr_omp_base
+OBJS += verifier.o
+all: $(OBJS) pr_omp_base
 
 %.o: %.cpp
 	$(ICPC) $(ICPCFLAGS) $(INCLUDES) -c $<
 
-ifeq ($(HOST),X86)
-%.o: %.cc pr.h
+%.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
-else
-%.o: %.cc pr.h
-	$(CXX) $(SIMFLAGS) $(INCLUDES) -c $<
-endif
 
-%.o: %.cu pr.h
+%.o: %.cu
 	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
 
 pr_ocl_base: ocl_base.o main.o verifier.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) main.o ocl_base.o verifier.o -o $@ -lOpenCL
 	mv $@ $(BIN)
 
-pr_omp_base: omp_base.o main.o verifier.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) main.o omp_base.o verifier.o -o $@ -lgomp
+pr_omp_base: omp_base.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) omp_base.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
 pr_omp_push: omp_push.o main.o verifier.o

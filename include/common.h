@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <unordered_map>
 
+typedef float   score_t;   // score type
 typedef float   feat_t;    // vertex feature type
 typedef uint8_t patid_t;   // pattern id type
 typedef uint8_t mask_t;    // mask type
@@ -60,6 +61,13 @@ typedef std::unordered_map<vlabel_t, int> nlf_map;
 #define MAX_BLOCKS (MAX_THREADS / BLOCK_SIZE)
 #define NUM_WARPS (BLOCK_SIZE / WARP_SIZE)
 #define BYTESTOMB(memory_cost) ((memory_cost)/(double)(1024 * 1024))
+
+// PageRank parameters
+#define EPSILON 0.0001
+#define MAX_ITER 100
+const float kDamp = 0.85;
+const float epsilon = 0.0000001;
+const float epsilon2 = 0.001;
 
 enum Status {
   Idle,

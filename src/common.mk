@@ -75,10 +75,6 @@ endif
 VPATH += ../common
 OBJS=main.o VertexSet.o graph.o
 
-ifneq ($(USE_DRAMSIM3), 0)
-CXXFLAGS += -DUSE_DRAMSIM3
-endif
-
 # CUDA vertex parallel
 ifneq ($(VPAR),)
 NVFLAGS += -DVERTEX_PAR

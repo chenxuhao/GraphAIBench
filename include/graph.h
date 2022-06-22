@@ -75,6 +75,8 @@ public:
   vidType* out_colidx() { return edges; }    // get column indices array
   bool is_connected(vidType v, vidType u) const; // is vertex v and u connected by an edge
   bool is_connected(std::vector<vidType> sg) const; // is the subgraph sg a connected one
+  VertexSet out_neigh(vidType v) const;             // get the outgoing neighbor list of vertex v
+  VertexSet in_neigh(vidType v) const;              // get the ingoing neighbor list of vertex v
 
   // Galois compatible APIs
   vidType size() const { return n_vertices; }
