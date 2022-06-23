@@ -2,7 +2,7 @@
 #include "scan.h"
 
 Graph::Graph(std::string prefix, bool use_dag, bool directed, 
-             bool use_vlabel, bool use_elabel) :
+             bool use_vlabel, bool use_elabel, bool need_reverse) :
     is_directed_(directed), max_degree(0), n_vertices(0), n_edges(0), 
     nnz(0), max_label_frequency_(0), max_label(0),
     feat_len(0), num_vertex_classes(0), num_edge_classes(0), 
@@ -34,6 +34,16 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
   // read column indices
   if (map_edges) map_file(prefix + ".edge.bin", edges, n_edges);
   else read_file(prefix + ".edge.bin", edges, n_edges);
+
+  if (is_directed_) {
+    std::cout << "This is a directed graph\n";
+    if (need_reverse) {
+      build_reverse_graph();
+      std::cout << "This graph maintains both incomming and outgoing edge-list\n";
+      has_reverse = true;
+    }
+  }
+
   // read vertex labels
   if (use_vlabel) {
     assert (num_vertex_classes > 0);
@@ -104,6 +114,30 @@ Graph::~Graph() {
   if (src_list != NULL) delete [] src_list;
 }
 
+void Graph::build_reverse_graph() {
+  std::vector<VertexList> reverse_adj_lists(n_vertices);
+  for (vidType v = 0; v < n_vertices; v++) {
+    for (auto u : N(v)) {
+      reverse_adj_lists[u].push_back(v);
+    }
+  }
+  reverse_vertices = custom_alloc_global<eidType>(n_vertices+1);
+  reverse_vertices[0] = 0;
+  for (vidType i = 1; i < n_vertices+1; i++) {
+    auto degree = reverse_adj_lists[i-1].size();
+    reverse_vertices[i] = reverse_vertices[i-1] + degree;
+  }
+  reverse_edges = custom_alloc_global<vidType>(n_edges);
+  //#pragma omp parallel for
+  for (vidType i = 0; i < n_vertices; i++) {
+    auto begin = reverse_vertices[i];
+    std::copy(reverse_adj_lists[i].begin(), 
+        reverse_adj_lists[i].end(), &reverse_edges[begin]);
+  }
+  for (auto adjlist : reverse_adj_lists) adjlist.clear();
+  reverse_adj_lists.clear();
+}
+
 VertexSet Graph::N(vidType vid) const {
   assert(vid >= 0);
   assert(vid < n_vertices);
@@ -116,31 +150,33 @@ VertexSet Graph::N(vidType vid) const {
   return VertexSet(edges + begin, end - begin, vid);
 }
 
-VertexSet Graph::out_neigh(vidType vid) const {
+VertexSet Graph::out_neigh(vidType vid, vidType offset) const {
   assert(vid >= 0);
   assert(vid < n_vertices);
-  eidType begin = vertices[vid], end = vertices[vid+1];
+  auto begin = vertices[vid];
+  auto end = vertices[vid+1];
   if (begin > end) {
     fprintf(stderr, "vertex %u bounds error: [%lu, %lu)\n", vid, begin, end);
     exit(1);
   }
   assert(end <= n_edges);
-  return VertexSet(edges + begin, end - begin, vid);
+  return VertexSet(edges + begin + offset, end - begin, vid);
 }
 
 // TODO: fix for directed graph
 VertexSet Graph::in_neigh(vidType vid) const {
   assert(vid >= 0);
   assert(vid < n_vertices);
-  eidType begin = vertices[vid], end = vertices[vid+1];
+  auto begin = reverse_vertices[vid];
+  auto end = reverse_vertices[vid+1];
   if (begin > end) {
     fprintf(stderr, "vertex %u bounds error: [%lu, %lu)\n", vid, begin, end);
     exit(1);
   }
   assert(end <= n_edges);
-  return VertexSet(edges + begin, end - begin, vid);
+  return VertexSet(reverse_edges + begin, end - begin, vid);
 }
-
+ 
 void Graph::allocateFrom(vidType nv, eidType ne) {
   n_vertices = nv;
   n_edges    = ne;

@@ -15,6 +15,7 @@ protected:
   std::string name_;            // name of the graph
   std::string inputfile_path;   // file path of the graph
   bool is_directed_;            // is it a directed graph?
+  bool has_reverse;             // has reverse edges
   vidType max_degree;           // maximun degree
   vidType n_vertices;           // number of vertices
   eidType n_edges;              // number of edges
@@ -28,6 +29,8 @@ protected:
 
   vidType *edges;               // column indices of CSR format
   eidType *vertices;            // row pointers of CSR format
+  vidType *reverse_edges;       // reverse column indices of CSR format
+  eidType *reverse_vertices;    // reverse row pointers of CSR format
   vlabel_t *vlabels;            // vertex labels
   elabel_t *elabels;            // edge labels
   feat_t *features;             // vertex features; one feature vector per vertex
@@ -41,7 +44,7 @@ protected:
 
 public:
   Graph(std::string prefix, bool use_dag = false, bool directed = false,
-        bool use_vlabel = false, bool use_elabel = false);
+        bool use_vlabel = false, bool use_elabel = false, bool need_reverse = false);
   Graph() : name_(""), n_vertices(0), n_edges(0), nnz(0), 
             max_label_frequency_(0), max_label(0), feat_len(0), 
             num_vertex_classes(0), num_edge_classes(0), core_length_(0),
@@ -75,8 +78,9 @@ public:
   vidType* out_colidx() { return edges; }    // get column indices array
   bool is_connected(vidType v, vidType u) const; // is vertex v and u connected by an edge
   bool is_connected(std::vector<vidType> sg) const; // is the subgraph sg a connected one
-  VertexSet out_neigh(vidType v) const;             // get the outgoing neighbor list of vertex v
+  VertexSet out_neigh(vidType v, vidType off = 0) const; // get the outgoing neighbor list of vertex v
   VertexSet in_neigh(vidType v) const;              // get the ingoing neighbor list of vertex v
+  void build_reverse_graph();
 
   // Galois compatible APIs
   vidType size() const { return n_vertices; }
