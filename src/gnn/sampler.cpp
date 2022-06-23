@@ -1,4 +1,4 @@
-#include "util.h"
+#include "utils.h"
 #include "sampler.h"
 
 //! debug function: prints out sets of vertices
@@ -35,7 +35,7 @@ size_t Sampler::selectVertices(index_t nv, index_t n, Graph* g, VertexList verti
   // "Select a vertex set of size ", n, " from ", nv, " vertices, graph size: ", g->size(), "\n");
   assert(nv == vertices.size());
   // randomly select m vertices from vertices as frontier
-  auto frontier_indices = select_k_items((int)m, 0, (int)nv);
+  auto frontier_indices = utils::select_k_items((int)m, 0, (int)nv);
   VertexList frontier(m);
   for (index_t i = 0; i < m; i++)
     frontier[i] = vertices[frontier_indices[i]];
@@ -44,7 +44,7 @@ size_t Sampler::selectVertices(index_t nv, index_t n, Graph* g, VertexList verti
   for (index_t i = 0; i < m; i++)
     degrees[i] = (int)getDegree(g, frontier[i]);
   for (index_t i = 0; i < n - m; i++) {
-    auto pos    = select_one_item((int)m, degrees);
+    auto pos    = utils::select_one_item((int)m, degrees);
     auto u      = frontier[pos];
     auto degree = degrees[pos];
     int j       = 0;
@@ -73,7 +73,7 @@ void Sampler::reindexSubgraph(VertexSet& keptVertices, Graph& origGraph, Graph& 
   for (auto v : keptVertices)
     degrees[new_ids[v]] = getDegree(&origGraph, v);
   // auto offsets = parallel_prefix_sum(degrees);
-  auto offsets = prefix_sum(degrees);
+  auto offsets = utils::prefix_sum(degrees);
   auto ne      = offsets[nv];
   //std::cout << "reindex subgraph |V| = " << nv << " |E| = " << ne << "\n";
   reindexGraph.allocateFrom(nv, ne);
@@ -114,7 +114,7 @@ void Sampler::getMaskedGraph(index_t n, mask_t* masks, GraphTy* g, SubgraphTy* s
   std::vector<uint32_t> degrees(n, 0);
   getMaskedDegrees(n, masks, g, degrees);
   // auto offsets = parallel_prefix_sum(degrees);
-  auto offsets = prefix_sum(degrees);
+  auto offsets = utils::prefix_sum(degrees);
   size_t ne    = offsets[n];
   //std::cout << "subgraph |V| = " << n << " |E| = " << ne << "\n";
   sub->allocateFrom(n, ne);

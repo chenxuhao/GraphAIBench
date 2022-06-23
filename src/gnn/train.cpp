@@ -6,7 +6,8 @@ int main(int argc, char* argv[]) {
   if (argc <= 4 || (argc>9 && argc!=13)) {
     std::cout << "Usage: ./train data num_epochs num_threads type_loss "
               << "hidden(16) score_drop_rate(0.) feat_drop_rate(0.) "
-              << "learnng_rate(0.01) num_layers(2) subg_size(0) val_interval(50) inductive(0)\n";
+              << "learnng_rate(0.01) num_layers(2) subg_size(0) val_interval(50) inductive(0)\n"
+              << "Example: ./bin/cpu_train_gcn citeseer 10 2 softmax\n";
     exit(1);
   }
   #ifdef USE_GAT
