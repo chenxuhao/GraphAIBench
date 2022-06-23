@@ -68,6 +68,7 @@ typedef std::unordered_map<vlabel_t, int> nlf_map;
 const float kDamp = 0.85;
 const float epsilon = 0.0000001;
 const float epsilon2 = 0.001;
+#define MYINFINITY	1000000000
 
 enum Status {
   Idle,

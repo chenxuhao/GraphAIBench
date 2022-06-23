@@ -64,6 +64,7 @@ public:
   std::string get_name() const { return name_; }
   std::string get_inputfile_path() const { return inputfile_path; }
   bool is_directed() const { return is_directed_; }
+  bool has_reverse_graph() const { return has_reverse; }
   vidType get_max_degree() const { return max_degree; }
 
   // get methods for graph topology information
