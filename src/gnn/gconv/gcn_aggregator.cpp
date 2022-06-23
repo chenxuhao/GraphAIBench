@@ -1,5 +1,4 @@
 #include "aggregator.h"
-#include "math_functions.h"
 
 void GCN_Aggregator::init(int l, int nv, int nb, float, float) {
   length = l;

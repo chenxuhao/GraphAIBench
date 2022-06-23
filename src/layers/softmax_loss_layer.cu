@@ -1,4 +1,4 @@
-#include "math_functions.h"
+#include "math_functions.hh"
 #include "softmax_loss_layer.h"
 
 void softmax_loss_layer::forward(size_t begin, size_t end, mask_t* masks) {

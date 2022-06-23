@@ -1,5 +1,4 @@
 #include "aggregator.h"
-#include "math_functions.h"
 
 void GAT_Aggregator::init(int l, int nv, int ne, float lr, float drop_rate) {
   length = l;

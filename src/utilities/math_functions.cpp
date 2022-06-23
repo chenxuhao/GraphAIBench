@@ -1,6 +1,6 @@
 #include "random.h"
 #include "simd_functions.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 #define NOT_IMPLEMENTED                                                        \
   do {                                                                         \

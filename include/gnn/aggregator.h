@@ -1,6 +1,7 @@
 #pragma once
 #include "lgraph.h"
 #include "optimizer.h"
+#include "math_functions.hh"
 //typedef LearningGraph Graph;
 
 //template<bool learnable=false>

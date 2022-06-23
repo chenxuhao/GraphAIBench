@@ -1,5 +1,5 @@
 #include "dense_layer.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 dense_layer::dense_layer(int nv, int in_len, int out_len,float lr) :
     is_bias(false), num_samples(nv), dim_in(in_len), dim_out(out_len) {

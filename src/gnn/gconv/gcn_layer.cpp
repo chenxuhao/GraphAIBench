@@ -1,4 +1,3 @@
-#include "math_functions.h"
 #include "graph_conv_layer.h"
 
 // Assume before calling forward, feat_in has already been filled in. 

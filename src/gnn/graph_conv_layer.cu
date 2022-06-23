@@ -1,4 +1,4 @@
-#include "math_functions.h"
+#include "math_functions.hh"
 #include "graph_conv_layer.h"
 
 template <typename Aggregator>

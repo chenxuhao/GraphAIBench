@@ -1,6 +1,6 @@
 #include "net.h"
 #include "reader.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 #include "softmax_loss_layer.h"
 #include "sigmoid_loss_layer.h"
 #ifdef ENABLE_GPU

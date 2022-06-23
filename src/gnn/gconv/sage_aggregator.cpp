@@ -1,5 +1,4 @@
 #include "aggregator.h"
-#include "math_functions.h"
 
 void SAGE_Aggregator::init(int l, int, int, float, float) {
   length = l;

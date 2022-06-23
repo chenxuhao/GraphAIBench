@@ -1,4 +1,4 @@
-#include "math_functions.h"
+#include "math_functions.hh"
 #include "sigmoid_loss_layer.h"
 
 void sigmoid_loss_layer::forward(size_t begin, size_t end, mask_t* masks) {

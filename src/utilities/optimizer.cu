@@ -1,6 +1,6 @@
 #include "cutils.h"
 #include "optimizer.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 __global__ void update_kernel(const int n, float_t alpha, float_t b1,
                               float_t b2, float_t b1_t, float_t b2_t,

@@ -1,5 +1,5 @@
 #include "l2norm_layer.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 l2norm_layer::l2norm_layer(int nv, int len) :
    num_samples(nv), dim(len) {

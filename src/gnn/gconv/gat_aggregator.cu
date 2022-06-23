@@ -1,7 +1,6 @@
 #include "util.h"
 #include "cutils.h"
 #include "aggregator.h"
-#include "math_functions.h"
 #include "graph_operations.h"
 #include "gpu_device_functions.cuh"
 

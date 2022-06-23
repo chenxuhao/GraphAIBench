@@ -1,6 +1,7 @@
 #pragma once
 #include "global.h"
-#include "util.h"
+#include "timer.h"
+#include "../utils.h"
 
 #ifdef __CUDACC__
 #define CUDA_HOSTDEV __host__ __device__
@@ -242,7 +243,7 @@ public:
       }
     }
     //auto offsets = parallel_prefix_sum(degrees);
-    auto offsets = prefix_sum(degrees);
+    auto offsets = utils::prefix_sum(degrees);
     auto ne      = offsets[n];
 
     masked_graph->allocateFrom(n, ne);

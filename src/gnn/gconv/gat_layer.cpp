@@ -1,4 +1,3 @@
-#include "math_functions.h"
 #include "graph_conv_layer.h"
 
 void GAT_layer::forward(float* feat_out) {

@@ -1,6 +1,6 @@
 #include "lgraph.h"
 #include "cutils.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 // computing normalization factor for each vertex
 __global__ void compute_vertex_data_kernel(int n, GraphGPU graph) {

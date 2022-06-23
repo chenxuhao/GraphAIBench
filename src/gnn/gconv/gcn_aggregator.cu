@@ -1,6 +1,5 @@
 #include "util.h"
 #include "aggregator.h"
-#include "math_functions.h"
 #include "graph_operations.h"
 
 void GCN_Aggregator::init(int l, int nv, int ne, float lr, float drop_rate) {

@@ -4,7 +4,6 @@
 #define SAMPLE_CLIP 3000 // clip degree in sampling
 
 typedef std::set<index_t> VertexSet;
-typedef std::vector<index_t> VertexList;
 
 class Sampler {
 protected:

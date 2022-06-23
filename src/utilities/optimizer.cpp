@@ -1,5 +1,5 @@
 #include "optimizer.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 void adagrad::update(const vec_t& dW, vec_t& W) {
   vec_t& g = get<0>(W);

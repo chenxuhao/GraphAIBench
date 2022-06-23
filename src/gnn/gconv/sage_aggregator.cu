@@ -1,6 +1,5 @@
 #include "util.h"
 #include "aggregator.h"
-#include "math_functions.h"
 #include "graph_operations.h"
 
 void SAGE_Aggregator::init(int l, int nv, int, float lr, float drop_rate) {

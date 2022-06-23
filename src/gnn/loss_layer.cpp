@@ -1,5 +1,5 @@
 #include "loss_layer.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 
 loss_layer::loss_layer() {
   loss_layer(0, 1, NULL);

@@ -6,7 +6,7 @@
 #include "util.h"
 #include "cub/cub.cuh"
 #include "gpu_context.h"
-#include "math_functions.h"
+#include "math_functions.hh"
 #include "gpu_device_functions.cuh"
 
 __global__ void init_const_kernel(int n, float_t value, float_t* array) {
