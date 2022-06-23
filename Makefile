@@ -1,4 +1,4 @@
-KERNELS = centrality components link_analysis triangle traversal
+KERNELS = centrality components link_analysis gnn triangle traversal
 
 .PHONY: all
 all: $(KERNELS)
