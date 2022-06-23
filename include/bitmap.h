@@ -5,7 +5,7 @@
 #define BITMAP_H_
 
 //#include <algorithm>
-//#include <cinttypes>
+#include <cstddef>
 #include "platform_atomics.h"
 typedef unsigned long uint64_t;
 /*

@@ -1,12 +1,6 @@
 // Copyright 2020 MIT
 // Authors: Xuhao Chen <cxh@mit.edu>
-#include "bc.h"
-#include "timer.h"
-#include "common.h"
-#include <vector>
-#include <iomanip>
-#include <iostream>
-#include <algorithm>
+#include "graph.h"
 /*
 static ValueT DEFAULT_RELATIVE_TOL = 1e-4;
 static ValueT DEFAULT_ABSOLUTE_TOL = 1e-4;
@@ -67,10 +61,10 @@ bool check_equal(int m, const T * A, const T * B) {
 // - uses vector for BFS queue
 // - regenerates farthest to closest traversal order from depths
 // - regenerates successors from depths
-void BCVerifier(Graph &g, int source, int num_iters, ScoreT *scores_to_test) {
+void BCVerifier(Graph &g, int source, int num_iters, score_t *scores_to_test) {
 	printf("Verifying...\n");
   auto m = g.V();
-	vector<ScoreT> scores(m, 0);
+	vector<score_t> scores(m, 0);
 	//std::cout << setiosflags(ios::fixed);
 	int max_depth = 0;
 
@@ -107,15 +101,15 @@ void BCVerifier(Graph &g, int source, int num_iters, ScoreT *scores_to_test) {
 		}
 		max_depth = static_cast<int>(verts_at_depth.size());
 		// Going from farthest to clostest, compute "depencies" (deltas)
-		vector<ScoreT> deltas(m, 0);
+		vector<score_t> deltas(m, 0);
 		for (int depth = max_depth - 1; depth >= 0; depth --) {
 			for (unsigned id = 0; id < verts_at_depth[depth].size(); id ++) {
 				int src = verts_at_depth[depth][id];
-				ScoreT delta_src = 0;
+				score_t delta_src = 0;
         for (auto dst : g.N(src)) {
 					if (depths[dst] == depths[src] + 1) {
-						delta_src += static_cast<ScoreT>(path_counts[src]) /
-							static_cast<ScoreT>(path_counts[dst]) * (1 + deltas[dst]);
+						delta_src += static_cast<score_t>(path_counts[src]) /
+							static_cast<score_t>(path_counts[dst]) * (1 + deltas[dst]);
 					}
 				}
 				deltas[src] = delta_src;
@@ -125,7 +119,7 @@ void BCVerifier(Graph &g, int source, int num_iters, ScoreT *scores_to_test) {
 	}
 	
 	// Normalize scores
-	ScoreT biggest_score = *max_element(scores.begin(), scores.end());
+	score_t biggest_score = *max_element(scores.begin(), scores.end());
 	for (int n = 0; n < m; n ++)
 		scores[n] = scores[n] / biggest_score;
 	t.Stop();
@@ -137,8 +131,8 @@ void BCVerifier(Graph &g, int source, int num_iters, ScoreT *scores_to_test) {
 	//for(int i = 0; i < 10; i++) 
 	//	printf("score[%d]=%f, score_test[%d]=%f\n", i, scores[i], i, scores_to_test[i]);
 	// Compare scores
-	if(!check_almost_equal<ScoreT>(m, scores_to_test, scores.data()))
-	//if(!check_equal<ScoreT>(m, scores_to_test, scores.data()))
+	if(!check_almost_equal<score_t>(m, scores_to_test, scores.data()))
+	//if(!check_equal<score_t>(m, scores_to_test, scores.data()))
 		printf("POSSIBLE FAILURE\n");
 	else
 		printf("Correct\n");
