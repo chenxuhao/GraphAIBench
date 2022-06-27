@@ -21,7 +21,7 @@ void PRVerifier(Graph &g, score_t *scores, double target_error);
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     std::cout << "Usage: " << argv[0] << " <graph> [num_gpu(1)] [chunk_size(1024)]"
-              << " [symmetrize(0/1)]\n";
+      << " [symmetrize(0/1)]\n";
     std::cout << "Example: " << argv[0] << " ../inputs/mico/graph\n";
     exit(1);
   }
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
   g.print_meta_data();
 
   const score_t init_score = 1.0f / g.V();
-	std::cout << "PageRank: initial score = " << init_score << "\n";
+  std::cout << "PageRank: initial score = " << init_score << "\n";
   std::vector<score_t> scores(g.V(), init_score);
   PRSolver(g, &scores[0]);
   PRVerifier(g, &scores[0], EPSILON);

@@ -13,7 +13,7 @@ void PRSolver(Graph &g, score_t *scores) {
   {
     num_threads = omp_get_num_threads();
   }
-  std::cout << "OpenMP PangeRank (" << num_threads << "threads\n";
+  std::cout << "OpenMP PangeRank (" << num_threads << " threads)\n";
   auto nv = g.V();
   const score_t base_score = (1.0f - kDamp) / nv;
   score_t *outgoing_contrib = (score_t *) malloc(nv * sizeof(score_t));
