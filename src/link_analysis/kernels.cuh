@@ -3,6 +3,12 @@
 #include "graph_gpu.h"
 
 typedef cub::BlockReduce<score_t, BLOCK_SIZE> BlockReduce;
+typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
+
+__global__ void initialize(int m, score_t *sums) {
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id < m) sums[id] = 0;
+}
 
 __global__ void contrib(GraphGPU g, score_t *scores, score_t *outgoing_contrib) {
 	int u = blockIdx.x * blockDim.x + threadIdx.x;

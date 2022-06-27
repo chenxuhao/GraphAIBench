@@ -1,43 +1,37 @@
 // Copyright 2016, National University of Defense Technology
 // Authors: Xuhao Chen <cxh@illinois.edu>
-#include "pr.h"
-#include "timer.h"
+#include "kernels.cuh"
 #include "cutil_subset.h"
 #include "cuda_launch_config.hpp"
-#include <cub/cub.cuh>
 //#define ENABLE_LB
-#define PR_VARIANT "push"
 
-typedef cub::BlockReduce<float, BLOCK_SIZE> BlockReduce;
-typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
-
-__global__ void initialize(int m, ScoreT *sums) {
-	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	if (id < m) sums[id] = 0;
+__device__ __forceinline__ unsigned LaneId() {
+	unsigned ret;
+	asm("mov.u32 %0, %laneid;" : "=r"(ret));
+	return ret;
 }
 
-__global__ void push_base(int m, int *row_offsets, int *column_indices, ScoreT *scores, ScoreT *sums, int *processed) {
+__global__ void push_base(GraphGPU g, score_t *scores, score_t *sums) {
 	int src = blockIdx.x * blockDim.x + threadIdx.x;
-	if(src < m) {
-		int row_begin = row_offsets[src];
-		int row_end = row_offsets[src+1];
-		int degree = row_end - row_begin;
-		ScoreT value = scores[src] / (ScoreT)degree;
+	if(src < g.V()) {
+		auto row_begin = g.edge_begin(src);
+		auto row_end = g.edge_end(src);
+		score_t value = scores[src] / score_t(g.get_degree(src));
 		for (int offset = row_begin; offset < row_end; ++ offset) {
-			int dst = column_indices[offset];
+			int dst = g.getEdgeDst(offset);
 			atomicAdd(&sums[dst], value);
 		}
 	}
 }
 
-__device__ __forceinline__ void expandByCta(int m, const IndexT *row_offsets, const IndexT *column_indices, const ScoreT *scores, ScoreT *sums, int *processed) {
+__device__ __forceinline__ void expandByCta(GraphGPU g, const score_t *scores, score_t *sums, int *processed) {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
 	__shared__ int owner;
 	__shared__ int sh_vertex;
 	owner = -1;
 	int size = 0;
-	if(id < m) {
-		size = row_offsets[id+1] - row_offsets[id];
+	if(id < g.V()) {
+		size = g.get_degree(id);
 	}
 	while(true) {
 		if(size > BLOCK_SIZE)
@@ -52,28 +46,22 @@ __device__ __forceinline__ void expandByCta(int m, const IndexT *row_offsets, co
 			size = 0;
 		}
 		__syncthreads();
-		int row_begin = row_offsets[sh_vertex];
-		int row_end = row_offsets[sh_vertex+1];
+		int row_begin = g.edge_begin(sh_vertex);
+		int row_end = g.edge_end(sh_vertex);
 		int neighbor_size = row_end - row_begin;
-		ScoreT value = scores[sh_vertex] / (ScoreT)neighbor_size;
+		score_t value = scores[sh_vertex] / (score_t)neighbor_size;
 		int num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
 		for(int i = threadIdx.x; i < num; i += blockDim.x) {
 			int edge = row_begin + i;
 			if(i < neighbor_size) {
-				int dst = column_indices[edge];
+				int dst = g.getEdgeDst(edge);
 				atomicAdd(&sums[dst], value);
 			}
 		}
 	}
 }
 
-__device__ __forceinline__ unsigned LaneId() {
-	unsigned ret;
-	asm("mov.u32 %0, %laneid;" : "=r"(ret));
-	return ret;
-}
-
-__device__ __forceinline__ void expandByWarp(int m, const int *row_offsets, const int *column_indices, const ScoreT *scores, ScoreT *sums, int *processed) {
+__device__ __forceinline__ void expandByWarp(GraphGPU g, const score_t *scores, score_t *sums, int *processed) {
 	unsigned id = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned warp_id = threadIdx.x >> LOG_WARP_SIZE;
 	unsigned lane_id = LaneId();
@@ -81,8 +69,8 @@ __device__ __forceinline__ void expandByWarp(int m, const int *row_offsets, cons
 	__shared__ int sh_vertex[NUM_WARPS];
 	owner[warp_id] = -1;
 	int size = 0;
-	if(id < m && !processed[id]) {
-		size = row_offsets[id+1] - row_offsets[id];
+	if(id < g.V() && !processed[id]) {
+		size = g.get_degree(id);
 	}
 	while(__any_sync(0xFFFFFFFF, size) >= WARP_SIZE) {
 		if(size >= WARP_SIZE)
@@ -94,31 +82,31 @@ __device__ __forceinline__ void expandByWarp(int m, const int *row_offsets, cons
 			size = 0;
 		}
 		int winner = sh_vertex[warp_id];
-		int row_begin = row_offsets[winner];
-		int row_end = row_offsets[winner+1];
+		int row_begin = g.edge_begin(winner);
+		int row_end = g.edge_end(winner);
 		int neighbor_size = row_end - row_begin;
-		ScoreT value = scores[winner] / (ScoreT)neighbor_size;
+		score_t value = scores[winner] / (score_t)neighbor_size;
 		int num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
 		for(int i = lane_id; i < num; i+= WARP_SIZE) {
 			int edge = row_begin + i;
 			if(i < neighbor_size) {
-				int dst = column_indices[edge];
+				int dst = g.getEdgeDst(edge);
 				atomicAdd(&sums[dst], value);
 			}
 		}
 	}
 }
 
-__global__ void push_lb(int m, IndexT *row_offsets, IndexT *column_indices, ScoreT *scores, ScoreT *sums, int *processed) {
-	expandByCta(m, row_offsets, column_indices, scores, sums, processed);
-	expandByWarp(m, row_offsets, column_indices, scores, sums, processed);
+__global__ void push_lb(GraphGPU g, score_t *scores, score_t *sums, int *processed) {
+	expandByCta(g, scores, sums, processed);
+	expandByWarp(g, scores, sums, processed);
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	int tx = threadIdx.x;
 	int src = tid;
 	__shared__ BlockScan::TempStorage temp_storage;
 	__shared__ int gather_offsets[BLOCK_SIZE];
 	__shared__ int src_idx[BLOCK_SIZE];
-	__shared__ ScoreT values[BLOCK_SIZE];
+	__shared__ score_t values[BLOCK_SIZE];
 	gather_offsets[tx] = 0;
 	src_idx[tx] = 0;
 	values[tx] = 0;
@@ -128,10 +116,10 @@ __global__ void push_lb(int m, IndexT *row_offsets, IndexT *column_indices, Scor
 	int neighbor_offset = 0;
 	int scratch_offset = 0;
 	int total_edges = 0;
-	if (tid < m && !processed[tid]) {
-		neighbor_offset = row_offsets[tid];
-		neighbor_size = row_offsets[tid+1] - neighbor_offset;
-		values[tx] = scores[src] / (ScoreT)neighbor_size;
+	if (tid < g.V() && !processed[tid]) {
+		neighbor_offset = g.edge_begin(tid);
+		neighbor_size = g.get_degree(tid);
+		values[tx] = scores[src] / (score_t)neighbor_size;
 	}
 	BlockScan(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
 	
@@ -150,7 +138,7 @@ __global__ void push_lb(int m, IndexT *row_offsets, IndexT *column_indices, Scor
 		__syncthreads();
 		if(tx < total_edges) {
 			int edge = gather_offsets[tx];
-			int dst = column_indices[edge];
+			int dst = g.getEdgeDst(edge);
 			atomicAdd(&sums[dst], values[src_idx[tx]]);
 		}
 		total_edges -= BLOCK_SIZE;
@@ -158,42 +146,42 @@ __global__ void push_lb(int m, IndexT *row_offsets, IndexT *column_indices, Scor
 	}
 }
 
-__global__ void l1norm(int m, ScoreT *scores, ScoreT *sums, float *diff, ScoreT base_score) {
-	int u = blockIdx.x * blockDim.x + threadIdx.x;
-	__shared__ typename BlockReduce::TempStorage temp_storage;
-	float local_diff = 0;
-	if(u < m) {
-		ScoreT new_score = base_score + kDamp * sums[u];
-		local_diff += fabs(new_score - scores[u]);
-		scores[u] = new_score;
-		sums[u] = 0;
-	}
-	float block_sum = BlockReduce(temp_storage).Sum(local_diff);
-	if(threadIdx.x == 0) atomicAdd(diff, block_sum);
-}
+void PRSolver(Graph &g, score_t *h_scores) {
+  size_t memsize = print_device_info(0);
+  auto nv = g.num_vertices();
+  auto ne = g.num_edges();
+  auto md = g.get_max_degree();
+  size_t mem_graph = size_t(nv+1)*sizeof(eidType) + size_t(2)*size_t(ne)*sizeof(vidType);
+  std::cout << "GPU_total_mem = " << memsize << " graph_mem = " << mem_graph << "\n";
 
-void PRSolver(int m, int nnz, int *in_row_offsets, int *in_column_indices, int *h_row_offsets, int *h_column_indices, int *h_degrees, ScoreT *h_scores) {
-	int *d_row_offsets, *d_column_indices;
-	CUDA_SAFE_CALL(cudaMalloc((void **)&d_row_offsets, (m + 1) * sizeof(int)));
-	CUDA_SAFE_CALL(cudaMalloc((void **)&d_column_indices, nnz * sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpy(d_row_offsets, h_row_offsets, (m + 1) * sizeof(int), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(d_column_indices, h_column_indices, nnz * sizeof(int), cudaMemcpyHostToDevice));
-	ScoreT *d_scores;
-	CUDA_SAFE_CALL(cudaMalloc((void **)&d_scores, m * sizeof(ScoreT)));
-	CUDA_SAFE_CALL(cudaMemcpy(d_scores, h_scores, m * sizeof(ScoreT), cudaMemcpyHostToDevice));
-	ScoreT *d_sums;
-	CUDA_SAFE_CALL(cudaMalloc((void **)&d_sums, m * sizeof(ScoreT)));
+  GraphGPU gg(g);
+  size_t nthreads = BLOCK_SIZE;
+  size_t nblocks = (nv-1)/nthreads+1;
+  assert(nblocks < 65536);
+  cudaDeviceProp deviceProp;
+  CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
+  int max_blocks_per_SM = maximum_residency(push_base, nthreads, 0);
+  std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
+  //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
+  //nblocks = std::min(max_blocks, nblocks);
+  std::cout << "CUDA PageRank (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
+
+	score_t *d_scores;
+	CUDA_SAFE_CALL(cudaMalloc((void **)&d_scores, nv * sizeof(score_t)));
+	CUDA_SAFE_CALL(cudaMemcpy(d_scores, h_scores, nv * sizeof(score_t), cudaMemcpyHostToDevice));
+	score_t *d_sums;
+	CUDA_SAFE_CALL(cudaMalloc((void **)&d_sums, nv * sizeof(score_t)));
 	float *d_diff, h_diff;
 	CUDA_SAFE_CALL(cudaMalloc((void **)&d_diff, sizeof(float)));
+
+#ifdef ENABLE_LB
 	int *d_processed;
-	CUDA_SAFE_CALL(cudaMalloc((void **)&d_processed, m * sizeof(int)));
+	CUDA_SAFE_CALL(cudaMalloc((void **)&d_processed, nv * sizeof(int)));
+#endif
 
 	int iter = 0;
-	const ScoreT base_score = (1.0f - kDamp) / m;
-	int nthreads = BLOCK_SIZE;
-	int nblocks = (m - 1) / nthreads + 1;
-	initialize <<<nblocks, nthreads>>> (m, d_sums);
-	CudaTest("init failed");
+	const score_t base_score = (1.0f - kDamp) / nv;
+	initialize <<<nblocks, nthreads>>> (nv, d_sums);
 	printf("Launching CUDA PR solver (%d CTAs, %d threads/CTA) ...\n", nblocks, nthreads);
 
 	Timer t;
@@ -202,31 +190,28 @@ void PRSolver(int m, int nnz, int *in_row_offsets, int *in_column_indices, int *
 		++ iter;
 		h_diff = 0;
 		CUDA_SAFE_CALL(cudaMemcpy(d_diff, &h_diff, sizeof(float), cudaMemcpyHostToDevice));
-		CUDA_SAFE_CALL(cudaMemset(d_processed, 0, m * sizeof(int)));
 #ifdef ENABLE_LB
-		push_lb <<<nblocks, nthreads>>> (m, d_row_offsets, d_column_indices, d_scores, d_sums, d_processed);
+		CUDA_SAFE_CALL(cudaMemset(d_processed, 0, nv * sizeof(int)));
+		push_lb<<<nblocks, nthreads>>>(gg, d_scores, d_sums, d_processed);
 #else
-		push_base <<<nblocks, nthreads>>> (m, d_row_offsets, d_column_indices, d_scores, d_sums, d_processed);
+		push_base<<<nblocks, nthreads>>>(gg, d_scores, d_sums);
 #endif
-		CudaTest("solving kernel push failed");
-		l1norm <<<nblocks, nthreads>>> (m, d_scores, d_sums, d_diff, base_score);
-		CudaTest("solving kernel reduce failed");
+		l1norm <<<nblocks, nthreads>>> (nv, d_scores, d_sums, d_diff, base_score);
 		CUDA_SAFE_CALL(cudaMemcpy(&h_diff, d_diff, sizeof(float), cudaMemcpyDeviceToHost));
-		//printf("iteration=%d, diff=%f\n", iter, h_diff);
 		printf(" %2d    %lf\n", iter, h_diff);
-		//CUDA_SAFE_CALL(cudaMemcpy(h_scores, d_scores, m * sizeof(ScoreT), cudaMemcpyDeviceToHost));
 	} while (h_diff > EPSILON && iter < MAX_ITER);
 	CUDA_SAFE_CALL(cudaDeviceSynchronize());
 	t.Stop();
 
-	printf("\titerations = %d.\n", iter);
-	printf("\truntime [%s] = %f ms.\n", PR_VARIANT, t.Millisecs());
-	CUDA_SAFE_CALL(cudaMemcpy(h_scores, d_scores, m * sizeof(ScoreT), cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaFree(d_row_offsets));
-	CUDA_SAFE_CALL(cudaFree(d_column_indices));
+  std::cout << "iterations = " << iter << ".\n";
+  std::cout << "runtime [gpu_push_base] = " << t.Seconds() << " sec\n";
+  std::cout << "throughput = " << double(ne) / t.Seconds() / 1e9 << " billion Traversed Edges Per Second (TEPS)\n";
+	CUDA_SAFE_CALL(cudaMemcpy(h_scores, d_scores, nv * sizeof(score_t), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaFree(d_scores));
 	CUDA_SAFE_CALL(cudaFree(d_sums));
-	CUDA_SAFE_CALL(cudaFree(d_processed));
 	CUDA_SAFE_CALL(cudaFree(d_diff));
+#ifdef ENABLE_LB
+	CUDA_SAFE_CALL(cudaFree(d_processed));
+#endif
 	return;
 }

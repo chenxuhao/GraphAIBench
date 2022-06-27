@@ -40,6 +40,7 @@ void PRSolver(Graph &g, score_t *scores) {
   t.Stop();
   std::cout << "iterations = " << iter+1 << ".\n";
   std::cout << "runtime [omp_pull_base] = " << t.Seconds() << " sec\n";
+  std::cout << "throughput = " << double(g.E()) / t.Seconds() / 1e9 << " billion Traversed Edges Per Second (TEPS)\n";
   return;
 }
 

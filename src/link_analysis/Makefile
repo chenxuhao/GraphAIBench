@@ -1,7 +1,7 @@
 include ../common.mk
 SRC=main.cu
 OBJS += verifier.o
-all: $(OBJS) pr_omp_base pr_gpu_base pr_gpu_warp
+all: $(OBJS) pr_omp_base pr_omp_push pr_gpu_base pr_gpu_warp pr_gpu_push
 
 %.o: %.cpp
 	$(ICPC) $(ICPCFLAGS) $(INCLUDES) -c $<
@@ -20,12 +20,16 @@ pr_gpu_warp: gpu_warp.o $(OBJS)
 	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_warp.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
+pr_gpu_push: gpu_push.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_push.o -o $@ $(LIBS)
+	mv $@ $(BIN)
+
 pr_omp_base: omp_base.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) omp_base.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
-pr_omp_push: omp_push.o main.o verifier.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) main.o omp_push.o verifier.o -o $@ -lgomp
+pr_omp_push: omp_push.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) omp_push.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
 pr_pb: pb.o main.o verifier.o
@@ -50,10 +54,6 @@ pr_omp_sim: omp_sim.o main.o verifier.o
 
 pr_omp_target: main.o omp_target.o verifier.o
 	$(ICPC) $(CXXFLAGS) $(INCLUDES) $(EXTRA) main.o omp_target.o verifier.o -o $@ $(LIBS)
-	mv $@ $(BIN)
-
-pr_push: main.o push.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o push.o verifier.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 pr_push_pb: main.o push_pb.o verifier.o
