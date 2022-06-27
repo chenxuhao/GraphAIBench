@@ -103,7 +103,7 @@ void BFSSolver(Graph &g, int source, vidType *dist) {
 	{
 	num_threads = omp_get_num_threads();
 	}
-	printf("Launching OpenMP BFS solver (%d threads) ...\n", num_threads);
+  std::cout << "OpenMP Breadth-first Search (" << num_threads << "threads\n";
 
 	int alpha = 15, beta = 18;
   std::vector<vidType> degrees(m, 0);

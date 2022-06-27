@@ -1,7 +1,7 @@
 include ../common.mk
 SRC=main.cu
 OBJS += verifier.o
-all: $(OBJS) pr_omp_base
+all: $(OBJS) pr_omp_base pr_gpu_base pr_gpu_warp
 
 %.o: %.cpp
 	$(ICPC) $(ICPCFLAGS) $(INCLUDES) -c $<
@@ -12,8 +12,12 @@ all: $(OBJS) pr_omp_base
 %.o: %.cu
 	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
 
-pr_ocl_base: ocl_base.o main.o verifier.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) main.o ocl_base.o verifier.o -o $@ -lOpenCL
+pr_gpu_base: gpu_base.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
+	mv $@ $(BIN)
+
+pr_gpu_warp: gpu_warp.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_warp.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 pr_omp_base: omp_base.o $(OBJS)
@@ -54,14 +58,6 @@ pr_push: main.o push.o verifier.o
 
 pr_push_pb: main.o push_pb.o verifier.o
 	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o push_pb.o verifier.o -o $@ $(LIBS)
-	mv $@ $(BIN)
-
-pr_base: main.o base.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o base.o verifier.o -o $@ $(LIBS)
-	mv $@ $(BIN)
-
-pr_warp: main.o warp.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o warp.o verifier.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 pr_vector: main.o vector.o verifier.o

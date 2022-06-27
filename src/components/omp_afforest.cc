@@ -20,7 +20,7 @@ void CCSolver(Graph &g, vidType *comp) {
 	{
 	num_threads = omp_get_num_threads();
 	}
-	printf("Launching OpenMP CC solver (%d threads) ...\n", num_threads);
+  std::cout << "OpenMP Connected Components (" << num_threads << "threads\n";
 
 	// Initialize each node to a single-node self-pointing tree
 	#pragma omp parallel for
