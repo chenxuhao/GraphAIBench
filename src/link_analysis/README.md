@@ -33,6 +33,8 @@ The graph loading infrastructure understands the following formats:
 
 Example graphs are in inputs/citeseer and inputs/mico
 
+More datasets are available [here](https://www.dropbox.com/sh/i1jq1uwtkcd2qo0/AADJck_u3kx7FeSR5BvdrkqYa?dl=0).
+
 BUILD
 --------------------------------------------------------------------------------
 
