@@ -44,9 +44,11 @@ BUILD
 
 The following binaries will be generated in ../../bin/
 
-  - pr_omp_base : one thread per vertex using OpenMP
-  - pr_gpu_base : one thread per vertex using CUDA
-  - pr_gpu_warp : one warp per vertex using CUDA
+  - pr_omp_base : pull style PageRank with one thread per vertex using OpenMP
+  - pr_omp_push : push style PageRank with one thread per vertex using OpenMP
+  - pr_gpu_base : pull style PageRank with one thread per vertex using CUDA
+  - pr_gpu_warp : pull style PageRank with one warp per vertex using CUDA
+  - pr_gpu_push : push style PageRank with one thread per vertex using CUDA
 
 RUN
 --------------------------------------------------------------------------------
