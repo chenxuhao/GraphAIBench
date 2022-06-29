@@ -35,12 +35,8 @@ score_t lambda = 0.001;     // regularization_factor
 score_t step = 0.00000035;  // learning rate in the algorithm
 int max_iters = 5;          // maximum number of iterations
 
-void SGDSolver(BipartiteGraph &g, score_t *ratings, 
-               latent_t *user_lv, latent_t *item_lv, int *ordering);
-void SGDVerifier(BipartiteGraph &g, score_t *ratings, 
-                 latent_t *user_lv, latent_t *item_lv, int *ordering);
-
-#define COMPUTE_ERROR
+void SGDSolver(BipartiteGraph &g, latent_t *latents, int *ordering);
+void SGDVerifier(BipartiteGraph &g, latent_t *latents, int *ordering);
 
 void Initialize(std::vector<latent_t> lv) {
   std::default_random_engine rng;
@@ -48,25 +44,6 @@ void Initialize(std::vector<latent_t> lv) {
   for (size_t i = 0; i < lv.size(); ++i) {
     lv[i] = dist(rng);
   }
-}
-
-// calculate RMSE
-inline score_t rmse(int nv, int ne, score_t *errors) {
-	score_t total_error = 0.0;
-	for(int i = 0; i < nv; i ++)
-		total_error += errors[i];
-	total_error = sqrt(total_error/ne);
-	return total_error;
-}
-
-inline score_t rmse_par(int nv, int ne, score_t *errors) {
-  score_t total_error = 0.0;
-  #pragma omp parallel for reduction(+ : total_error)
-  for(int i = 0; i < nv; i ++) {
-    total_error += errors[i];
-  }
-  total_error = sqrt(total_error/ne);
-  return total_error;
 }
 
 int main(int argc, char *argv[]) {
@@ -79,24 +56,19 @@ int main(int argc, char *argv[]) {
   if (argc > 4) max_iters = atof(argv[4]);
   if (argc > 5) cf_epsilon = atof(argv[5]);
   //if (argc > 6) K = atoi(argv[6]);
-  BipartiteGraph g(argv[1]);
+  BipartiteGraph g(argv[1], 0, 1, 0, 1, 0, 1); // no-dag; directed; no-vlabel; elabel; no-reverse; bipartite
+  auto nv = g.V();
   auto num_users = g.V(0);
-  auto num_items = g.V(1);
+  g.print_meta_data();
 
-  std::vector<latent_t> user_lv(size_t(num_users) * K);
-  std::vector<latent_t> item_lv(size_t(num_items) * K);
-  std::vector<latent_t> lv_u(size_t(num_users) * K);
-  std::vector<latent_t> lv_i(size_t(num_items) * K);
-  std::vector<score_t> ratings(g.E());
-  Initialize(lv_u);
-  Initialize(lv_i);
-  for (size_t i = 0; i < lv_u.size(); i++) user_lv[i] = lv_u[i];
-  for (size_t i = 0; i < lv_i.size(); i++) item_lv[i] = lv_i[i];
+  std::vector<latent_t> latents_init(size_t(nv) * K);
+  Initialize(latents_init);
+  std::vector<latent_t> latents = latents_init;
   std::vector<int> ordering(num_users, 0);
   std::cout << "Shuffling users...\n";
-  for (int i = 0; i < num_users; i ++) ordering[i] = i;
+  for (vidType i = 0; i < num_users; i ++) ordering[i] = i;
   std::random_shuffle(ordering.begin(), ordering.end());
-  SGDSolver(g, &ratings[0], &user_lv[0], &item_lv[0], &ordering[0]);
-  SGDVerifier(g, &ratings[0], &lv_u[0], &lv_i[0], &ordering[0]);
+  SGDSolver(g, &latents[0], &ordering[0]);
+  SGDVerifier(g, &latents_init[0], &ordering[0]);
   return 0;
 }

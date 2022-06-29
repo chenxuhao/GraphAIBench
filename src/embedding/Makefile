@@ -1,6 +1,11 @@
 include ../common.mk
 OBJS += verifier.o
 
+ifneq ($(SHOW_ERROR),0)
+NVFLAGS += -DCOMPUTE_ERROR
+CXXFLAGS += -DCOMPUTE_ERROR
+endif
+
 all: $(OBJS) cf_omp_base cf_gpu_base cf_gpu_vector
 
 %.o: %.cpp
