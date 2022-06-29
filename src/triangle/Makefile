@@ -1,5 +1,4 @@
 include ../common.mk
-#INCLUDES+=-I$(CUB_DIR)
 INCLUDES+=-I./gpu_kernels
 all: tc_omp_base tc_gpu_base tc_multigpu 
 
