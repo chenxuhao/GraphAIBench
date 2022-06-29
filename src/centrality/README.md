@@ -20,9 +20,9 @@ propagation phase.
 	International Symposium on Parallel & Distributed Processing (IPDPS), 2009.
 
 ```
-bc_omp: OpenMP implementation, one thread per vertex
-bc_topo_base: topology-driven GPU implementation, one thread per vertex using CUDA
-bc_topo_lb: topology-driven GPU implementation, one thread per edge using CUDA
-bc_linear_base: data-driven GPU implementation, one thread per vertex using CUDA
-bc_linear_lb: data-driven GPU implementation, one thread per edge using CUDA
+bc_omp_base: OpenMP implementation, one thread per vertex
+bc_topo_base: topology-driven GPU implementation, one thread per vertex
+bc_topo_twc: topology-driven GPU implementation, one thread per edge using TWC load balancing
+bc_gpu_base: data-driven GPU implementation, one thread per vertex
+bc_gpu_twc: data-driven GPU implementation, one thread per edge using TWC load balancing
 ```
