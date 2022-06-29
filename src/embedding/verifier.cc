@@ -1,23 +1,17 @@
-// Copyright 2016, National University of Defense Technology
-// Authors: Xuhao Chen <cxh@illinois.edu>
-#include "sgd.h"
-#include "timer.h"
+// Copyright 2022 MIT
+// Authors: Xuhao Chen <cxh@mit.edu>
+#include "graph.h"
 
-// calculate RMSE
-inline ScoreT rmse(int m, int nnz, ScoreT *errors) {
-	ScoreT total_error = 0.0;
-	for(int i = 0; i < m; i ++)
-		total_error += errors[i];
-	total_error = sqrt(total_error/nnz);
-	return total_error;
-}
+inline score_t rmse(int nv, int ne, score_t *errors);
 
-void SGDVerifier(int m, int n, int nnz, int *row_offsets, int *column_indices, ScoreT *rating, LatentT *user_lv, LatentT *item_lv, int *ordering) {
-	printf("Verifying...\n");
+void SGDVerifier(BipartiteGraph &g, score_t *ratings, latent_t *user_lv, latent_t *item_lv, int *ordering) {
+	std::cout << "Verifying...\n";
 #ifdef COMPUTE_ERROR
-	ScoreT *squared_errors = (ScoreT *)malloc(m * sizeof(ScoreT));
-	ScoreT total_error = 0.0;
+	score_t *squared_errors = (score_t *)malloc(m * sizeof(score_t));
+	score_t total_error = 0.0;
 #endif
+  auto num_users = g.V(0);
+  //auto num_items = g.V(1);
 
 	int iter = 0;
 	Timer t;
@@ -25,36 +19,34 @@ void SGDVerifier(int m, int n, int nnz, int *row_offsets, int *column_indices, S
 	do {
 		iter ++;
 #ifdef COMPUTE_ERROR
-		for (int i = 0; i < m; i ++) squared_errors[i] = 0;
+		for (int i = 0; i < num_users; i ++) squared_errors[i] = 0;
 #endif
 
-		for(int i = 0; i < m; i ++) {
+		for(int i = 0; i < num_users; i ++) {
 			//int src = ordering[i];
 			int src = i;
-			int row_begin = row_offsets[src];
-			int row_end = row_offsets[src+1]; 
-			for (int offset = row_begin; offset < row_end; ++ offset) {
-				int dst = column_indices[offset];
-				ScoreT estimate = 0;
+      auto offset = g.edge_begin(src);
+			for (auto dst : g.N(src)) {
+				score_t estimate = 0;
 				for (int i = 0; i < K; i++) {
 					estimate += user_lv[src*K+i] * item_lv[dst*K+i];
 				}
-				ScoreT delta = rating[offset] - estimate;
+				score_t delta = ratings[offset++] - estimate;
 #ifdef COMPUTE_ERROR
 				squared_errors[src] += delta * delta;
 #endif
 				for (int i = 0; i < K; i++) {
-					LatentT p_s = user_lv[src*K+i];
-					LatentT p_d = item_lv[dst*K+i];
+					auto p_s = user_lv[src*K+i];
+					auto p_d = item_lv[dst*K+i];
 					user_lv[src*K+i] += step * (-lambda * p_s + p_d * delta);
 					item_lv[dst*K+i] += step * (-lambda * p_d + p_s * delta);
 				}
 			}
 		}
 #ifdef COMPUTE_ERROR
-		total_error = rmse(m, nnz, squared_errors);
+		total_error = rmse(g.V(), g.E(), squared_errors);
 		printf("Iteration %d: RMSE error = %f\n", iter, total_error);
-		if (total_error < epsilon) break;
+		if (total_error < cf_epsilon) break;
 #endif
 	} while (iter < max_iters);
 	t.Stop();
@@ -65,3 +57,4 @@ void SGDVerifier(int m, int n, int nnz, int *row_offsets, int *column_indices, S
 #endif
 	return;
 }
+

@@ -1,30 +1,27 @@
 include ../common.mk
-INCLUDES+=-I$(CUB_DIR)
-SRC=main.cc
-OBJS=base.o vector.o omp_base.o main.o verifier.o
-CXXFLAGS+=-std=c++11
+OBJS += verifier.o
 
-all: $(OBJS) sgd_base sgd_omp_base sgd_vector
+all: $(OBJS) cf_omp_base cf_gpu_base cf_gpu_vector
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
 
-%.o: %.cc sgd.h
-	$(CXX) $(CXXFLAGS) $(PARFLAG) $(INCLUDES) -c $<
+%.o: %.cc
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
 
-%.o: %.cu sgd.h
+%.o: %.cu
 	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
 
-sgd_base: base.o main.o verifier.o sgd.h
-	$(NVCC) $(NVFLAGS) $(INCLUDES) main.o base.o verifier.o -o $@ $(LIBS)
+cf_gpu_base: gpu_base.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) gpu_base.o $(OBJS) -o $@ $(LIBS) 
 	mv $@ $(BIN)
 
-sgd_vector: vector.o main.o verifier.o sgd.h
-	$(NVCC) $(NVFLAGS) $(INCLUDES) main.o vector.o verifier.o -o $@ $(LIBS)
+cf_gpu_vector: gpu_vector.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) gpu_vector.o $(OBJS) -o $@ $(LIBS) -lgomp
 	mv $@ $(BIN)
 
-sgd_omp_base: omp_base.o main.o verifier.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) main.o omp_base.o verifier.o -o $@ -lgomp
+cf_omp_base: omp_base.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) omp_base.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
 clean:

@@ -15,4 +15,4 @@ They are know as [vertex programs](https://shawnliu.me/post/vertex-centric-graph
 
 (7) Graph filtering: Triangulated Maximally Filtered Graph (TMFG), Minimum Spanning Tree (MST), Planar Maximally Filtered Graph (PMFG).
 
-(7) Streaming/dynamic graphs: vertex/edge insertion/deletion, B-tree, C-tree, Packed Memory Array (PMA).
+(8) Streaming/dynamic graphs: vertex/edge insertion/deletion, B-tree, C-tree, Packed Memory Array (PMA).

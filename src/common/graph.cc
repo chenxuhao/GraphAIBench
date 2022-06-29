@@ -2,8 +2,9 @@
 #include "scan.h"
 
 Graph::Graph(std::string prefix, bool use_dag, bool directed, 
-             bool use_vlabel, bool use_elabel, bool need_reverse) :
-    is_directed_(directed), max_degree(0), n_vertices(0), n_edges(0), 
+             bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
+    is_directed_(directed), is_bipartite(bipartite), 
+    max_degree(0), n_vertices(0), n_edges(0), 
     nnz(0), max_label_frequency_(0), max_label(0),
     feat_len(0), num_vertex_classes(0), num_edge_classes(0), 
     edges(NULL), vertices(NULL), vlabels(NULL), elabels(NULL), 
@@ -20,12 +21,16 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
   std::ifstream f_meta((prefix + ".meta.txt").c_str());
   assert(f_meta);
   int vid_size = 0, eid_size = 0, vlabel_size = 0, elabel_size = 0;
-  f_meta >> n_vertices >> n_edges >> vid_size >> eid_size >> vlabel_size >> elabel_size
+  if (bipartite) {
+    f_meta >> n_vert0 >> n_vert1;
+    n_vertices = n_vert0 + n_vert1;
+  } else f_meta >> n_vertices;
+  f_meta >> n_edges >> vid_size >> eid_size >> vlabel_size >> elabel_size
          >> max_degree >> feat_len >> num_vertex_classes >> num_edge_classes;
   assert(sizeof(vidType) == vid_size);
   assert(sizeof(eidType) == eid_size);
   assert(sizeof(vlabel_t) == vlabel_size);
-  assert(sizeof(elabel_t) == elabel_size);
+  //assert(sizeof(elabel_t) == elabel_size);
   assert(max_degree > 0 && max_degree < n_vertices);
   f_meta.close();
   // read row pointers
