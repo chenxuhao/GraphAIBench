@@ -1,12 +1,6 @@
 include ../common.mk
-#OBJS=omp_base.o linear_base.o linear_lb.o topo_base.o topo_lb.o main.o verifier.o
 OBJS+=verifier.o
-
-#all: $(OBJS) bc_linear_base bc_linear_lb bc_topo_base bc_topo_lb bc_omp_base
-all: $(OBJS) bc_omp_base 
-
-%.o: %.cpp
-	$(ICPC) $(ICPCFLAGS) $(INCLUDES) -c $<
+all: bc_omp_base bc_gpu_base bc_gpu_twc
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
@@ -14,56 +8,28 @@ all: $(OBJS) bc_omp_base
 %.o: %.cu
 	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
 
-bc_ocl_base: ocl_base.o main.o verifier.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) main.o ocl_base.o verifier.o -o $@ -lOpenCL
-	mv $@ $(BIN)
-
 bc_omp_base: omp_base.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) omp_base.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
-bc_omp_target: main.o omp_target.o verifier.o
-	$(ICPC) $(ICPCFLAGS) $(INCLUDES) $(EXTRA) main.o omp_target.o verifier.o -o $@ $(LIBS)
-	mv $@ $(BIN)
-
-bc_omp_base_sim: omp_base.o main.o verifier.o
-	$(CXX) $(SIMFLAGS) $(INCLUDES) main.o omp_base.o verifier.o $(M5OP) -o $@ -lgomp
-	mv $@ $(BIN)
-
-bc_linear_base: linear_base.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o linear_base.o verifier.o -o $@ $(LIBS)
+# data driven baseline
+bc_gpu_base: gpu_base.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
 	mv $@  $(BIN)
 
-bc_linear_lb: linear_lb.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o linear_lb.o verifier.o -o $@ $(LIBS)
+# TWC load balancing
+bc_gpu_twc: gpu_twc.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_twc.o -o $@ $(LIBS)
 	mv $@  $(BIN)
 
-bc_linear_pb: linear_pb.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o linear_pb.o verifier.o -o $@ $(LIBS)
+# topology driven baseline
+bc_topo_base: topo_base.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) topo_base.o -o $@ $(LIBS)
 	mv $@  $(BIN)
 
-bc_topo_base: topo_base.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o topo_base.o verifier.o -o $@ $(LIBS)
-	mv $@  $(BIN)
-
-bc_topo_lb: topo_lb.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o topo_lb.o verifier.o -o $@ $(LIBS)
-	mv $@  $(BIN)
-
-bc_topo_pb: topo_pb.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o topo_pb.o verifier.o -o $@ $(LIBS)
-	mv $@  $(BIN)
-
-bc_hybrid_base: hybrid_base.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o hybrid_base.o verifier.o -o $@ $(LIBS)
-	mv $@  $(BIN)
-
-bc_hybrid_lb: hybrid_lb.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o hybrid_lb.o verifier.o -o $@ $(LIBS)
-	mv $@  $(BIN)
-
-bc_hybrid_tile: hybrid_tile.o main.o verifier.o
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(EXTRA) main.o hybrid_tile.o verifier.o -o $@ $(LIBS)
+# topology driven + TWC load balancing
+bc_topo_twc: topo_twc.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) topo_twc.o -o $@ $(LIBS)
 	mv $@  $(BIN)
 
 clean:
