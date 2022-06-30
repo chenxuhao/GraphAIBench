@@ -206,3 +206,4 @@ void BFSSolver(Graph &g, int source, vidType *h_depths) {
   return;
 }
 
+void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta) {}

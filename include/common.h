@@ -33,8 +33,9 @@ typedef uint8_t patid_t;   // pattern id type
 typedef uint8_t mask_t;    // mask type
 typedef uint8_t label_t;   // label type
 typedef uint8_t vlabel_t;  // vertex label type
+typedef int32_t elabel_t;  // edge label type
 //typedef uint16_t elabel_t; // edge label type
-typedef float   elabel_t;  // edge label type
+//typedef float   elabel_t;  // edge label type
 typedef uint8_t cmap_vt;   // cmap value type
 typedef int32_t vidType;   // vertex ID type
 typedef int64_t eidType;   // edge ID type
@@ -71,7 +72,10 @@ typedef std::unordered_map<vlabel_t, int> nlf_map;
 const float kDamp = 0.85;
 const float epsilon = 0.0000001;
 const float epsilon2 = 0.001;
+
+// BFS & SSSP parameters
 #define MYINFINITY	1000000000
+#define kDistInf UINT_MAX/2
 
 // CF parameters
 const int K = 20;        // dimension of the latent vector (number of features)
