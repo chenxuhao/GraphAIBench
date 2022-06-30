@@ -16,7 +16,7 @@ protected:
   std::string inputfile_path;   // file path of the graph
   bool is_directed_;            // is it a directed graph?
   bool is_bipartite;            // is it a bipartite graph?
-  bool has_reverse;             // has reverse edges
+  bool has_reverse;             // has reverse/incoming edges maintained
   vidType max_degree;           // maximun degree
   vidType n_vertices;           // number of vertices
   eidType n_edges;              // number of edges
@@ -82,6 +82,8 @@ public:
   VertexSet N(vidType v) const;              // get the neighbor list of vertex v
   eidType* out_rowptr() { return vertices; } // get row pointers array
   vidType* out_colidx() { return edges; }    // get column indices array
+  eidType* in_rowptr() { return reverse_vertices; } // get incoming row pointers array
+  vidType* in_colidx() { return reverse_edges; }    // get incoming column indices array
   bool is_connected(vidType v, vidType u) const; // is vertex v and u connected by an edge
   bool is_connected(std::vector<vidType> sg) const; // is the subgraph sg a connected one
   VertexSet out_neigh(vidType v, vidType off = 0) const; // get the outgoing neighbor list of vertex v

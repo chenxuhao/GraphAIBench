@@ -47,6 +47,10 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
       std::cout << "This graph maintains both incomming and outgoing edge-list\n";
       has_reverse = true;
     }
+  } else {
+    has_reverse = true;
+    reverse_vertices = vertices;
+    reverse_edges = edges;
   }
 
   // read vertex labels
@@ -85,7 +89,13 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
       std::set<elabel_t> labels;
       for (eidType e = 0; e < n_edges; e++)
         labels.insert(elabels[e]);
+      //for (int i = 0; i < n_edges; i++) {
+      //  if (elabels[i] > 5 || elabels[i] < 1)
+      //    std::cout << "elabels[" << i << "]=" << elabels[i] << "\n";
+      //}
+      //for (int i = 0; i < 10; i++) std::cout << elabels[i] << "\n";
       std::cout << "# distinct edge labels: " << labels.size() << "\n";
+      //for (auto l : labels) std::cout << l << "\n";
       assert(size_t(num_edge_classes) >= labels.size());
     } else {
       std::cout << "WARNING: edge label file not exist; generating random labels\n";

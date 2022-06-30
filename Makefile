@@ -1,4 +1,4 @@
-KERNELS = centrality components link_analysis gnn triangle traversal
+KERNELS = centrality components embedding link_analysis gnn sampling triangle traversal
 
 .PHONY: all
 all: $(KERNELS)
@@ -9,3 +9,4 @@ all: $(KERNELS)
 .PHONY: clean
 clean:
 	rm src/*/*.o
+	rm src/gnn/obj/*.o

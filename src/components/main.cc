@@ -13,10 +13,12 @@ int main(int argc, char *argv[]) {
     std::cout << "Example: " << argv[0] << " ../inputs/mico/graph\n";
     exit(1);
   }
-  Graph g(argv[1], 0 , 1, 0, 0, 1);
+  Graph g(argv[1], 0, 0, 0, 0, 1);
   g.print_meta_data();
 
   std::vector<vidType> comp(g.V());
+  // Initialize each node to a single-node self-pointing tree
+  #pragma omp parallel for
   for (int i = 0; i < g.V(); i++) comp[i] = i;
   CCSolver(g, &comp[0]);
   CCVerifier(g, &comp[0]);

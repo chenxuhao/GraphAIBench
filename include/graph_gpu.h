@@ -6,13 +6,14 @@
 class GraphGPU {
 protected:
   bool is_directed_;                // is it a directed graph?
+  bool has_reverse;                 // has reverse/incoming edges maintained
   vidType num_vertices;             // number of vertices
   eidType num_edges;                // number of edges
   int device_id, n_gpu;             // no. of GPUs
   int num_vertex_classes;           // number of unique vertex labels
   int num_edge_classes;             // number of unique edge labels
-  eidType *d_rowptr;                // row pointers of CSR format
-  vidType *d_colidx;                // column induces of CSR format
+  eidType *d_rowptr, *d_in_rowptr;  // row pointers of CSR format
+  vidType *d_colidx, *d_in_colidx;  // column induces of CSR format
   vidType *d_src_list, *d_dst_list; // for COO format
   vlabel_t *d_vlabels;              // vertex labels
   elabel_t *d_elabels;              // edge labels
@@ -48,15 +49,23 @@ public:
   inline __device__ __host__ vidType* get_src_ptr(eidType eid) const { return d_src_list; }
   inline __device__ __host__ vidType* get_dst_ptr(eidType eid) const { return d_dst_list; }
   inline __device__ __host__ vidType* N(vidType vid) { return d_colidx + d_rowptr[vid]; }
+  inline __device__ __host__ vidType N(vidType v, eidType e) { return d_colidx[d_rowptr[v] + e]; }
   inline __device__ __host__ eidType* out_rowptr() { return d_rowptr; }
   inline __device__ __host__ vidType* out_colidx() { return d_colidx; }
+  inline __device__ __host__ eidType* in_rowptr() { return d_in_rowptr; }
+  inline __device__ __host__ vidType* in_colidx() { return d_in_colidx; }
   inline __device__ __host__ eidType getOutDegree(vidType src) { return d_rowptr[src+1] - d_rowptr[src]; }
+  inline __device__ __host__ eidType getInDegree(vidType src) { return d_in_rowptr[src+1] - d_in_rowptr[src]; }
   inline __device__ __host__ vidType get_degree(vidType src) { return vidType(d_rowptr[src+1] - d_rowptr[src]); }
-  inline __device__ __host__ vidType getDestination(vidType src, eidType edge) { return d_colidx[d_rowptr[src] + edge]; }
-  inline __device__ __host__ vidType getAbsDestination(eidType abs_edge) { return d_colidx[abs_edge]; }
   inline __device__ __host__ vidType getEdgeDst(eidType edge) { return d_colidx[edge]; }
+  inline __device__ __host__ vidType getOutEdgeDst(eidType edge) { return d_colidx[edge]; }
+  inline __device__ __host__ vidType getInEdgeDst(eidType edge) { return d_in_colidx[edge]; }
   inline __device__ __host__ eidType edge_begin(vidType src) { return d_rowptr[src]; }
   inline __device__ __host__ eidType edge_end(vidType src) { return d_rowptr[src+1]; }
+  inline __device__ __host__ eidType out_edge_begin(vidType src) { return d_rowptr[src]; }
+  inline __device__ __host__ eidType out_edge_end(vidType src) { return d_rowptr[src+1]; }
+  inline __device__ __host__ eidType in_edge_begin(vidType src) { return d_in_rowptr[src]; }
+  inline __device__ __host__ eidType in_edge_end(vidType src) { return d_in_rowptr[src+1]; }
   inline __device__ __host__ vlabel_t getData(vidType vid) { return d_vlabels[vid]; }
   inline __device__ __host__ elabel_t getEdgeData(eidType eid) { return d_elabels[eid]; }
   inline __device__ __host__ vidType getLabelsFrequency(vlabel_t label) { return d_vlabels_frequency[label]; }
@@ -107,14 +116,20 @@ public:
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_elabels, ne * sizeof(elabel_t)));
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
   }
-  void copyToDevice(vidType nv, eidType ne, eidType *h_rowptr, vidType *h_colidx,
+  void copyToDevice(vidType nv, eidType ne, eidType *h_rowptr, vidType *h_colidx, bool reverse = false,
                     label_t* h_vlabels = NULL, elabel_t* h_elabels = NULL, bool use_uva = false) {
+    auto rptr = d_rowptr;
+    auto cptr = d_colidx;
+    if (reverse) {
+      rptr = d_in_rowptr;
+      cptr = d_in_colidx;
+    }
     if (use_uva) {
-      std::copy(h_rowptr, h_rowptr+nv+1, d_rowptr);
-      std::copy(h_colidx, h_colidx+ne, d_colidx);
+      std::copy(h_rowptr, h_rowptr+nv+1, rptr);
+      std::copy(h_colidx, h_colidx+ne, cptr);
     } else {
-      CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, h_rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
-      CUDA_SAFE_CALL(cudaMemcpy(d_colidx, h_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+      CUDA_SAFE_CALL(cudaMemcpy(rptr, h_rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+      CUDA_SAFE_CALL(cudaMemcpy(cptr, h_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
       if (h_vlabels != NULL)
         CUDA_SAFE_CALL(cudaMemcpy(d_vlabels, h_vlabels, nv * sizeof(vlabel_t), cudaMemcpyHostToDevice));
       if (h_elabels != NULL)
@@ -130,8 +145,6 @@ public:
   void init(Graph &hg) {
     auto nv = hg.num_vertices();
     auto ne = hg.num_edges();
-    auto h_rowptr = hg.out_rowptr();
-    auto h_colidx = hg.out_colidx();
     size_t mem_vert = size_t(nv+1)*sizeof(eidType);
     size_t mem_edge = size_t(ne)*sizeof(vidType);
     size_t mem_graph = mem_vert + mem_edge;
@@ -142,10 +155,20 @@ public:
     allocateFrom(nv, ne, hg.has_vlabel(), hg.has_elabel(), use_uva);
     Timer t;
     t.Start();
-    copyToDevice(nv, ne, h_rowptr, h_colidx, hg.getVlabelPtr(), hg.getElabelPtr(), use_uva);
+    copyToDevice(nv, ne, hg.out_rowptr(), hg.out_colidx(), 0, hg.getVlabelPtr(), hg.getElabelPtr(), use_uva);
     if (hg.has_vlabel()) {
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_vlabels_frequency, (num_vertex_classes+1) * sizeof(vidType)));
       CUDA_SAFE_CALL(cudaMemcpy(d_vlabels_frequency, hg.get_label_freq_ptr(), (num_vertex_classes+1) * sizeof(vidType), cudaMemcpyHostToDevice));
+    }
+    if (hg.has_reverse_graph()) {
+      has_reverse = true;
+      if (hg.is_directed()) {
+        std::cout << "This graph maintains both incomming and outgoing edge-list\n";
+        copyToDevice(nv, ne, hg.in_rowptr(), hg.in_colidx(), true);
+      } else { // undirected graph
+        d_in_rowptr = d_rowptr;
+        d_in_colidx = d_colidx;
+      }
     }
     t.Stop();
     //std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";

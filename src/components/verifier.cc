@@ -105,7 +105,7 @@ void CCVerifier(Graph &g, vidType *comp_test) {
 			}
 		} 
 	}
-	printf("\truntime [serial] = %f ms.\n", t.Millisecs());
+  std::cout << "runtime [verify] = " << t.Seconds() << " seconds\n";
 
 	for (int n = 0; n < m; n ++) {
 		if (!visited[n]) {

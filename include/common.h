@@ -39,6 +39,7 @@ typedef uint8_t cmap_vt;   // cmap value type
 typedef int32_t vidType;   // vertex ID type
 typedef int64_t eidType;   // edge ID type
 typedef int32_t IndexT;
+typedef int32_t comp_t;    // component ID type for CC
 typedef uint64_t emb_index_t; // embedding index type
 typedef unsigned long long AccType;
 
@@ -73,8 +74,7 @@ const float epsilon2 = 0.001;
 #define MYINFINITY	1000000000
 
 // CF parameters
-#define K (20)           // dimension of the latent vector (number of features)
-//extern int K;            // dimension of the latent vector (number of features)
+const int K = 20;        // dimension of the latent vector (number of features)
 extern float cf_epsilon; // convergence condition
 extern score_t lambda;   // regularization_factor
 extern score_t step;     // learning rate in the algorithm

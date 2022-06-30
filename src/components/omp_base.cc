@@ -8,7 +8,7 @@ void CCSolver(Graph &g, vidType *comp) {
   {
     num_threads = omp_get_num_threads();
   }
-  std::cout << "OpenMP Connected Components (" << num_threads << "threads\n";
+  std::cout << "OpenMP Connected Components (" << num_threads << " threads)\n";
   #pragma omp parallel for
   for (int n = 0; n < g.V(); n ++) comp[n] = n;
   bool change = true;

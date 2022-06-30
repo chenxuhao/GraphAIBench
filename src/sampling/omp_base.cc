@@ -17,7 +17,7 @@ void sample(Graph &g, VertexList roots, Graph &subg) {
   int num_hops = 3;
   int sample_size[3] = {15, 10, 10};
   frontiers.resize(num_hops+1);
-  frontier[0] = roots;
+  frontiers[0] = roots;
   std::vector<size_t> frontier_size(num_hops);
   frontier_size[0] = roots.size();
   for (int i = 0; i < num_hops; i ++) {
@@ -27,16 +27,16 @@ void sample(Graph &g, VertexList roots, Graph &subg) {
   int iter = 0;
   for (; iter < num_hops; iter ++) {
     #pragma omp parallel for schedule(dynamic, 1)
-    for (size_t i = 0; i < frontier[iter].size(); i++) {
+    for (size_t i = 0; i < frontiers[iter].size(); i++) {
       auto v = frontiers[iter][i];
       auto degree = g.get_degree(v);
       for (int j = 0; j < sample_size[iter]; j++) {
         int e = rand() % degree; // randomly select a neighbor
         auto u = g.N(v, e);
-        frontier[iter+1][i*sample_size[iter]+j] = u;
+        frontiers[iter+1][i*sample_size[iter]+j] = u;
       }
     }
-    std::cout << "Iterations " << iter+1 << ": output frontier size = " << frontier[iter+1].size() << "\n";
+    std::cout << "Iterations " << iter+1 << ": output frontier size = " << frontiers[iter+1].size() << "\n";
   }
   t.Stop();
   std::cout << "iterations = " << iter+1 << ".\n";
