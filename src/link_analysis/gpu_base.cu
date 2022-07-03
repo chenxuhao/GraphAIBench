@@ -1,7 +1,6 @@
 // Copyright 2020 MIT
 // Authors: Xuhao Chen <cxh@mit.edu>
 #include "kernels.cuh"
-#include "cutil_subset.h"
 #include "cuda_launch_config.hpp"
 
 #define FUSED 0

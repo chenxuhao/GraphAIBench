@@ -1,86 +1,65 @@
 // Copyright 2022 MIT
 // Authors: Xuhao Chen <cxh@mit.edu>
 
-#include <cub/cub.cuh>
-#include "graph_gpu.h"
-#include "cutil_subset.h"
+#include "common_kernels.cuh"
 #include "cuda_launch_config.hpp"
 
-typedef cub::BlockReduce<score_t, BLOCK_SIZE> BlockReduce;
-
-__global__ void update(vidType n, GraphGPU g, latent_t *latents, 
-    score_t lambda, score_t step, int *ordering, 
-    score_t *squared_errors) {
+__global__ void compute_error(GraphGPU g, latent_t *latents, 
+                              score_t lambda, score_t step, 
+                              score_t *errors, score_t *squared_errors) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if(tid < n) {
-    //int user_id = ordering[tid];
-    int user_id = tid;
-    int row_begin = g.edge_begin(user_id);
-    int row_end = g.edge_end(user_id); 
-    int user_offset = K * user_id;
-    latent_t *ulv = &latents[user_offset];
-    for (int offset = row_begin; offset < row_end; ++ offset) {
-      int item_id = g.getEdgeDst(offset);
-      int item_offset = K * item_id;
-      latent_t *ilv = &latents[item_offset];
+  int num_threads = gridDim.x * blockDim.x;
+  for (int u = tid; u < g.V(); u += num_threads) {
+    auto row_begin = g.edge_begin(u);
+    auto row_end = g.edge_end(u); 
+    latent_t *user_latent = &latents[K*u];
+    score_t *u_err = &errors[K*u];
+    for (auto offset = row_begin; offset < row_end; ++ offset) {
+      auto v = g.getEdgeDst(offset);
+      latent_t *v_latent = &latents[K*v];
       score_t estimate = 0;
       for (int i = 0; i < K; i++)
-        estimate += ulv[i] * ilv[i];
+        estimate += user_latent[i] * v_latent[i];
       score_t delta = g.getEdgeData(offset) - estimate;
-      squared_errors[user_id] += delta * delta;
+      squared_errors[u] += delta * delta;
       for (int i = 0; i < K; i++) {
-        latent_t p_u = ulv[i];
-        latent_t p_i = ilv[i];
-        ulv[i] += step * (-lambda * p_u + p_i * delta);
-        ilv[i] += step * (-lambda * p_i + p_u * delta);
+        u_err[i] += v_latent[i] * delta;
       }
     }
   }
 }
 
-__global__ void rmse(int m, score_t *squared_errors, score_t *total_error) {
-  int uid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  score_t local_error = 0.0;
-  if (uid < m) local_error = squared_errors[uid];
-  score_t block_sum = BlockReduce(temp_storage).Sum(local_error);
-  if (threadIdx.x == 0) atomicAdd(total_error, block_sum);
-}
-
-void SGDSolver(BipartiteGraph &g, latent_t *h_latents, int *h_ordering) {
+void SGDSolver(BipartiteGraph &g, std::vector<latent_t> &latents, int *h_ordering) {
   size_t memsize = print_device_info(0);
   auto nv = g.V();
   auto ne = g.E();
-  auto num_users = g.V(0);
-  auto num_items = g.V(1);
+  //auto num_users = g.V(0);
+  //auto num_items = g.V(1);
   auto md = g.get_max_degree();
   size_t mem_graph = size_t(nv+1)*sizeof(eidType) + size_t(2)*size_t(ne)*sizeof(vidType);
   std::cout << "GPU_total_mem = " << memsize << " graph_mem = " << mem_graph << "\n";
 
   GraphGPU gg(g);
   size_t nthreads = BLOCK_SIZE;
-  size_t nblocks = (num_users - 1) / nthreads + 1;
-  //if (nblocks > 65536) nblocks = 65536;
-  assert(nblocks < 65536);
+  size_t nblocks = (nv-1) / nthreads + 1;
+  if (nblocks > 65536) nblocks = 65536;
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  int max_blocks_per_SM = maximum_residency(update, nthreads, 0);
+  int max_blocks_per_SM = maximum_residency(compute_error, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   //nblocks = std::min(max_blocks, nblocks);
   std::cout << "CUDA CF (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
-  int *d_ordering;
-  //CUDA_SAFE_CALL(cudaMalloc((void **)&d_ordering, num_users * sizeof(int)));
-  //CUDA_SAFE_CALL(cudaMemcpy(d_ordering, h_ordering, num_users * sizeof(int), cudaMemcpyHostToDevice));
-
+  latent_t *h_latents = &latents[0];
   latent_t *d_latents;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_latents, nv * K * sizeof(latent_t)));
   CUDA_SAFE_CALL(cudaMemcpy(d_latents, h_latents, nv * K * sizeof(latent_t), cudaMemcpyHostToDevice));
-  score_t h_error, *d_error, *squared_errors;
-  CUDA_SAFE_CALL(cudaMalloc((void **)&d_error, sizeof(score_t)));
-  CUDA_SAFE_CALL(cudaMalloc((void **)&squared_errors, num_users * sizeof(score_t)));
-  CUDA_SAFE_CALL(cudaMemset(d_error, 0, sizeof(score_t)));
+  score_t h_total_error = 0, *d_total_error, *d_errors, *squared_errors;
+  CUDA_SAFE_CALL(cudaMalloc((void **)&squared_errors, nv * sizeof(score_t)));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_total_error, sizeof(score_t)));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_errors, nv * K * sizeof(score_t)));
+  init_const_float<<<(nv*K-1)/nthreads+1, nthreads>>>(nv*K, 0.0, d_errors);
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
   Timer t;
@@ -88,28 +67,29 @@ void SGDSolver(BipartiteGraph &g, latent_t *h_latents, int *h_ordering) {
   int iter = 0;
   do {
     ++iter;
-    h_error = 0.0;
-    CUDA_SAFE_CALL(cudaMemset(squared_errors, 0, num_users * sizeof(score_t)));
-    CUDA_SAFE_CALL(cudaMemcpy(d_error, &h_error, sizeof(score_t), cudaMemcpyHostToDevice));
-    update<<<nblocks, nthreads>>>(num_users, gg, d_latents, lambda, step, d_ordering, squared_errors);
+    h_total_error = 0.0;
+    init_const_float<<<nblocks, nthreads>>>(nv, 0.0, squared_errors);
+    CUDA_SAFE_CALL(cudaMemcpy(d_total_error, &h_total_error, sizeof(score_t), cudaMemcpyHostToDevice));
+    compute_error<<<nblocks, nthreads>>>(gg, d_latents, lambda, step, d_errors, squared_errors);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
-    rmse<<<nblocks, nthreads>>>(num_users, squared_errors, d_error);
+    update_vertex<<<(nv-1)/nthreads+1, nthreads>>>(gg, lambda, step, d_latents, d_errors);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
-    CUDA_SAFE_CALL(cudaMemcpy(&h_error, d_error, sizeof(score_t), cudaMemcpyDeviceToHost));
-    //printf("h_error=%f\n", h_error);
-    printf("iteration %d: RMSE error = %f\n", iter, sqrt(h_error/ne));
-    //CUDA_SAFE_CALL(cudaMemcpy(h_latents, d_latents, nv * K * sizeof(latent_t), cudaMemcpyDeviceToHost));
-    //print_latent_vector(nv, h_latents);
-  } while (iter < max_iters && h_error > cf_epsilon);
+    rmse<<<nblocks, nthreads>>>(nv, squared_errors, d_total_error);
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    CUDA_SAFE_CALL(cudaMemcpy(&h_total_error, d_total_error, sizeof(score_t), cudaMemcpyDeviceToHost));
+    printf("iteration %d: RMSE error = %f\n", iter, sqrt(h_total_error/ne));
+    //CUDA_SAFE_CALL(cudaMemcpy(h_latents, d_latents, nv*K*sizeof(latent_t), cudaMemcpyDeviceToHost));
+  } while (iter < max_iters && h_total_error > cf_epsilon);
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
   t.Stop();
 
   std::cout << "iterations = " << iter << ".\n";
   std::cout << "runtime [gpu_base] = " << t.Seconds() << " sec\n";
 
-  CUDA_SAFE_CALL(cudaMemcpy(h_latents, d_latents, nv * K * sizeof(latent_t), cudaMemcpyDeviceToHost));
+  CUDA_SAFE_CALL(cudaMemcpy(h_latents, d_latents, nv*K*sizeof(latent_t), cudaMemcpyDeviceToHost));
   CUDA_SAFE_CALL(cudaFree(d_latents));
-  CUDA_SAFE_CALL(cudaFree(d_error));
+  CUDA_SAFE_CALL(cudaFree(d_total_error));
+  CUDA_SAFE_CALL(cudaFree(d_errors));
   CUDA_SAFE_CALL(cudaFree(squared_errors));
 }
 

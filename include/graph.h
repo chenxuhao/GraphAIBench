@@ -132,6 +132,7 @@ public:
   void computeLabelsFrequency();
   void buildCoreTable();
   void computeKCore();
+  void sort_neighbors();
   bool is_freq_vertex(vidType v, int minsup);
   vidType get_max_label_frequency() const { return max_label_frequency_; }
   const nlf_map* getVertexNLF(const vidType id) const { return &nlf_[id]; }

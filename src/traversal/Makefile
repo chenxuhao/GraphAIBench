@@ -9,15 +9,15 @@ all: bfs_omp_direction bfs_omp_base bfs_gpu_base bfs_gpu_twc sssp_omp_base sssp_
 	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
 
 bfs_omp_base: omp_base.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) omp_base.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) omp_base.o -o $@ -lgomp
 	mv $@ $(BIN)
 
 bfs_omp_topo: omp_topo.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) omp_topo.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) omp_topo.o -o $@ -lgomp
 	mv $@ $(BIN)
 
 bfs_omp_direction: omp_direction.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) omp_direction.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) omp_direction.o -o $@ -lgomp
 	mv $@ $(BIN)
 
 # data-driven BFS baseline

@@ -101,23 +101,33 @@ public:
       CUDA_SAFE_CALL(cudaFree(d_vlabels_frequency));
   }
   void allocateFrom(vidType nv, eidType ne, bool has_vlabel = false, 
-                    bool has_elabel = false, bool use_uva = false) {
+                    bool has_elabel = false, bool use_uva = false, bool has_reverse = false) {
+    std::cout << "Allocating GPU memory for the graph ... ";
     if (use_uva) {
-      //std::cout << "Allocating graph memory using CUDA unified memory\n";
       CUDA_SAFE_CALL(cudaMallocManaged(&d_rowptr, (nv+1) * sizeof(eidType)));
       CUDA_SAFE_CALL(cudaMallocManaged(&d_colidx, ne * sizeof(vidType)));
+      if (has_reverse) {
+        CUDA_SAFE_CALL(cudaMallocManaged(&d_in_rowptr, (nv+1) * sizeof(eidType)));
+        CUDA_SAFE_CALL(cudaMallocManaged(&d_in_colidx, ne * sizeof(vidType)));
+      }
     } else {
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr, (nv+1) * sizeof(eidType)));
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx, ne * sizeof(vidType)));
+      if (has_reverse) {
+        CUDA_SAFE_CALL(cudaMalloc((void **)&d_in_rowptr, (nv+1) * sizeof(eidType)));
+        CUDA_SAFE_CALL(cudaMalloc((void **)&d_in_colidx, ne * sizeof(vidType)));
+      }
     }
     if (has_vlabel)
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_vlabels, nv * sizeof(vlabel_t)));
     if (has_elabel)
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_elabels, ne * sizeof(elabel_t)));
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    std::cout << "Done\n";
   }
   void copyToDevice(vidType nv, eidType ne, eidType *h_rowptr, vidType *h_colidx, bool reverse = false,
                     label_t* h_vlabels = NULL, elabel_t* h_elabels = NULL, bool use_uva = false) {
+    std::cout << "Copying graph data to GPU memory ... ";
     auto rptr = d_rowptr;
     auto cptr = d_colidx;
     if (reverse) {
@@ -136,6 +146,7 @@ public:
         CUDA_SAFE_CALL(cudaMemcpy(d_elabels, h_elabels, ne * sizeof(elabel_t), cudaMemcpyHostToDevice));
       CUDA_SAFE_CALL(cudaDeviceSynchronize());
     }
+    std::cout << "Done\n";
   }
   void init(Graph &g, int n, int m) {
     device_id = n;
@@ -152,13 +163,18 @@ public:
     size_t mem_all = mem_graph + mem_el;
     auto mem_gpu = get_gpu_mem_size();
     bool use_uva = mem_all > mem_gpu;
-    allocateFrom(nv, ne, hg.has_vlabel(), hg.has_elabel(), use_uva);
+    auto v_classes = hg.get_vertex_classes();
+    auto h_vlabel_freq = hg.get_label_freq_ptr();
     Timer t;
     t.Start();
-    copyToDevice(nv, ne, hg.out_rowptr(), hg.out_colidx(), 0, hg.getVlabelPtr(), hg.getElabelPtr(), use_uva);
+    allocateFrom(nv, ne, hg.has_vlabel(), hg.has_elabel(), use_uva, hg.has_reverse_graph());
+    t.Stop();
+    std::cout << "Time on allocating device memory for the graph on GPU" << device_id << ": " << t.Seconds() << " sec\n";
+    t.Start();
+    copyToDevice(nv, ne, hg.out_rowptr(), hg.out_colidx(), false, hg.getVlabelPtr(), hg.getElabelPtr(), use_uva);
     if (hg.has_vlabel()) {
-      CUDA_SAFE_CALL(cudaMalloc((void **)&d_vlabels_frequency, (num_vertex_classes+1) * sizeof(vidType)));
-      CUDA_SAFE_CALL(cudaMemcpy(d_vlabels_frequency, hg.get_label_freq_ptr(), (num_vertex_classes+1) * sizeof(vidType), cudaMemcpyHostToDevice));
+      CUDA_SAFE_CALL(cudaMalloc((void **)&d_vlabels_frequency, (v_classes+1) * sizeof(vidType)));
+      CUDA_SAFE_CALL(cudaMemcpy(d_vlabels_frequency, h_vlabel_freq, (v_classes+1) * sizeof(vidType), cudaMemcpyHostToDevice));
     }
     if (hg.has_reverse_graph()) {
       has_reverse = true;
@@ -171,7 +187,7 @@ public:
       }
     }
     t.Stop();
-    //std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
+    std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
   }
   void toHost(Graph &hg) {
     auto nv = num_vertices;

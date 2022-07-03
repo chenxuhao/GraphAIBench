@@ -79,11 +79,10 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
     std::cout << "maximum vertex label: " << max_vlabel << "\n";
   }
   if (use_elabel) {
-    assert (num_edge_classes > 0);
-    assert (num_edge_classes < 65535); // we use 16-bit edge label dtype
     std::string elabel_filename = prefix + ".elabel.bin";
     ifstream f_elabel(elabel_filename.c_str());
     if (f_elabel.good()) {
+      assert (num_edge_classes > 0);
       if (map_elabels) map_file(elabel_filename, elabels, n_edges);
       else read_file(elabel_filename, elabels, n_edges);
       std::set<elabel_t> labels;
@@ -100,8 +99,15 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
     } else {
       std::cout << "WARNING: edge label file not exist; generating random labels\n";
       elabels = new elabel_t[n_edges];
-      for (eidType e = 0; e < n_edges; e++) {
-        elabels[e] = rand() % num_edge_classes + 1;
+      if (num_edge_classes < 1) {
+        num_edge_classes = 1;
+        for (eidType e = 0; e < n_edges; e++) {
+          elabels[e] = 1;
+        }
+      } else {
+        for (eidType e = 0; e < n_edges; e++) {
+          elabels[e] = rand() % num_edge_classes + 1;
+        }
       }
     }
     auto max_elabel = unsigned(*(std::max_element(elabels, elabels+n_edges)));
@@ -127,6 +133,16 @@ Graph::~Graph() {
   if (elabels != NULL) delete [] elabels;
   if (features != NULL) delete [] features;
   if (src_list != NULL) delete [] src_list;
+}
+
+void Graph::sort_neighbors() {
+  std::cout << "Sorting the neighbor lists (used for pattern mining)\n";
+  #pragma omp parallel for
+  for (vidType v = 0; v < n_vertices; v++) {
+    auto begin = edge_begin(v);
+    auto end = edge_end(v);
+    std::sort(edges+begin, edges+end);
+  }
 }
 
 void Graph::build_reverse_graph() {
@@ -267,8 +283,13 @@ void Graph::print_graph() const {
   for (vidType n = 0; n < n_vertices; n++) {
     std::cout << "vertex " << n << ": degree = " 
       << get_degree(n) << " edgelist = [ ";
-    for (auto e = edge_begin(n); e != edge_end(n); e++)
+    for (auto e = edge_begin(n); e != edge_end(n); e++) {
+      if (elabels != NULL)
+        std::cout << "<";
       std::cout << getEdgeDst(e) << " ";
+      if (elabels != NULL)
+        std::cout << getEdgeData(e) << "> ";
+    }
     std::cout << "]\n";
   }
 }
