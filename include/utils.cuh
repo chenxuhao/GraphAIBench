@@ -24,7 +24,7 @@ __global__ void init_const_float(int n, float value, float* array) {
 #define SHFL(a,b) __shfl(a,b)
 #endif
 
-inline __device__ void warp_reduce(float estimate) {
+inline __device__ void warp_reduce(float &estimate) {
 #ifndef USE_SHFL
   __shared__ score_t sdata[BLOCK_SIZE + 16];                       // padded to avoid reduction ifs
 #endif

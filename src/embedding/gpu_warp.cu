@@ -36,6 +36,14 @@ __global__ void compute_error(GraphGPU g, latent_t *latents,
         }
       }
       warp_reduce(estimate);
+      /*
+      estimate += SHFL_DOWN(estimate, 16);
+      estimate += SHFL_DOWN(estimate, 8);
+      estimate += SHFL_DOWN(estimate, 4);
+      estimate += SHFL_DOWN(estimate, 2);
+      estimate += SHFL_DOWN(estimate, 1);
+      estimate = SHFL(estimate, 0);
+      //*/
       score_t delta = g.getEdgeData(offset) - estimate;
       if (thread_lane == 0) squared_errors[u] += delta * delta;
       for (int i = 0; i < K; i += WARP_SIZE) {
@@ -69,6 +77,7 @@ void SGDSolver(BipartiteGraph &g, std::vector<latent_t> &latents, int *h_orderin
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   //nblocks = std::min(max_blocks, nblocks);
   std::cout << "CUDA CF (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
+  //for (size_t i = 0; i < latents.size(); i++) std::cout << latents[i] << "\n";
 
   latent_t *h_latents = &latents[0];
   latent_t *d_latents;
