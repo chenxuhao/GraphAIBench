@@ -23,8 +23,20 @@ systems using the SGD method described in [1].
 
 The input to the program is a symmetrized weighted bipartite graph
 between users and items, where the weights represent the rating a
-user gives to an item. Each vertex in the graph represents either a
-user or an item. The optional arguments to the program are as follows: 
+user gives to an item. 
+Each vertex in the graph represents either a user or an item. 
+
+You can download datasets from [here](https://www.dropbox.com/sh/ufb0cdnoe0ul8ir/AAAeFvtCcjilKU85svSYNscia?dl=0).
+
+Run `make` to build it and here are commandline examples to run:
+
+```
+$ ../../bin/cf_omp_base ../../inputs/test_cf/graph
+
+$ ../../bin/cf_gpu_base ../../bipartite-graphs/netflix_mm/graph
+```
+
+The optional arguments to the program are as follows: 
 "-K" specifies the dimension of the latent vector (default is 20), 
 "-numiter" is the number of iterations of gradient descent to run (default is 5), 
 "-step" is the step size in the algorithm (default is 0.00000035), 
