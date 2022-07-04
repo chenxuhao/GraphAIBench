@@ -22,7 +22,10 @@ Please see [2] for evaluation details.
 
 Therefore, compared to DGL and [PyG](https://github.com/pyg-team/pytorch_geometric), GraphAIBench is better suited for evaluating specialized hardware design or low-level library (e.g. SpMM) implementations for GNNs.
 
-Datasets are available [here](https://www.dropbox.com/sh/i1jq1uwtkcd2qo0/AADJck_u3kx7FeSR5BvdrkqYa?dl=0).
+Datasets for pattern mining (e.g. triangle counting) are available [here](https://www.dropbox.com/sh/i1jq1uwtkcd2qo0/AADJck_u3kx7FeSR5BvdrkqYa?dl=0).
+Datasets for collaborative filtering (i.e. bipartite graphs) are available [here](https://www.dropbox.com/sh/ufb0cdnoe0ul8ir/AAAeFvtCcjilKU85svSYNscia?dl=0).
+Datasets for vertex programs (e.g. BFS, SSSP, CC, BC, PageRank) are available [here (directed)](https://www.dropbox.com/sh/74lijht72duadp9/AAAoRUMKpT9a6LufTj0B8jfDa?dl=0) and [here (undirected)](https://www.dropbox.com/sh/cw98s5uoyvbokgz/AABx2TQHX-NJqQgihRDgS9l-a?dl=0).
+Datasets for graph neural networks (GNNs), e.g. GCN, GraphSAGE, GAT, are available [here](https://www.dropbox.com/sh/cc59e7sw4gv5q0k/AAC9JybvjTknupwXOpUrx6Fza?dl=0).
 Please contact [the author](http://people.csail.mit.edu/xchen/) for more datasets.
 
 [1] Xuhao Chen, Arvind.
