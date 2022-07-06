@@ -401,8 +401,7 @@ void PartitionedGraph::fetch_partitions(std::string path, std::vector<int> clust
       auto idx = offsets[src];
       auto rank = vertex_rank_in_cluster[v];
       // for each dst cluster, copy the corresponding edges
-      int pid_index = 0;
-      for (auto dst_cid : clusters) {
+      for (size_t pid_index = 0; pid_index < clusters.size(); pid_index++) {
         auto start = rowptr_partitioned[pid+pid_index][rank]; // the location of the first edge
         auto end = rowptr_partitioned[pid+pid_index][rank+1]; // number of edges to copy
         for (int i = start; i < end; i++) {
@@ -412,7 +411,6 @@ void PartitionedGraph::fetch_partitions(std::string path, std::vector<int> clust
           assert(dst < nv_subg);
           subg->constructEdge(idx++, dst); // fix column indices
         }
-        pid_index++;
       }
       src++;
     }
