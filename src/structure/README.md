@@ -1,1 +1,3 @@
 graph coarsening
+
+graph compression

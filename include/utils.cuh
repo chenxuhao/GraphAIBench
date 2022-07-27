@@ -1,6 +1,44 @@
 #pragma once
 #include "cutil_subset.h"
 
+class GpuTimer {
+  cudaEvent_t start;
+  cudaEvent_t stop;
+
+  public:
+
+  GpuTimer() {
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+  }
+
+  ~GpuTimer() {
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+  }
+
+  void Start() {
+    cudaEventRecord(start, 0);
+  }
+
+  void Stop() {
+    cudaEventRecord(stop, 0);
+  }
+
+  float Elapsed() {
+    float elapsed;
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsed, start, stop);
+    return elapsed / 1000;
+  }
+
+  void Print(std::string event_name) {
+    float elapsed = Elapsed();
+    std::cout << " ** " << event_name << " ** " << elapsed << "s elapsed." << std::endl;
+  }
+
+};
+
 __device__ __forceinline__ unsigned LaneId() {
   unsigned ret;
   asm("mov.u32 %0, %laneid;" : "=r"(ret));
