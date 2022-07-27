@@ -80,6 +80,8 @@ public:
   vidType* adj_ptr(vidType v) const { return &edges[vertices[v]]; }
   vidType N(vidType v, vidType n) const { return edges[vertices[v]+n];} // get the n-th neighbor of v
   VertexSet N(vidType v) const;              // get the neighbor list of vertex v
+  eidType* rowptr() { return vertices; } // get row pointers array
+  vidType* colidx() { return edges; }    // get column indices array
   eidType* out_rowptr() { return vertices; } // get row pointers array
   vidType* out_colidx() { return edges; }    // get column indices array
   eidType* in_rowptr() { return reverse_vertices; } // get incoming row pointers array
