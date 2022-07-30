@@ -2,6 +2,8 @@
 #include "graph.h"
 #include "operations.cuh"
 #include "cutil_subset.h"
+#include <nvshmem.h>
+#include <nvshmemx.h>
 
 class GraphGPU {
 protected:
@@ -18,14 +20,15 @@ protected:
   vlabel_t *d_vlabels;              // vertex labels
   elabel_t *d_elabels;              // edge labels
   vidType *d_vlabels_frequency;     // vertex label frequency
+  vidType *d_adj_buffer;            // buffer for copying an adjacency list from a remote GPU
 public:
   GraphGPU(vidType nv=0, eidType ne=0, int vl=0, int el=0, 
-           bool directed=false, int n=0, int m=1) :
+           bool directed=false, int n=0, int m=1, bool use_nvshmem=false) :
       is_directed_(directed), num_vertices(nv), num_edges(ne),
       device_id(n), n_gpu(m), num_vertex_classes(vl), num_edge_classes(el),
       d_rowptr(NULL), d_colidx(NULL), d_src_list(NULL), d_dst_list(NULL),
       d_vlabels(NULL), d_elabels(NULL), d_vlabels_frequency(NULL) {
-    if (nv>0 && ne>0) allocateFrom(nv, ne, vl, el);
+    if (nv>0 && ne>0 && !use_nvshmem) allocateFrom(nv, ne, vl, el);
   }
   GraphGPU(Graph &g, int n=0, int m=1) : 
       is_directed_(g.is_directed()), num_vertices(g.V()), num_edges(g.E()),
@@ -36,8 +39,9 @@ public:
     init(g); 
   }
   void release() { clean(); clean_edgelist(); clean_labels(); }
-
   inline __device__ __host__ bool is_directed() { return is_directed_; }
+  inline __device__ __host__ int get_num_devices() { return n_gpu; }
+  inline __device__ __host__ vidType* get_buffer_ptr() { return d_adj_buffer; }
   inline __device__ __host__ vidType V() { return num_vertices; }
   inline __device__ __host__ vidType size() { return num_vertices; }
   inline __device__ __host__ eidType E() { return num_edges; }
@@ -50,6 +54,8 @@ public:
   inline __device__ __host__ vidType* get_dst_ptr(eidType eid) const { return d_dst_list; }
   inline __device__ __host__ vidType* N(vidType vid) { return d_colidx + d_rowptr[vid]; }
   inline __device__ __host__ vidType N(vidType v, eidType e) { return d_colidx[d_rowptr[v] + e]; }
+  inline __device__ __host__ eidType* rowptr() { return d_rowptr; }
+  inline __device__ __host__ vidType* colidx() { return d_colidx; }
   inline __device__ __host__ eidType* out_rowptr() { return d_rowptr; }
   inline __device__ __host__ vidType* out_colidx() { return d_colidx; }
   inline __device__ __host__ eidType* in_rowptr() { return d_in_rowptr; }
@@ -125,6 +131,14 @@ public:
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     std::cout << "Done\n";
   }
+  void allocate_nvshmem(vidType nv, eidType ne, vidType max_degree, bool has_vlabel = false, 
+                        bool has_elabel = false, bool has_reverse = false) {
+    std::cout << "Allocating NVSHMEM symmetric memory for the graph";
+    d_rowptr = (eidType*)nvshmem_malloc((nv+1) * sizeof(eidType));
+    d_colidx = (vidType*)nvshmem_malloc(ne * sizeof(vidType));
+    d_adj_buffer = (vidType*)nvshmem_malloc(max_degree * sizeof(vidType));
+    cudaMemset(d_adj_buffer, 0, max_degree * sizeof(vidType));
+  }
   void copyToDevice(vidType nv, eidType ne, eidType *h_rowptr, vidType *h_colidx, bool reverse = false,
                     label_t* h_vlabels = NULL, elabel_t* h_elabels = NULL, bool use_uva = false) {
     std::cout << "Copying graph data to GPU memory ... ";
@@ -188,6 +202,15 @@ public:
     }
     t.Stop();
     std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
+  }
+  void init_nvshmem(const Graph &hg, int id) {
+    auto nv = hg.V();
+    auto ne = hg.E();
+    CUDA_SAFE_CALL(cudaSetDevice(id));
+    //int npes = nvshmem_n_pes();
+    //int mype = nvshmem_my_pe();
+    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, hg.rowptr(), (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(d_colidx, hg.colidx(), ne * sizeof(vidType), cudaMemcpyHostToDevice));
   }
   void toHost(Graph &hg) {
     auto nv = num_vertices;

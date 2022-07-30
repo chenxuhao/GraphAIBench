@@ -82,6 +82,8 @@ public:
   VertexSet N(vidType v) const;              // get the neighbor list of vertex v
   eidType* rowptr() { return vertices; } // get row pointers array
   vidType* colidx() { return edges; }    // get column indices array
+  const eidType* rowptr() const { return vertices; } // get row pointers array
+  const vidType* colidx() const { return edges; }    // get column indices array
   eidType* out_rowptr() { return vertices; } // get row pointers array
   vidType* out_colidx() { return edges; }    // get column indices array
   eidType* in_rowptr() { return reverse_vertices; } // get incoming row pointers array

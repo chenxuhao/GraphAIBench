@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
     vidType begin_vid = i * subgraph_size;
     vidType end_vid = (i+1) * subgraph_size;
     auto offset = sg->edge_begin(i * subgraph_size);
+    #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = begin_vid; u < end_vid; u ++) {
       //auto adj_u = sg->N(u);
       auto ua = sg->edge_begin(u);

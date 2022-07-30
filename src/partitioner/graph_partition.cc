@@ -30,7 +30,8 @@ void PartitionedGraph::edgecut_partition1D() {
   for (int sg_id = 0; sg_id < num_subgraphs; sg_id++) {
     vidType begin_vid = sg_id * subgraph_size;
     vidType end_vid = (sg_id+1) * subgraph_size - 1;
-    if (end_vid > nv) end_vid = nv;
+    if (end_vid > nv-1) end_vid = nv-1;
+    std::cout << "allocating subgraph[" << sg_id << "]: begin_vid=" << begin_vid << ", end_vid=" << end_vid << "\n";
     auto e_begin = g->edge_begin(begin_vid);
     auto e_end = g->edge_end(end_vid);
     auto ne_subg = e_end - e_begin;

@@ -1,7 +1,9 @@
 include ../common.mk
-INCLUDES+=-I./gpu_kernels
 VPATH += ../partitioner
-all: tc_omp_base tc_gpu_base tc_multigpu_base tc_multigpu
+INCLUDES+=-I./gpu_kernels -I$(NVSHMEM_HOME)/include
+NVFLAGS += -dc
+LIBS += -ldl -lrt
+all: tc_omp_base tc_gpu_base tc_multigpu_base tc_multigpu_nvshmem
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
@@ -25,8 +27,12 @@ tc_multigpu_base: $(OBJS) multigpu_base.o scheduler.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_base.o scheduler.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
-tc_multigpu: $(OBJS) multigpu.o scheduler.o graph_partition.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu.o graph_partition.o -o $@ $(LIBS)
+tc_multigpu_induced: $(OBJS) multigpu_induced.o graph_partition.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_induced.o graph_partition.o -o $@ $(LIBS)
+	mv $@ $(BIN)
+
+tc_multigpu_nvshmem: $(OBJS) multigpu_nvshmem.o graph_partition.o
+	$(NVCC) $(CUDA_ARCH) $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(LIBS)
 	mv $@ $(BIN)
 
 tc_dist_cpu: $(OBJS) dist_cpu.o
