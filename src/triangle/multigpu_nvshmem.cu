@@ -10,6 +10,23 @@ typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
 #include "bs_warp_vertex_nvshmem.cuh"
 #include <thread>
 
+long long unsigned parse_nvshmem_symmetric_size(char *value) {
+  long long unsigned units, size;
+  assert(value != NULL);
+  if (strchr(value, 'G') != NULL) {
+    units=1e9;
+  } else if (strchr(value, 'M') != NULL) {
+    units=1e6;
+  } else if (strchr(value, 'K') != NULL) {
+    units=1e3;
+  } else {
+    units=1;
+  }
+  assert(atof(value) >= 0);
+  size = (long long unsigned) atof(value) * units;
+  return size;
+}
+
 void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   int ndevices = 0;
   CUDA_SAFE_CALL(cudaGetDeviceCount(&ndevices));
@@ -27,7 +44,36 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   pg.edgecut_partition1D();
   auto num_subgraphs = pg.get_num_subgraphs();
   int subgraph_size = (nv-1) / num_subgraphs + 1;
- 
+
+  nvshmem_init();
+  int mype_node = nvshmem_team_my_pe(NVSHMEMX_TEAM_NODE);
+  std::cout << "mype_node = " << mype_node << "\n";
+  cudaSetDevice(mype_node);
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+
+  nvshmemx_init_attr_t attr;
+  long long unsigned required_symmetric_heap_size = (nv+1) * sizeof(eidType) + ne * sizeof(vidType) + md * sizeof(vidType);
+  printf("Setting environment variable NVSHMEM_SYMMETRIC_SIZE = %llu\n", required_symmetric_heap_size);
+  char * value = getenv("NVSHMEM_SYMMETRIC_SIZE");
+  if (value) { /* env variable is set */
+    long long unsigned int size_env = parse_nvshmem_symmetric_size(value);
+    if (size_env < required_symmetric_heap_size) {
+      fprintf(stderr, "ERROR: Required > Current NVSHMEM_SYMMETRIC_SIZE=%s\n", value);
+      exit(1);
+    }
+  } else {
+    char symmetric_heap_size_str[100];
+    sprintf(symmetric_heap_size_str, "%llu", required_symmetric_heap_size);
+    setenv("NVSHMEM_SYMMETRIC_SIZE", symmetric_heap_size_str, 1);
+  }
+  nvshmemx_init_attr(NVSHMEMX_INIT_WITH_MPI_COMM, &attr);
+
+  //int npes = nvshmem_n_pes();
+  //int mype = nvshmem_my_pe();
+  //std::cout << "npes = " << npes << ", mype = " << mype << "\n";
+  //nvshmem_barrier_all();
+
   eidType max_subg_ne = 0;
   for (int i = 0; i < ndevices; i++) {
     auto subg_ne = pg.get_subgraph(i)->E();
@@ -42,8 +88,6 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
     d_graph.init_nvshmem(*pg.get_subgraph(i), i);
   t.Stop();
   std::cout << "Total GPU copy time (graph+edgelist) = " << t.Seconds() <<  " sec\n";
-  int npes = nvshmem_n_pes();
-  int mype = nvshmem_my_pe();
  
   size_t nthreads = BLOCK_SIZE;
   std::vector<AccType> h_counts(ndevices, 0);
@@ -74,7 +118,7 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
     CUDA_SAFE_CALL(cudaMemcpy(d_count[i], &h_counts[i], sizeof(AccType), cudaMemcpyHostToDevice));
     vidType begin = i * subgraph_size;
     vidType end = (i+1) * subgraph_size;
-    warp_vertex_nvshmem<<<nblocks, nthreads>>>(begin, end, d_graph, mype, npes, d_count[i]);
+    warp_vertex_nvshmem<<<nblocks, nthreads>>>(begin, end, d_graph, mype_node, ndevices, d_count[i]);
     CUDA_SAFE_CALL(cudaMemcpy(&h_counts[i], d_count[i], sizeof(AccType), cudaMemcpyDeviceToHost));
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     subt[i].Stop();
