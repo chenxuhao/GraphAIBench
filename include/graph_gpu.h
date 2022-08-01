@@ -131,14 +131,20 @@ public:
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     std::cout << "Done\n";
   }
+#ifdef USE_NVSHMEM
   void allocate_nvshmem(vidType nv, eidType ne, vidType max_degree, bool has_vlabel = false, 
                         bool has_elabel = false, bool has_reverse = false) {
-    std::cout << "Allocating NVSHMEM symmetric memory for the graph";
+    std::cout << "Allocating NVSHMEM symmetric memory for the graph\n";
+    std::cout << "Allocating NVSHMEM memory for rowptr\n";
     d_rowptr = (eidType*)nvshmem_malloc((nv+1) * sizeof(eidType));
+    std::cout << "Allocating NVSHMEM memory for colidx\n";
     d_colidx = (vidType*)nvshmem_malloc(ne * sizeof(vidType));
+    std::cout << "Allocating NVSHMEM memory for buffer\n";
     d_adj_buffer = (vidType*)nvshmem_malloc(max_degree * sizeof(vidType));
+    std::cout << "Zerolizing NVSHMEM memory buffer\n";
     cudaMemset(d_adj_buffer, 0, max_degree * sizeof(vidType));
   }
+#endif
   void copyToDevice(vidType nv, eidType ne, eidType *h_rowptr, vidType *h_colidx, bool reverse = false,
                     label_t* h_vlabels = NULL, elabel_t* h_elabels = NULL, bool use_uva = false) {
     std::cout << "Copying graph data to GPU memory ... ";
@@ -206,11 +212,14 @@ public:
   void init_nvshmem(const Graph &hg, int id) {
     auto nv = hg.V();
     auto ne = hg.E();
+    std::cout << "Copying subgraph[" << id << "]: nv = " << nv << " ne = " << ne << "\n";
+    Timer t;
+    t.Start();
     CUDA_SAFE_CALL(cudaSetDevice(id));
-    //int npes = nvshmem_n_pes();
-    //int mype = nvshmem_my_pe();
     CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, hg.rowptr(), (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL(cudaMemcpy(d_colidx, hg.colidx(), ne * sizeof(vidType), cudaMemcpyHostToDevice));
+    t.Stop();
+    std::cout << "Time on copying the subgraph to GPU_" << id << ": " << t.Seconds() << " sec\n";
   }
   void toHost(Graph &hg) {
     auto nv = num_vertices;

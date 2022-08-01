@@ -1,5 +1,7 @@
 include ../common.mk
 OBJS = VertexSet.o graph.o graph_partition.o
+NVFLAGS += -dc
+INCLUDES += -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
 all: test_graph_partition test_nvlink
 
 %.o: %.cc
@@ -17,6 +19,14 @@ test_graph_partition: $(OBJS) test_graph_partition.o
 
 test_nvlink: 
 	$(NVCC) $(NVFLAGS) $(INCLUDES) test_nvlink.cu -o test_nvlink -lgomp
+	mv $@ $(BIN)
+
+test_nvshmem: test_nvshmem.o
+	$(NVCC) $(CUDA_ARCH) $(INCLUDES) test_nvshmem.o -o $@ $(NVSHMEM_LIBS) $(LIBS)
+	mv $@ $(BIN)
+
+test_nvshmem_mpi: test_nvshmem_mpi.o
+	$(NVCC) $(CUDA_ARCH) $(INCLUDES) test_nvshmem_mpi.o -o $@ $(NVSHMEM_LIBS) $(LIBS) $(MPI_LIBS)
 	mv $@ $(BIN)
 
 clean:

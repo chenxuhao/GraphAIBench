@@ -1,8 +1,6 @@
 include ../common.mk
 VPATH += ../partitioner
-INCLUDES+=-I./gpu_kernels -I$(NVSHMEM_HOME)/include
-NVFLAGS += -dc
-LIBS += -ldl -lrt
+INCLUDES+=-I./gpu_kernels -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
 all: tc_omp_base tc_gpu_base tc_multigpu_base tc_multigpu_nvshmem
 
 %.o: %.cc
@@ -32,7 +30,7 @@ tc_multigpu_induced: $(OBJS) multigpu_induced.o graph_partition.o
 	mv $@ $(BIN)
 
 tc_multigpu_nvshmem: $(OBJS) multigpu_nvshmem.o graph_partition.o
-	$(NVCC) $(CUDA_ARCH) $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(LIBS)
+	$(NVCC) $(CUDA_ARCH) $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(LIBS) $(MPI_LIBS)
 	mv $@ $(BIN)
 
 tc_dist_cpu: $(OBJS) dist_cpu.o

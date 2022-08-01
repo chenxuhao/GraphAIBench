@@ -1,10 +1,10 @@
 DEBUG ?= 0
 USE_DRAMSIM3 ?= 1
-CUDA_HOME = /usr/local/cuda
+CUDA_HOME = /jet/packages/spack/opt/spack/linux-centos8-zen/gcc-8.3.1/cuda-11.1.1-a6ajxenobex5bvpejykhtnfut4arfpwh
 PAPI_HOME = /usr/local/papi-6.0.0
 ICC_HOME = /opt/intel/compilers_and_libraries/linux/bin/intel64
-NVSHMEM_HOME = /usr/local/nvshmem
-MPI_HOME = /usr
+NVSHMEM_HOME = /ocean/projects/cie170003p/shared/nvshmem
+MPI_HOME = /opt/packages/openmpi/gcc/4.1.1-gcc8.3.1-cpu
 MKLROOT = /opt/intel/mkl
 CUB_DIR = ../../../cub
 MGPU_DIR = ../../../moderngpu
@@ -34,7 +34,7 @@ NVFLAGS += -Xptxas -v
 NVFLAGS += -DUSE_GPU
 NVLDFLAGS = -L$(CUDA_HOME)/lib64 -lcuda -lcudart
 MPI_LIBS = -ccbin=mpic++ -L$(MPI_HOME)/lib -lmpi
-NVSHMEM_LIBS = -L$(NVSHMEM_HOME)/lib -lnvshmem -lnvToolsExt -lnvidia-ml
+NVSHMEM_LIBS = -L$(NVSHMEM_HOME)/lib -lnvshmem -lnvToolsExt -lnvidia-ml -ldl -lrt
 
 ifeq ($(VTUNE), 1)
 	CXXFLAGS += -g
@@ -66,6 +66,10 @@ endif
 
 VPATH += ../common
 OBJS=main.o VertexSet.o graph.o
+
+ifneq ($(NVSHMEM),)
+NVFLAGS += -DUSE_NVSHMEM -dc
+endif
 
 # CUDA vertex parallel
 ifneq ($(VPAR),)
