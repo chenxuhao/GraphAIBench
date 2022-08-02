@@ -1,5 +1,5 @@
 include ../common.mk
-all: cgr_compressor
+all: test_cgr_compressor
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
@@ -7,8 +7,8 @@ all: cgr_compressor
 %.o: %.cu
 	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
 
-cgr_compressor: cgr_compressor.o graph.o VertexSet.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) cgr_compressor.o graph.o VertexSet.o -o $@ -lgomp
+test_cgr_compressor: test_cgr_compressor.o cgr_compressor.o graph.o VertexSet.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) test_cgr_compressor.o cgr_compressor.o graph.o VertexSet.o -o $@ -lgomp
 	mv $@ $(BIN)
 
 bfs_gcgt: bfs_main.o

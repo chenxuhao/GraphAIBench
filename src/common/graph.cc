@@ -15,24 +15,10 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
   i = inputfile_path.rfind('/', inputfile_path.length());
   if (i != string::npos) name_ = inputfile_path.substr(i+1);
   std::cout << "input file path: " << inputfile_path << ", graph name: " << name_ << "\n";
+  VertexSet::release_buffers();
 
   // read meta information
-  VertexSet::release_buffers();
-  std::ifstream f_meta((prefix + ".meta.txt").c_str());
-  assert(f_meta);
-  int vid_size = 0, eid_size = 0, vlabel_size = 0, elabel_size = 0;
-  if (bipartite) {
-    f_meta >> n_vert0 >> n_vert1;
-    n_vertices = n_vert0 + n_vert1;
-  } else f_meta >> n_vertices;
-  f_meta >> n_edges >> vid_size >> eid_size >> vlabel_size >> elabel_size
-         >> max_degree >> feat_len >> num_vertex_classes >> num_edge_classes;
-  assert(sizeof(vidType) == vid_size);
-  assert(sizeof(eidType) == eid_size);
-  assert(sizeof(vlabel_t) == vlabel_size);
-  //assert(sizeof(elabel_t) == elabel_size);
-  assert(max_degree > 0 && max_degree < n_vertices);
-  f_meta.close();
+  read_meta_info(prefix, bipartite);
   // read row pointers
   if (map_vertices) map_file(prefix + ".vertex.bin", vertices, n_vertices+1);
   else read_file(prefix + ".vertex.bin", vertices, n_vertices+1);
@@ -133,6 +119,60 @@ Graph::~Graph() {
   if (elabels != NULL) delete [] elabels;
   if (features != NULL) delete [] features;
   if (src_list != NULL) delete [] src_list;
+}
+
+void Graph::read_meta_info(std::string prefix, bool bipartite) {
+  std::ifstream f_meta((prefix + ".meta.txt").c_str());
+  assert(f_meta);
+  if (bipartite) {
+    f_meta >> n_vert0 >> n_vert1;
+    n_vertices = n_vert0 + n_vert1;
+  } else f_meta >> n_vertices;
+  f_meta >> n_edges >> vid_size >> eid_size >> vlabel_size >> elabel_size
+         >> max_degree >> feat_len >> num_vertex_classes >> num_edge_classes;
+  assert(sizeof(vidType) == vid_size);
+  assert(sizeof(eidType) == eid_size);
+  assert(sizeof(vlabel_t) == vlabel_size);
+  //assert(sizeof(elabel_t) == elabel_size);
+  assert(max_degree > 0 && max_degree < n_vertices);
+  f_meta.close();
+}
+
+void Graph::load_compressed_graph(std::string prefix) {
+  // read meta information
+  read_meta_info(prefix);
+
+  // load row offsets
+  if (map_vertices) map_file(prefix+".offset", vertices, n_vertices+1);
+  else read_file(prefix+".offset", vertices, n_vertices+1);
+
+  // load edges, i.e., column indices
+  std::ifstream ifs;
+  ifs.open(prefix+".graph", std::ios::in | std::ios::binary | std::ios::ate);
+  if (!ifs.is_open()) {
+    std::cout << "open graph file failed!" << std::endl;
+    exit(1);
+  }
+  std::streamsize size = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+  std::vector<uint8_t> buffer(size);
+  ifs.read((char*) buffer.data(), size);
+  edges_compressed.clear();
+  vidType tmp = 0;
+  for (size_t i = 0; i < buffer.size(); i++) {
+    tmp <<= 8;
+    tmp += buffer[i];
+    if ((i + 1) % vid_size == 0) { // vidType has 4 bytes
+      edges_compressed.push_back(tmp);
+    }
+  }
+  if (size % vid_size) {
+    int rem = size % vid_size;
+    while (rem % vid_size)
+      tmp <<= 8, rem++;
+    edges_compressed.push_back(tmp);
+  }
+  ifs.close();
 }
 
 void Graph::sort_neighbors() {

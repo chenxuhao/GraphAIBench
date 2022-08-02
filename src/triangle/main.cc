@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "Triangle Counting: we assume the neighbor lists are sorted.\n";
   Graph g(argv[1], USE_DAG); // use DAG
-  g.print_graph();
+  //g.print_graph();
   int n_devices = 1;
   int chunk_size = 1024;
   int adj_sorted = 1;

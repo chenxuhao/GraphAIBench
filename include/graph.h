@@ -29,6 +29,7 @@ protected:
   int num_vertex_classes;       // number of distinct vertex labels: '0' means no vertex labels
   int num_edge_classes;         // number of distinct edge labels: '0' means no edge labels
   int core_length_;
+  int vid_size, eid_size, vlabel_size, elabel_size; // number of bytes for vid, eid, vlabel, elabel
 
   vidType *edges;               // column indices of CSR format
   eidType *vertices;            // row pointers of CSR format
@@ -42,6 +43,7 @@ protected:
   VertexList labels_frequency_; // vertex count of each label
   VertexList sizes;             // neighbor count of each source vertex in the edgelist
   VertexList reverse_index_;    // indices to vertices grouped by vertex label
+  VertexList edges_compressed;  // compressed edgelist, i.e., column indices of CSR format
   std::vector<nlf_map> nlf_;    // neighborhood label frequency
   std::vector<eidType> reverse_index_offsets_; // pointers to each vertex group
 
@@ -58,6 +60,8 @@ public:
   ~Graph();
   Graph(const Graph &)=delete;
   Graph& operator=(const Graph &)=delete;
+
+  void load_compressed_graph(std::string prefix);
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }
@@ -169,6 +173,7 @@ public:
 
  protected:
   vidType compute_max_degree();
+  void read_meta_info(std::string prefix, bool bipartite = false);
   bool binary_search(vidType key, eidType begin, eidType end) const;
 };
 

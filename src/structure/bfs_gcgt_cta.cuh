@@ -10,7 +10,7 @@ struct BfsGcgtCta {
         typename WarpScan::TempStorage temp_storage[THREADS_NUM / 32];
 
         volatile SIZE_TYPE segment_node[THREADS_NUM];
-        volatile OFFSET_TYPE segment_offset[THREADS_NUM];
+        volatile eidType segment_offset[THREADS_NUM];
 
         volatile SIZE_TYPE left[THREADS_NUM];
         volatile SIZE_TYPE len[THREADS_NUM];
@@ -27,9 +27,9 @@ struct BfsGcgtCta {
     SIZE_TYPE *d_in;
     SIZE_TYPE *d_out_len;
     SIZE_TYPE *d_out;
-    OFFSET_TYPE *offsets;
-    GRAPH_TYPE *graph;
-    MASK_TYPE *visited_mask;
+    eidType *offsets;
+    vidType *graph;
+    mask_t *visited_mask;
     SIZE_TYPE *labels;
     SMem *smem;
 
@@ -38,7 +38,7 @@ struct BfsGcgtCta {
     SIZE_TYPE warp_id;
 
     __device__ BfsGcgtCta(SMem *smem, SIZE_TYPE iteration, SIZE_TYPE src, SIZE_TYPE *d_in_len, SIZE_TYPE *d_in,
-            SIZE_TYPE *d_out_len, SIZE_TYPE *d_out, OFFSET_TYPE *offsets, GRAPH_TYPE *graph, MASK_TYPE *visited_mask,
+            SIZE_TYPE *d_out_len, SIZE_TYPE *d_out, eidType *offsets, vidType *graph, mask_t *visited_mask,
             SIZE_TYPE *labels) :
             smem(smem), iteration(iteration), src(src), d_in_len(d_in_len), d_in(d_in), d_out_len(d_out_len), d_out(
                     d_out), offsets(offsets), graph(graph), visited_mask(visited_mask), labels(labels) {
@@ -199,7 +199,7 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void handle_one_interval_segment(SIZE_TYPE node, volatile OFFSET_TYPE &global_offset) {
+    void handle_one_interval_segment(SIZE_TYPE node, volatile eidType &global_offset) {
         CgrReader cgrr;
         cgrr.init(node, graph, global_offset);
         IntervalSegmentHelper sh(node, cgrr);
@@ -262,7 +262,7 @@ struct BfsGcgtCta {
             __syncthreads();
 
             SIZE_TYPE node = smem->segment_node[0];
-            volatile OFFSET_TYPE offset = smem->segment_offset[0] + INTERVAL_SEGMENT_LEN * thread_id;
+            volatile eidType offset = smem->segment_offset[0] + INTERVAL_SEGMENT_LEN * thread_id;
             handle_one_interval_segment(node, offset);
             if (thread_id == THREADS_NUM - 1) smem->segment_offset[thread_id] = offset;
             __syncthreads();
@@ -295,7 +295,7 @@ struct BfsGcgtCta {
                 }
                 SIZE_TYPE boss_lane = smem->comm[warp_id][0];
                 SIZE_TYPE boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
-                OFFSET_TYPE boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
+                eidType boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
                 SIZE_TYPE boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
 
                 smem->segment_node[boss_rsv_rank - cta_progress + lane_id] = boss_node;
@@ -341,7 +341,7 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void handle_one_residual_segment(SIZE_TYPE node, OFFSET_TYPE global_offset) {
+    void handle_one_residual_segment(SIZE_TYPE node, eidType global_offset) {
 
         CgrReader cgrr;
         cgrr.init(node, graph, global_offset);
@@ -430,7 +430,7 @@ struct BfsGcgtCta {
             __syncthreads();
 
             SIZE_TYPE node = smem->segment_node[0];
-            OFFSET_TYPE offset = smem->segment_offset[0] + RESIDUAL_SEGMENT_LEN * thread_id;
+            eidType offset = smem->segment_offset[0] + RESIDUAL_SEGMENT_LEN * thread_id;
             handle_one_residual_segment(node, offset);
         }
 
@@ -456,7 +456,7 @@ struct BfsGcgtCta {
                 }
                 SIZE_TYPE boss_lane = smem->comm[warp_id][0];
                 SIZE_TYPE boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
-                OFFSET_TYPE boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
+                eidType boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
                 SIZE_TYPE boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
 
                 smem->segment_node[boss_rsv_rank - cta_progress + lane_id] = boss_node;
@@ -490,7 +490,7 @@ struct BfsGcgtCta {
         if (neighbour == SIZE_NONE)
             return;
 
-        MASK_TYPE bit_loc = 1 << (neighbour % MASK_LEN);
+        mask_t bit_loc = 1 << (neighbour % MASK_LEN);
         SIZE_TYPE bit_chunk = visited_mask[neighbour / MASK_LEN];
         if (bit_chunk & bit_loc) {
             neighbour = SIZE_NONE;
@@ -536,7 +536,7 @@ struct BfsGcgtCta {
         while (cta_offset < d_in_len[0]) {
 
             SIZE_TYPE node;
-            OFFSET_TYPE row_begin;
+            eidType row_begin;
             CgrReader cgrr;
 
             if (cta_offset + thread_id < d_in_len[0]) {
