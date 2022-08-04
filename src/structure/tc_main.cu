@@ -7,19 +7,12 @@ int main(int argc,char *argv[]) {
     std::cout << "<input_path>" << std::endl;
     abort();
   }
-  std::string input_path(argv[1]);
-  hCG hcg; // compressed edgelists
-  hOS hos; // offsets
-  SIZE_TYPE nv = load_compressed_graph(input_path, hcg, hos);
-  hcg.push_back(0);
-  hcg.push_back(0);
-  hcg.push_back(0);
-  hcg.push_back(0);
-  printf("%s CGR loaded.", input_path.c_str());
-  dCG dcg(hcg);
-  dOS dos(hos);
-  __dsync__;
-  double elapsed_time = tc_compressed(nv, RAW_PTR(dos), RAW_PTR(dcg));
-  printf("running time: %.5lf s.\n", elapsed_time);
+  Graph g;
+  g.load_compressed_graph(argv[1]);
+  g.print_meta_data();
+
+  uint64_t total = 0;
+  tc_compressed(g, total);
+  std::cout << "total_num_triangles = " << total << "\n";
   return 0;
 }

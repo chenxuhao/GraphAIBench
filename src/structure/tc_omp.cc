@@ -1,6 +1,6 @@
-#include "decoder.h"
+#include "graph.h"
 
-void triangle_count(CompressedGraph &g, uint64_t &total) {
+void triangle_count(Graph &g, uint64_t &total) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -15,7 +15,7 @@ void triangle_count(CompressedGraph &g, uint64_t &total) {
     auto deg = g.get_degree(u);
     for (vidType i = 0; i < degree; i ++) {
       auto v = g.N(u, i);
-      counter += (uint64_t)intersection_num(u, v);
+      counter += (uint64_t)g.intersection_num(u, v);
     }
   }
   total = counter;
