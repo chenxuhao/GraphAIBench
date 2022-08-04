@@ -18,7 +18,7 @@ void PartitionedGraph::print_subgraphs() {
 // naive 1D partitioning, i.e., edge-cut
 void PartitionedGraph::edgecut_partition1D() {
   num_subgraphs = num_vertex_chunks;
-  std::cout << "partitioning into " << num_subgraphs<< " subgraph\n";
+  //std::cout << "partitioning into " << num_subgraphs<< " subgraph\n";
   auto nv = g->V();
   int subgraph_size = (nv-1) / num_subgraphs + 1;
   subgraphs.resize(num_subgraphs);
@@ -31,11 +31,11 @@ void PartitionedGraph::edgecut_partition1D() {
     vidType begin_vid = sg_id * subgraph_size;
     vidType end_vid = (sg_id+1) * subgraph_size - 1;
     if (end_vid > nv-1) end_vid = nv-1;
-    std::cout << "allocating subgraph[" << sg_id << "]: begin_vid=" << begin_vid << ", end_vid=" << end_vid << "\n";
+    //std::cout << "allocating subgraph[" << sg_id << "]: begin_vid=" << begin_vid << ", end_vid=" << end_vid << "\n";
     auto e_begin = g->edge_begin(begin_vid);
     auto e_end = g->edge_end(end_vid);
     auto ne_subg = e_end - e_begin;
-    std::cout << "allocating subgraph[" << sg_id << "]: nv=" << nv << ", ne=" << ne_subg << "\n";
+    //std::cout << "allocating subgraph[" << sg_id << "]: nv=" << nv << ", ne=" << ne_subg << "\n";
     // duplicate row_offsets, but split column_indices
     subgraphs[sg_id] = new Graph();
     subgraphs[sg_id]->allocateFrom(nv, ne_subg);
