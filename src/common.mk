@@ -101,6 +101,8 @@ endif
 # GPU vertex/edge parallel 
 ifeq ($(VERTEX_PAR),)
 NVFLAGS += -DEDGE_PAR
+else
+NVFLAGS += -DVERTEX_PAR
 endif
 
 # CUDA unified memory

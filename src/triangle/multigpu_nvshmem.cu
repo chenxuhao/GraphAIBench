@@ -170,6 +170,7 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   CUDA_SAFE_CALL(cudaMalloc((void **)&buffers, buffer_size));
   nvshmem_barrier_all();
 
+  double start_time = MPI_Wtime();
   t.Start();
   AccType h_count = 0;
   AccType * d_count = (AccType *)nvshmem_malloc(sizeof(AccType));
@@ -180,14 +181,16 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   warp_vertex_nvshmem<<<nblocks, nthreads>>>(begin, end, d_graph, buffers, mype, ndevices, md, d_count);
   CUDA_SAFE_CALL(cudaMemcpy(&h_count, d_count, sizeof(AccType), cudaMemcpyDeviceToHost));
   t.Stop();
-
-  std::cout << "runtime[gpu" << mype << "] = " << t.Seconds() <<  " sec\n";
-  std::cout << "num_triangles[gpu" << mype << "] = " << h_count << "\n";
+  MPI_Barrier(MPI_COMM_WORLD);
+  double end_time = MPI_Wtime();
   nvshmem_barrier_all();
+  if (rank == 0) std::cout << "Global runtime = " << end_time - start_time << " sec\n";
+  std::cout << "runtime[gpu" << mype << "] = " << t.Seconds() <<  " sec\n";
+  //std::cout << "num_triangles[gpu" << mype << "] = " << h_count << "\n";
 #ifdef USE_MPI
   uint64_t global_count = 0, local_count = h_count;
   MPI_Allreduce(&local_count, &global_count, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-  if (rank == 0) std::cout << "Total triangle count = " << global_count << "\n";
+  //if (rank == 0) std::cout << "Total triangle count = " << global_count << "\n";
   total = global_count;
   MPI_Finalize();
 #else 

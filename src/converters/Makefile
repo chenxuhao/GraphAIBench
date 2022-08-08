@@ -1,11 +1,12 @@
 include ../common.mk
-all: mtx2bin
+OBJS = converter.o graph.o VertexSet.o main.o
+all: converter
 
 %.o: %.cc
 	g++ $(CXXFLAGS) $(INCLUDES) -fopenmp -I../include -c $<
 
-mtx2bin: mtx2bin.o converter.o
-	g++ $(CXXFLAGS) $(INCLUDES) mtx2bin.o converter.o -o mtx2bin -lgomp
+converter: $(OBJS)
+	g++ $(CXXFLAGS) $(INCLUDES) $(OBJS) -o $@ -lgomp
 
 clean:
-	rm *.o
+	rm *.o converter

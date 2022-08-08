@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "graph.h"
 // convert txt (edgelist) to binary (CSR)
 typedef float OldEdgeValueT;
 typedef float NewEdgeValueT;
@@ -37,26 +38,30 @@ typedef std::set<Edge<OldEdgeValueT>> EdgeSet;
 class Converter {
 public:
   Converter(std::string file_type, std::string file_name, bool is_bipartite);
+  void read_edgelist(std::string infile_name);
+  void read_sadj(std::string infile_name);
   void read_lg(std::string filename);
   void read_mtx(std::string filename, bool is_bipartite);
   void generate_binary_graph(std::string outfilename, bool v = true, bool e = true, bool vl = true, bool el = true);
+  void readGraphFromGRFile(std::string filename, bool need_sort = false);
+  void read_labels(std::string filename, size_t num_classes, bool is_single_class);
+  size_t read_masks(std::string mask_type, std::string filename, size_t begin_, size_t end_, mask_t* masks);
 
 private:
-  vidType nv;
-  eidType ne;
+  std::string ftype;
+  uint64_t nv;
+  uint64_t ne;
   bool has_edge_weights;
-  std::vector<eidType> rowptr;
-  std::vector<vidType> colidx;
+  std::vector<vidType> degrees;
   std::vector<vlabel_t> vlabels;
   std::vector<OldEdgeValueT> weights;
   std::vector<NewEdgeValueT> elabels;
   EdgeSet edge_set;
+  Graph *g;
 
-  std::vector<vidType> CountDegrees(vidType n, EdgeList el, bool symmetrize = false, bool transpose = false);
-  void MakeCSR(EdgeList el, std::vector<vidType> offsets, 
-               VertexList &colidx, std::vector<OldEdgeValueT> &weight, 
-               bool has_edge_weights = false,
-               bool symmetrize = false, 
-               bool transpose = false);
+  void edgelist2CSR();
+  void CountDegrees(EdgeList el, bool symmetrize = false, bool transpose = false);
+  void MakeCSR(EdgeList el, bool has_edge_weights = false, bool symmetrize = false, bool transpose = false);
+  void split(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters = " ");
 };
 
