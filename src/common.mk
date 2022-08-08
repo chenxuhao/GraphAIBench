@@ -33,7 +33,7 @@ NVFLAGS := $(CUDA_ARCH)
 NVFLAGS += -Xptxas -v
 NVFLAGS += -DUSE_GPU
 NVLDFLAGS = -L$(CUDA_HOME)/lib64 -lcuda -lcudart
-MPI_LIBS = -ccbin=mpic++ -L$(MPI_HOME)/lib -lmpi
+MPI_LIBS = -L$(MPI_HOME)/lib -lmpi
 NVSHMEM_LIBS = -L$(NVSHMEM_HOME)/lib -lnvshmem -lnvToolsExt -lnvidia-ml -ldl -lrt
 
 ifeq ($(VTUNE), 1)

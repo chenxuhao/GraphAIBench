@@ -176,6 +176,7 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   CUDA_SAFE_CALL(cudaMemcpy(d_count, &h_count, sizeof(AccType), cudaMemcpyHostToDevice));
   vidType begin = mype * subgraph_size;
   vidType end = (mype+1) * subgraph_size;
+  if (end > nv) end = nv;
   warp_vertex_nvshmem<<<nblocks, nthreads>>>(begin, end, d_graph, buffers, mype, ndevices, md, d_count);
   CUDA_SAFE_CALL(cudaMemcpy(&h_count, d_count, sizeof(AccType), cudaMemcpyDeviceToHost));
   t.Stop();
