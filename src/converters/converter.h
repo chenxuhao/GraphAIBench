@@ -48,7 +48,6 @@ public:
   size_t read_masks(std::string mask_type, std::string filename, size_t begin_, size_t end_, mask_t* masks);
 
 private:
-  std::string ftype;
   uint64_t nv;
   uint64_t ne;
   bool has_edge_weights;
@@ -61,7 +60,6 @@ private:
 
   void edgelist2CSR();
   void CountDegrees(EdgeList el, bool symmetrize = false, bool transpose = false);
-  void MakeCSR(EdgeList el, bool has_edge_weights = false, bool symmetrize = false, bool transpose = false);
   void split(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters = " ");
 };
 

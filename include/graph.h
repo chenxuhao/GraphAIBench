@@ -56,7 +56,7 @@ public:
             num_vertex_classes(0), num_edge_classes(0), core_length_(0),
             edges(NULL), vertices(NULL), vlabels(NULL), elabels(NULL),
             features(NULL), src_list(NULL), dst_list(NULL) { }
-  Graph(vidType nv, eidType ne) { allocateFrom(nv, ne); }
+  Graph(vidType nv, eidType ne) : Graph() { allocateFrom(nv, ne); }
   ~Graph();
   Graph(const Graph &)=delete;
   Graph& operator=(const Graph &)=delete;

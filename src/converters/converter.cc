@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-Converter::Converter(std::string file_type, std::string file_name, bool is_bipartite) : ftype(file_type) {
+Converter::Converter(std::string file_type, std::string file_name, bool is_bipartite) {
   if (file_type == "gr" || file_type == "sgr" || file_type == "csgr") {
     readGraphFromGRFile(file_name, true);
   } else {
@@ -32,10 +32,26 @@ void Converter::edgelist2CSR() {
   degrees.resize(nv);
   CountDegrees(el);
   g = new Graph(nv, ne);
-  auto rowptr = g->rowptr();
-  parallel_prefix_sum<vidType,eidType>(degrees, rowptr);
-  weights.resize(ne);
-  MakeCSR(el, has_edge_weights);
+  std::vector<eidType> offsets(nv+1);
+  parallel_prefix_sum<vidType,eidType>(degrees, offsets.data());
+
+  std::cout << "offsets[0]=" << offsets[0] << "\n";
+  for (vidType v = 0; v < g->V(); ++v) {
+    std::cout << "offsets[" << v+1 << "]=" << offsets[v+1] << "\n";
+    g->fixEndEdge(v, offsets[v+1]);
+  }
+  if (has_edge_weights) weights.resize(ne);
+  for (auto e : el) {
+    assert(e.src < g->V());
+    assert(e.dst < g->V());
+    eidType eid = offsets[e.src];
+    if (has_edge_weights) weights[eid] = e.label;
+    g->constructEdge(eid, e.dst);
+    offsets[e.src]++;
+  }
+  offsets.clear();
+  g->print_graph();
+
   if (has_edge_weights) {
     auto max_elabel = *(std::max_element(weights.begin(), weights.end()));
     auto min_elabel = *(std::min_element(weights.begin(), weights.end()));
@@ -104,23 +120,6 @@ void Converter::CountDegrees(EdgeList el, bool symmetrize, bool transpose) {
   std::cout << "maximum degree: " << max_degree << "\n";
 }
 
-void Converter::MakeCSR(EdgeList el, bool has_edge_weights, bool symmetrize, bool transpose) {
-  auto offsets = g->rowptr();
-  auto colidx = g->colidx();
-  for (auto e : el) {
-    //if (e.label < 1.0)
-    //  std::cout << "elabel" << "=" << e.label << "\n";
-    if (symmetrize || (!symmetrize && !transpose)) {
-      if (has_edge_weights) weights[offsets[e.src]] = e.label;
-      colidx[offsets[e.src]++] = e.dst;
-    }
-    if (symmetrize || (!symmetrize && transpose)) {
-      if (has_edge_weights) weights[offsets[e.dst]] = e.label;
-      colidx[offsets[e.dst]++] = e.src;
-    }
-  }
-}
-
 void Converter::split(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters) {
 	std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
 	std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
@@ -181,12 +180,21 @@ void Converter::read_edgelist(std::string infile_name) {
   char line[1024];
   std::vector<std::string> result;
   vidType num = 0;
+  uint64_t line_number = 0;
   while (infile.getline(line, 1024)) {
     result.clear();
     utils::split(line, result);
     assert(result.size() >= 2);
-    vidType src = atoi(result[1].c_str());
-    vidType dst = atoi(result[2].c_str());
+    // assuming vertex ID starts from 1 in the file
+    // but we use vertex IDs starting from 0
+    vidType src = atoi(result[0].c_str());
+    vidType dst = atoi(result[1].c_str());
+    if (src<1 || dst<1)
+      std::cout << "line " << line_number << ": src=" << src << " dst=" << dst << "\n";
+    src--;
+    dst--;
+    assert(src >=0);
+    assert(dst >=0);
     if (src == dst) continue; // remove self-loop
     if (src+1 > num) num = src+1;
     if (dst+1 > num) num = dst+1;
@@ -197,6 +205,7 @@ void Converter::read_edgelist(std::string infile_name) {
       edge_set.insert(edge);
       edge_set.insert(Edge<OldEdgeValueT>(dst, src, elabel));
     }
+    line_number++;
   }
   nv = num;
 }

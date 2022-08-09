@@ -7,6 +7,7 @@ all: converter
 
 converter: $(OBJS)
 	g++ $(CXXFLAGS) $(INCLUDES) $(OBJS) -o $@ -lgomp
+	mv $@ $(BIN)
 
 clean:
 	rm *.o converter
