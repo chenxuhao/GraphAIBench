@@ -12,18 +12,97 @@ Converter::Converter(std::string file_type, std::string file_name, bool is_bipar
   } else {
     if (file_type == "mtx") {
       read_mtx(file_name, is_bipartite);
+      if (has_edge_weights) weighted_adjlist2CSR();
+      else adjlist2CSR();
     } else if (file_type == "edges") {
       // plain edgelist format
       read_edgelist(file_name);
+      edgelist2CSR();
     } else {
       read_lg(file_name);
+      edgelist2CSR();
     }
-    edgelist2CSR();
   }
 }
 
+void Converter::adjlist2CSR() {
+  printf("|V| %ld |E| %ld\n", nv, ne);
+/*
+  std::cout << "Printing adj_list: \n";
+  for (vidType i = 0; i < nv; i++) {
+    std::cout << "vertex " << i << ": degree = " 
+      << adj_lists[i].size() << " edgelist = [ ";
+    for (auto u : adj_lists[i]) {
+      std::cout << u << " ";
+    }
+    std::cout << "]\n";
+  }
+  */
+  g = new Graph(nv, ne);
+  degrees.resize(nv);
+  for (vidType i = 0; i < g->V(); i ++)
+    degrees[i] = adj_lists[i].size();
+  std::vector<eidType> offsets(nv+1);
+  parallel_prefix_sum<vidType,eidType>(degrees, offsets.data());
+  #pragma omp parallel for
+  for (vidType v = 0; v < g->V(); ++v) {
+    g->fixEndEdge(v, offsets[v+1]);
+  }
+  #pragma omp parallel for
+  for (vidType v = 0; v < g->V(); ++v) {
+    for (auto u : adj_lists[v]) {
+      assert(u < g->V());
+      eidType eid = offsets[v];
+      g->constructEdge(eid, u);
+      offsets[v]++;
+    }
+  }
+  offsets.clear();
+  //g->sort_neighbors();
+  //g->print_graph();
+}
+
+void Converter::weighted_adjlist2CSR() {
+  printf("|V| %ld |E| %ld\n", nv, ne);
+  weights.resize(ne);
+  g = new Graph(nv, ne);
+  degrees.resize(nv);
+  for (vidType i = 0; i < g->V(); i ++)
+    degrees[i] = weighted_adj_lists[i].size();
+  std::vector<eidType> offsets(nv+1);
+  parallel_prefix_sum<vidType,eidType>(degrees, offsets.data());
+  #pragma omp parallel for
+  for (vidType v = 0; v < g->V(); ++v) {
+    g->fixEndEdge(v, offsets[v+1]);
+    for (auto neigh : weighted_adj_lists[v]) {
+      auto u = neigh.first;
+      auto label = neigh.second;
+      assert(u < g->V());
+      eidType eid = offsets[v];
+      g->constructEdge(eid, u);
+      weights[eid] = label;
+      offsets[v]++;
+    }
+  }
+  offsets.clear();
+  auto max_elabel = *(std::max_element(weights.begin(), weights.end()));
+  auto min_elabel = *(std::min_element(weights.begin(), weights.end()));
+  std::cout << "maximum edge lable: " << max_elabel << "\n";
+  std::cout << "minimum edge lable: " << min_elabel << "\n";
+  elabels.resize(ne);
+  for (eidType i = 0; i < g->E(); i ++)
+    elabels[i] = NewEdgeValueT(weights[i]);
+  std::set<NewEdgeValueT> labels;
+  for (eidType e = 0; e < g->E(); e++)
+    labels.insert(elabels[e]);
+  std::cout << "# distinct edge labels: " << labels.size() << "\n";
+}
+
 void Converter::edgelist2CSR() {
-  EdgeList el(edge_set.begin(), edge_set.end());
+}
+
+void Converter::weighted_edgelist2CSR() {
+  WeightedEdgeList el(weighted_edge_set.begin(), weighted_edge_set.end());
   std::cout << "edgelist size: " << el.size() << "\n";
   ne = el.size(); // redundant edges removed
   printf("|V| %ld |E| %ld\n", nv, ne);
@@ -35,9 +114,8 @@ void Converter::edgelist2CSR() {
   std::vector<eidType> offsets(nv+1);
   parallel_prefix_sum<vidType,eidType>(degrees, offsets.data());
 
-  std::cout << "offsets[0]=" << offsets[0] << "\n";
+  #pragma omp parallel for
   for (vidType v = 0; v < g->V(); ++v) {
-    std::cout << "offsets[" << v+1 << "]=" << offsets[v+1] << "\n";
     g->fixEndEdge(v, offsets[v+1]);
   }
   if (has_edge_weights) weights.resize(ne);
@@ -50,7 +128,7 @@ void Converter::edgelist2CSR() {
     offsets[e.src]++;
   }
   offsets.clear();
-  g->print_graph();
+  //g->print_graph();
 
   if (has_edge_weights) {
     auto max_elabel = *(std::max_element(weights.begin(), weights.end()));
@@ -109,7 +187,7 @@ void Converter::generate_binary_graph(std::string outfilename, bool v, bool e, b
   }
 }
 
-void Converter::CountDegrees(EdgeList el, bool symmetrize, bool transpose) {
+void Converter::CountDegrees(WeightedEdgeList el, bool symmetrize, bool transpose) {
   for (auto e : el) {
     if (symmetrize || (!symmetrize && !transpose))
       degrees[e.src] ++;
@@ -164,9 +242,9 @@ void Converter::read_sadj(std::string infile_name) {
       neighbors.insert(std::pair<vidType, OldEdgeValueT>(dst, 0)); // remove redundant edge
     }
     for (auto it = neighbors.begin(); it != neighbors.end(); ++it) {
-      Edge<OldEdgeValueT> edge(src, it->first, it->second);
-      if (edge_set.find(edge) == edge_set.end()) {
-        edge_set.insert(edge);
+      WeightedEdge<OldEdgeValueT> edge(src, it->first, it->second);
+      if (weighted_edge_set.find(edge) == weighted_edge_set.end()) {
+        weighted_edge_set.insert(edge);
       }
     }
   }
@@ -200,10 +278,10 @@ void Converter::read_edgelist(std::string infile_name) {
     if (dst+1 > num) num = dst+1;
     OldEdgeValueT elabel = 0;
     if (result.size() > 2) atoi(result[3].c_str());
-    Edge<OldEdgeValueT> edge(src, dst, elabel);
-    if (edge_set.find(edge) == edge_set.end()) {
-      edge_set.insert(edge);
-      edge_set.insert(Edge<OldEdgeValueT>(dst, src, elabel));
+    WeightedEdge<OldEdgeValueT> edge(src, dst, elabel);
+    if (weighted_edge_set.find(edge) == weighted_edge_set.end()) {
+      weighted_edge_set.insert(edge);
+      weighted_edge_set.insert(WeightedEdge<OldEdgeValueT>(dst, src, elabel));
     }
     line_number++;
   }
@@ -239,23 +317,23 @@ void Converter::read_lg(std::string infile_name) {
       vidType from   = atoi(result[1].c_str());
       vidType to     = atoi(result[2].c_str());
       OldEdgeValueT elabel = atoi(result[3].c_str());
-      Edge<OldEdgeValueT> edge(from, to, elabel);
-      if (edge_set.find(edge) == edge_set.end()) {
-        edge_set.insert(edge);
-        edge_set.insert(Edge<OldEdgeValueT>(to, from, elabel));
+      WeightedEdge<OldEdgeValueT> edge(from, to, elabel);
+      if (weighted_edge_set.find(edge) == weighted_edge_set.end()) {
+        weighted_edge_set.insert(edge);
+        weighted_edge_set.insert(WeightedEdge<OldEdgeValueT>(to, from, elabel));
       }
     }
   }
   nv = vlabels.size();
-  ne = edge_set.size();
+  ne = weighted_edge_set.size();
 }
 
 void Converter::read_mtx(std::string infile_name, bool is_bipartite) {
   std::cout << "Reading MTX file " << infile_name << "\n";
   std::ifstream infile;
   infile.open(infile_name, std::ios::in);
-  bool read_weights;
   std::string start, object, format, field, symmetry, line;
+  bool read_weights;
   infile >> start >> object >> format >> field >> symmetry >> std::ws;
   if (start != "%%MatrixMarket") {
     std::cout << ".mtx file did not start with %%MatrixMarket" << std::endl;
@@ -271,8 +349,11 @@ void Converter::read_mtx(std::string infile_name, bool is_bipartite) {
   }
   if (field == "pattern") {
     read_weights = false;
+    has_edge_weights = false;
+    std::cout << "This graph does not have edge weights\n";
   } else if ((field == "real") || (field == "double") || (field == "integer")) {
     read_weights = true;
+    has_edge_weights = true;
     std::cout << "edge weights type: " << field << "\n";
   } else {
     std::cout << "unrecognized field type for .mtx" << std::endl;
@@ -309,32 +390,54 @@ void Converter::read_mtx(std::string infile_name, bool is_bipartite) {
     }
   }
   if (is_bipartite) undirected = true;
+  if (read_weights)
+    weighted_adj_lists.resize(nv);
+  else
+    adj_lists.resize(nv);
   eidType idx = 0;
   int num_redundant_edges = 0;
-  edge_set.clear();
+  ne = 0;
   while (std::getline(infile, line)) {
     std::istringstream edge_stream(line);
     vidType u, v;
     edge_stream >> u;
     edge_stream >> v;
+    assert(u > 0);
+    assert(v > 0);
     auto src = u-1;
     auto dst = v-1;
     if (is_bipartite) dst += m;
     if (src == dst) continue; // remove selfloops
-    OldEdgeValueT elabel = 0;
-    if (read_weights) edge_stream >> elabel;
-    //std::cout << "src " << src << " dst " << dst << " elabel " << elabel << "\n";
-    Edge<OldEdgeValueT> edge(src, dst, elabel);
-    if (edge_set.find(edge) == edge_set.end()) { // remove redundant edges
-      edge_set.insert(edge);
-      if (undirected) {
-        Edge<OldEdgeValueT> reverse_edge(dst, src, elabel);
-        edge_set.insert(reverse_edge);
+    if (read_weights) {
+      OldEdgeValueT elabel = 0;
+      edge_stream >> elabel;
+      Neighbor neigh(std::make_pair(dst, elabel));
+      if (weighted_adj_lists[src].find(neigh) == weighted_adj_lists[src].end()) { // remove redundant edges
+        weighted_adj_lists[src].insert(neigh);
+        ne ++;
+        if (undirected) {
+          Neighbor reverse_neigh(std::make_pair(src, elabel));
+          weighted_adj_lists[dst].insert(reverse_neigh);
+          ne ++;
+        }
+      } else {
+        num_redundant_edges ++;
       }
     } else {
-      num_redundant_edges ++;
+      if (adj_lists[src].find(dst) == adj_lists[src].end()) { // remove redundant edges
+        adj_lists[src].insert(dst);
+        ne ++;
+        if (undirected) {
+          adj_lists[dst].insert(src);
+          ne ++;
+        }
+      } else {
+        num_redundant_edges ++;
+      }
     }
     idx ++;
+    if (idx%1000000000 == 0)
+      std::cout << "Finish reading " << idx << " lines so far\n";
   }
   std::cout << "Complete reading " << idx << " lines/edges\n";
   std::cout << "Found " << idx - num_redundant_edges << " distinct edges and " 

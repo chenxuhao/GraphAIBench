@@ -3,21 +3,50 @@
 // convert txt (edgelist) to binary (CSR)
 typedef float OldEdgeValueT;
 typedef float NewEdgeValueT;
+typedef std::pair<vidType,OldEdgeValueT> Neighbor;
 //typedef elabel_t NewEdgeValueT;
 
-template <typename T>
 struct Edge {
-  Edge(vidType s, vidType d, T l) {
-    src = s; dst = d; label = l; }
+  vidType src;
+  vidType dst;
+
+  Edge(vidType s, vidType d) {
+    src = s; dst = d;
+  }
+  void operator = (const Edge &E) { 
+    src = E.src;
+    dst = E.dst;
+  }
+  bool operator == (const Edge &E) {
+    if (src == E.src && dst == E.dst) return true;
+    return false;
+  }
+  std::string to_string() {
+    return "<" + std::to_string(src) + "," + std::to_string(src) + ">";
+  }
+};
+
+template <typename T>
+inline bool operator < (const Edge &E1, const Edge &E2) {
+  if (E1.src < E2.src || (E1.src == E2.src && E1.dst < E2.dst)) return true;
+  return false;
+}
+
+template <typename T>
+struct WeightedEdge {
   vidType src;
   vidType dst;
   T label;
-  void operator = (const Edge &E) { 
+
+  WeightedEdge(vidType s, vidType d, T l) {
+    src = s; dst = d; label = l;
+  }
+  void operator = (const WeightedEdge &E) { 
     src = E.src;
     dst = E.dst;
     label = E.label;
   }
-  bool operator == (const Edge &E) {
+  bool operator == (const WeightedEdge &E) {
     if (src == E.src && dst == E.dst && label == E.label) return true;
     return false;
   }
@@ -27,13 +56,17 @@ struct Edge {
 };
 
 template <typename T>
-inline bool operator < (const Edge<T> &E1, const Edge<T> &E2) {
+inline bool operator < (const WeightedEdge<T> &E1, const WeightedEdge<T> &E2) {
   if (E1.src < E2.src || (E1.src == E2.src && E1.dst < E2.dst)) return true;
   return false;
 }
 
-typedef std::vector<Edge<OldEdgeValueT>> EdgeList;
-typedef std::set<Edge<OldEdgeValueT>> EdgeSet;
+typedef std::vector<Edge> EdgeList;
+typedef std::vector<WeightedEdge<OldEdgeValueT>> WeightedEdgeList;
+typedef std::set<Edge> EdgeSet;
+typedef std::set<WeightedEdge<OldEdgeValueT>> WeightedEdgeSet;
+typedef std::set<vidType> NeighborSet;
+typedef std::set<Neighbor> WeightedNeighborSet;
 
 class Converter {
 public:
@@ -56,10 +89,16 @@ private:
   std::vector<OldEdgeValueT> weights;
   std::vector<NewEdgeValueT> elabels;
   EdgeSet edge_set;
+  WeightedEdgeSet weighted_edge_set;
+  std::vector<NeighborSet> adj_lists;
+  std::vector<WeightedNeighborSet> weighted_adj_lists;
   Graph *g;
 
   void edgelist2CSR();
-  void CountDegrees(EdgeList el, bool symmetrize = false, bool transpose = false);
+  void weighted_edgelist2CSR();
+  void adjlist2CSR();
+  void weighted_adjlist2CSR();
+  void CountDegrees(WeightedEdgeList el, bool symmetrize = false, bool transpose = false);
   void split(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters = " ");
 };
 

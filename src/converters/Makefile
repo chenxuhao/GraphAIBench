@@ -10,4 +10,4 @@ converter: $(OBJS)
 	mv $@ $(BIN)
 
 clean:
-	rm *.o converter
+	rm *.o
