@@ -1,7 +1,7 @@
 include ../common.mk
-VPATH += ../partitioner
+#VPATH += ../partitioner
 INCLUDES+=-I./gpu_kernels -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
-all: tc_omp_base tc_gpu_base tc_multigpu_base tc_multigpu_nvshmem
+all: tc_omp_base tc_gpu_base tc_multigpu_base
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<

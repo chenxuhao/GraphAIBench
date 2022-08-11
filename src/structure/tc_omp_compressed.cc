@@ -13,9 +13,9 @@ void triangle_count(Graph &g, uint64_t &total) {
   #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
   for (vidType u = 0; u < g.V(); u ++) {
     auto deg = g.get_degree(u);
-    for (vidType i = 0; i < degree; i ++) {
+    for (vidType i = 0; i < deg; i ++) {
       auto v = g.N(u, i);
-      counter += (uint64_t)g.intersection_num(u, v);
+      counter += (uint64_t)g.intersect_num(u, v);
     }
   }
   total = counter;

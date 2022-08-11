@@ -14,6 +14,7 @@
 #include <limits>
 #include <cstdio>
 #include <string>
+#include <bitset>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -37,9 +38,9 @@ typedef uint8_t vlabel_t;  // vertex label type
 //typedef uint16_t elabel_t; // edge label type
 typedef float   elabel_t;  // edge label type
 typedef uint8_t cmap_vt;   // cmap value type
-typedef int32_t vidType;   // vertex ID type
+typedef uint32_t vidType;   // vertex ID type
 typedef int64_t eidType;   // edge ID type
-typedef int32_t IndexT;
+typedef uint32_t IndexT;
 typedef int32_t comp_t;    // component ID type for CC
 typedef uint64_t emb_index_t; // embedding index type
 typedef unsigned long long AccType;
@@ -83,6 +84,12 @@ extern float cf_epsilon; // convergence condition
 extern score_t lambda;   // regularization_factor
 extern score_t step;     // learning rate in the algorithm
 extern int max_iters;    // maximum number of iterations
+
+// Compression
+#define ZETA_K 3
+#define MIN_ITV_LEN 4
+static const uint32_t SIZE_NONE = 0xffffffff;
+using SIZE_TYPE = int32_t;
 
 enum Status {
   Idle,

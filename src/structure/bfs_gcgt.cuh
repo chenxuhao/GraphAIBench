@@ -5,6 +5,15 @@
 #include "utils.cuh"
 #include "bfs_gcgt_cta.cuh"
 
+using OFFSET_TYPE = uint64_t;
+using GRAPH_TYPE = uint32_t;
+const int GRAPH_BYTE = 4;
+const int GRAPH_LEN = 32;
+
+cub::CachingDeviceAllocator g_allocator(true);
+
+#define __dsync__ CubDebugExit(cudaDeviceSynchronize())
+
 extern cub::CachingDeviceAllocator g_allocator;
 
 template<int THREADS_NUM>

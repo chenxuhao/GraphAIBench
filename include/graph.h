@@ -43,9 +43,10 @@ protected:
   VertexList labels_frequency_; // vertex count of each label
   VertexList sizes;             // neighbor count of each source vertex in the edgelist
   VertexList reverse_index_;    // indices to vertices grouped by vertex label
-  VertexList edges_compressed;  // compressed edgelist, i.e., column indices of CSR format
+  eidType *vertices_compressed; // row pointers of the compressed format
   std::vector<nlf_map> nlf_;    // neighborhood label frequency
   std::vector<eidType> reverse_index_offsets_; // pointers to each vertex group
+  std::vector<uint32_t> edges_compressed;      // compressed edgelist
 
 public:
   Graph(std::string prefix, bool use_dag = false, bool directed = false,
@@ -62,6 +63,7 @@ public:
   Graph& operator=(const Graph &)=delete;
 
   void load_compressed_graph(std::string prefix);
+  void decompress();
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }
@@ -144,7 +146,7 @@ public:
   bool is_freq_vertex(vidType v, int minsup);
   vidType get_max_label_frequency() const { return max_label_frequency_; }
   const nlf_map* getVertexNLF(const vidType id) const { return &nlf_[id]; }
-  int *get_label_freq_ptr() { return labels_frequency_.data(); }
+  vidType *get_label_freq_ptr() { return labels_frequency_.data(); }
   vidType getLabelsFrequency(vlabel_t label) const { return labels_frequency_.at(label); }
   const vidType* getVerticesByLabel(vlabel_t vl, vidType& count) const {
     auto start = reverse_index_offsets_[vl];
@@ -154,12 +156,16 @@ public:
 
   // edge orientation: convert the graph from undirected to directed
   void orientation();
+  vidType intersect_num(vidType v, vidType u);
   vidType intersect_num(vidType v, vidType u, vlabel_t label);
   vidType intersect_num(VertexSet& vs, vidType u, vlabel_t label);
+  vidType intersect_set(vidType v, vidType u, VertexSet& result);
   vidType intersect_set(vidType v, vidType u, vlabel_t label, VertexSet& result);
   vidType intersect_set(VertexSet& vs, vidType u, vlabel_t label, VertexSet& result);
+  vidType difference_num(vidType v, vidType u);
   vidType difference_num(vidType v, vidType u, vlabel_t label);
   vidType difference_num(VertexSet& vs, vidType u, vlabel_t label);
+  vidType difference_set(vidType v, vidType u, VertexSet& result);
   vidType difference_set(vidType v, vidType u, vlabel_t label, VertexSet& result);
   vidType difference_set(VertexSet& vs, vidType u, vlabel_t label, VertexSet& result);
   vidType difference_num_edgeinduced(vidType v, vidType u, vlabel_t label);

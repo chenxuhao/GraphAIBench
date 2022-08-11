@@ -1,5 +1,6 @@
 #include "graph.h"
 #include "scan.h"
+#include "cgr_decompressor.h"
 
 Graph::Graph(std::string prefix, bool use_dag, bool directed, 
              bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
@@ -143,12 +144,14 @@ void Graph::load_compressed_graph(std::string prefix) {
   read_meta_info(prefix);
 
   // load row offsets
-  if (map_vertices) map_file(prefix+".offset", vertices, n_vertices+1);
-  else read_file(prefix+".offset", vertices, n_vertices+1);
+  read_file(prefix+".vertex.bin", vertices_compressed, n_vertices+1);
+  for (vidType v = 0; v < n_vertices+1; v++) {
+    std::cout << "rowptr[" << v << "]=" << vertices_compressed[v] << "\n";
+  }
 
   // load edges, i.e., column indices
   std::ifstream ifs;
-  ifs.open(prefix+".graph", std::ios::in | std::ios::binary | std::ios::ate);
+  ifs.open(prefix+".edge.bin", std::ios::in | std::ios::binary | std::ios::ate);
   if (!ifs.is_open()) {
     std::cout << "open graph file failed!" << std::endl;
     exit(1);
@@ -173,6 +176,75 @@ void Graph::load_compressed_graph(std::string prefix) {
     edges_compressed.push_back(tmp);
   }
   ifs.close();
+}
+
+void Graph::decompress() {
+  vertices = new eidType[n_vertices+1];
+  edges = new vidType[n_edges];
+
+  // print compressed colidx
+  for (vidType v = 0; v < n_vertices; v++) {
+    std::cout << "vertex " << v << " neighbor list: ";
+    auto begin = vertices_compressed[v];
+    auto end = vertices_compressed[v+1];
+    auto bit_len = end-begin;
+    int num_words = (bit_len-1)/32 + 1;
+    vidType offset = begin % 32;
+    auto first_word = edges_compressed[begin / 32];
+    first_word <<= offset;
+    first_word >>= offset;
+    std::bitset<32> x(first_word);
+    std::cout << x << " ";
+    int i = 1;
+    for (; i < num_words-1; i++) {
+      std::bitset<32> y(edges_compressed[i+begin/32]);
+      std::cout << y << " ";
+    }
+    auto last_word = edges_compressed[i+begin/32];
+    if (end%32) {
+      offset = 32 - (end % 32);
+      last_word >>= offset;
+    }
+    std::bitset<32> y(last_word);
+    std::cout << y << " ";
+    std::cout << "\n";
+  }
+
+  vertices[0] = 0;
+  eidType offset = 0;
+  for (vidType v = 0; v < n_vertices; v++) {
+    CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
+    // handle segmented intervals
+    auto segment_cnt = decoder.decode_segment_cnt();
+    std::cout << "vertex " << v << " interval segment_cnt: " << segment_cnt << "\n";
+    // for each segment
+    for (auto i = 0; i < segment_cnt; i++) {
+      IntervalSegmentHelper isHelper(v, decoder);
+      isHelper.decode_interval_cnt();
+      // for each interval in the segment
+      for (auto j = 0; j < isHelper.interval_cnt; j++) {
+        auto left = isHelper.get_interval_left();
+        auto len = isHelper.get_interval_len();
+        for (int k = 0; k < len; k++) {
+          edges[offset++] = left+k;
+        }
+      }
+    }
+    // handle segmented residuals
+    segment_cnt = decoder.decode_segment_cnt();
+    std::cout << "vertex " << v << " residual segment_cnt: " << segment_cnt << "\n";
+    for (auto i = 0; i < segment_cnt; i++) {
+      ResidualSegmentHelper rsHelper(v, decoder);
+      rsHelper.decode_residual_cnt();
+      // for each residual in the segment
+      for (auto j = 0; j < rsHelper.residual_cnt; j++) {
+        auto residual = rsHelper.get_residual();
+        edges[offset++] = residual;
+      }
+    }
+    vertices[v+1] = offset;
+    std::sort(edges+vertices[v], edges+offset);
+  }
 }
 
 void Graph::sort_neighbors() {
@@ -392,6 +464,23 @@ bool Graph::binary_search(vidType key, eidType begin, eidType end) const {
     else r = mid - 1; 
   } 
   return false;
+}
+
+vidType Graph::intersect_num(vidType v, vidType u) {
+  vidType num = 0;
+  vidType idx_l = 0, idx_r = 0;
+  vidType v_size = get_degree(v);
+  vidType u_size = get_degree(u);
+  vidType* v_ptr = &edges[vertices[v]];
+  vidType* u_ptr = &edges[vertices[u]];
+  while (idx_l < v_size && idx_r < u_size) {
+    vidType a = v_ptr[idx_l];
+    vidType b = u_ptr[idx_r];
+    if (a <= b) idx_l++;
+    if (b <= a) idx_r++;
+    if (a == b) num++;
+  }
+  return num;
 }
 
 vidType Graph::intersect_num(vidType v, vidType u, vlabel_t label) {
@@ -627,15 +716,15 @@ void Graph::BuildReverseIndex() {
   }
 }
 
-#pragma omp declare reduction(vec_plus : std::vector<int> : \
-    std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<int>())) \
+#pragma omp declare reduction(vec_plus : std::vector<vidType> : \
+    std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<vidType>())) \
     initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 void Graph::computeLabelsFrequency() {
   labels_frequency_.resize(num_vertex_classes+1);
   std::fill(labels_frequency_.begin(), labels_frequency_.end(), 0);
   //max_label = int(*std::max_element(vlabels, vlabels+size()));
   #pragma omp parallel for reduction(max:max_label)
-  for (int i = 0; i < size(); ++i) {
+  for (vidType i = 0; i < size(); ++i) {
     max_label = max_label > vlabels[i] ? max_label : vlabels[i];
   }
   #pragma omp parallel for reduction(vec_plus:labels_frequency_)
@@ -644,7 +733,7 @@ void Graph::computeLabelsFrequency() {
     assert(label <= num_vertex_classes);
     labels_frequency_[label] += 1;
   }
-  max_label_frequency_ = int(*std::max_element(labels_frequency_.begin(), labels_frequency_.end()));
+  max_label_frequency_ = vidType(*std::max_element(labels_frequency_.begin(), labels_frequency_.end()));
   //std::cout << "max_label = " << max_label << "\n";
   //std::cout << "max_label_frequency_ = " << max_label_frequency_ << "\n";
   //for (size_t i = 0; i < labels_frequency_.size(); ++i)
@@ -652,18 +741,20 @@ void Graph::computeLabelsFrequency() {
 }
 
 int Graph::get_frequent_labels(int threshold) {
+  assert(threshold > 0);
   int num = 0;
   for (size_t i = 0; i < labels_frequency_.size(); ++i)
-    if (labels_frequency_[i] > threshold)
+    if (labels_frequency_[i] > vidType(threshold))
       num++;
   return num;
 }
 
 bool Graph::is_freq_vertex(vidType v, int threshold) {
+  assert(threshold > 0);
   assert(v >= 0 && v < size());
   auto label = int(vlabels[v]);
   assert(label <= num_vertex_classes);
-  if (labels_frequency_[label] >= threshold) return true;
+  if (labels_frequency_[label] >= vidType(threshold)) return true;
   return false;
 }
 
@@ -745,7 +836,7 @@ void Graph::computeKCore() {
   offset[0] = 0;
   for (int i = 0; i < nv; ++i) {
     int v = vertices[i];
-    for(int j = 0; j < get_degree(v); ++j) {
+    for (vidType j = 0; j < get_degree(v); ++j) {
       int u = N(v, j);
       if (core_table[u] > core_table[v]) {
         // Get the position and vertex which is with the same degree

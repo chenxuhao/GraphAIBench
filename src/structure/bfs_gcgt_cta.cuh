@@ -1,5 +1,11 @@
 #pragma once
 
+const int MASK_LEN = 8;
+#define RESIDUAL_SEGMENT_LEN 256
+const SIZE_TYPE INTERVAL_SEGMENT_LEN = RESIDUAL_SEGMENT_LEN ? (8 * 32) : 0;
+
+const SIZE_TYPE THREADS_NUM = 256;
+
 template<int THREADS_NUM>
 struct BfsGcgtCta {
     typedef cub::BlockScan<SIZE_TYPE, THREADS_NUM> BlockScan;

@@ -1,15 +1,6 @@
 DEBUG ?= 0
 USE_DRAMSIM3 ?= 1
-CUDA_HOME = /jet/packages/spack/opt/spack/linux-centos8-zen/gcc-8.3.1/cuda-11.1.1-a6ajxenobex5bvpejykhtnfut4arfpwh
-PAPI_HOME = /usr/local/papi-6.0.0
-ICC_HOME = /opt/intel/compilers_and_libraries/linux/bin/intel64
-NVSHMEM_HOME = /ocean/projects/cie170003p/shared/nvshmem
-MPI_HOME = /opt/packages/openmpi/gcc/4.1.1-gcc8.3.1-cpu
-MKLROOT = /opt/intel/mkl
-CUB_DIR = ../../../cub
-MGPU_DIR = ../../../moderngpu
 BIN = ../../bin/
-
 CC := gcc
 CXX := g++
 ICC := $(ICC_HOME)/icc
@@ -25,6 +16,7 @@ GENCODE_SM50 := -gencode arch=compute_50,code=sm_50
 GENCODE_SM52 := -gencode arch=compute_52,code=sm_52
 GENCODE_SM60 := -gencode arch=compute_60,code=sm_60
 GENCODE_SM70 := -gencode arch=compute_70,code=sm_70
+GENCODE_SM75 := -gencode arch=compute_75,code=sm_75
 GENCODE_SM80 := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
 CUDA_ARCH := $(GENCODE_SM70)
 CXXFLAGS  := -Wall -fopenmp -std=c++17 -march=native

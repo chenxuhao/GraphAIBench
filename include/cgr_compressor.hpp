@@ -10,8 +10,8 @@ class cgr_compressor {
   Graph *g;
   int _zeta_k;
   int _min_itv_len;
-  int _itv_seg_len;
-  int _res_seg_len;
+  int _itv_seg_len; // number of intervals in a segment
+  int _res_seg_len; // number of residuals in a segment
 
   class cgr_adjlist {
     public:
@@ -44,10 +44,11 @@ public:
   void write_bit_array(FILE* &of);
 
 protected:
-  void encode_node(const size_type node);
-  void intervalize(const size_type node);
-  void encode_intervals(const size_type node);
-  void encode_residuals(const size_type node);
+  void print_bits(bits in);
+  void encode_node(const vidType v);
+  void intervalize(const vidType v);
+  void encode_intervals(const vidType v);
+  void encode_residuals(const vidType v);
   void append_segment(bits &bit_array, size_type cnt, bits &cur_seg, size_type align);
   void append_gamma(bits &bit_array, size_type x);
   void append_zeta(bits &bit_array, size_type x);

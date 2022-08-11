@@ -1,20 +1,14 @@
 DEBUG ?= 0
 USE_GPU ?= 0
 ENABLE_TILING ?= 0
-CC=g++
+CXX=g++
 NVCC=nvcc
 IDIR=../../include/gnn
 ODIR=./obj
-CUDA_HOME=/usr/local/cuda
-#CUDA_HOME=/org/centers/cdgc/cuda/cuda-10.2
-#CUDA_HOME=/jet/packages/spack/opt/spack/linux-centos8-zen/gcc-8.3.1/cuda-10.2.89-kz7u4ix6ed53nioz4ycqin3kujcim3bs
-#OPENBLAS_DIR=/usr/local/openblas
-#OPENBLAS_DIR=/org/centers/cdgc/openblas/ubuntu-gcc7.5
-#OPENBLAS_DIR=/org/centers/cdgc/openblas/centos-gcc9.2
-OPENBLAS_DIR=/ocean/projects/cie170003p/shared/OpenBLAS/build
-MKL_DIR=/opt/apps/sysnet/intel/20.0/mkl
-CFLAGS=-I../../include -I../../include/gnn -I../../include/layers -I../../include/utils -fopenmp -pthread -Wall --std=c++11 -lboost_thread -lboost_system -I$(CUDA_HOME)/include
-CUFLAGS=-I../../include -I../../include/gnn -I../../include/layers -I../../include/utils -DENABLE_GPU -I${OPENBLAS_DIR}/include -lcudart -lcublas -lcusparse -lcurand -lboost_thread -lboost_system -I$(CUDA_HOME)/include
+CULIBS=-lcudart -lcublas -lcusparse -lcurand
+CFLAGS=$(INCLUDES) -fopenmp -pthread -Wall --std=c++11 -lboost_thread -lboost_system 
+INCLUDES=-I$(CUDA_HOME)/include -I${OPENBLAS_DIR}/include -I../../include -I../../include/gnn -I../../include/layers -I../../include/utils
+CUFLAGS=$(INCLUDES) -DENABLE_GPU $(CULIBS) -lboost_thread -lboost_system
 
 VPATH += ../common
 VPATH += ../utilities
@@ -90,18 +84,18 @@ $(ODIR)/%.cu.o: %.cu
 
 $(ODIR)/%.o: %.cpp
 	@mkdir -p $(@D)
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CXX) -c -o $@ $< $(CFLAGS)
 
 BIN_DIR=../../bin
 
 cpu_train_gcn: train.cpp $(OBJ)
-	$(CC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CFLAGS) $(LIBS)
+	$(CXX) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CFLAGS) $(LIBS)
 
 cpu_train_sage: train.cpp $(OBJ)
-	$(CC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CFLAGS) $(LIBS)
+	$(CXX) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CFLAGS) $(LIBS)
 
 cpu_train_gat: train.cpp $(OBJ)
-	$(CC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CFLAGS) $(LIBS)
+	$(CXX) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CFLAGS) $(LIBS)
 
 gpu_train_gcn: train.cpp $(OBJ)
 	$(NVCC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CUFLAGS) $(LIBS) -lgomp

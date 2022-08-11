@@ -1,35 +1,5 @@
 #pragma once
-
 #include "common.h"
-#include <cub/cub.cuh>
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <cub/util_allocator.cuh>
-#define ZETA_K 3
-#define MIN_ITV_LEN 4
-//#define RES_SEG_LEN 256
-#define RESIDUAL_SEGMENT_LEN 256
-#define CTA_SIZE 256
-
-using SIZE_TYPE = uint32_t;
-static const SIZE_TYPE SIZE_NONE = 0xffffffff;
-const int MASK_LEN = 8;
-const int GRAPH_BYTE = 4;
-const int GRAPH_LEN = 32;
-
-const SIZE_TYPE THREADS_NUM = CTA_SIZE;
-const SIZE_TYPE INTERVAL_SEGMENT_LEN = RESIDUAL_SEGMENT_LEN ? (8 * 32) : 0;
-
-using hCG = thrust::host_vector<vidType>;
-using hOS = thrust::host_vector<eidType>;
-using dCG = thrust::device_vector<vidType>;
-using dOS = thrust::device_vector<eidType>;
-
-#define RAW_PTR(x) thrust::raw_pointer_cast((x).data())
-
-#define __dsync__ CubDebugExit(cudaDeviceSynchronize())
-
-cub::CachingDeviceAllocator g_allocator(true);
 
 class CgrReader {
   public:
@@ -51,10 +21,10 @@ class CgrReader {
 
     __device__
       vidType cur() {
-        eidType chunk = global_offset / GRAPH_LEN;
+        eidType chunk = global_offset / 32;
         SIZE_TYPE buf_hi = graph[chunk];
         SIZE_TYPE buf_lo = graph[chunk + 1];
-        SIZE_TYPE offset = global_offset % GRAPH_LEN;
+        SIZE_TYPE offset = global_offset % 32;
         return __funnelshift_l(buf_lo, buf_hi, offset);
       }
 
@@ -101,28 +71,24 @@ class CgrReader {
     __device__
       SIZE_TYPE decode_segment_cnt() {
         SIZE_TYPE segment_cnt = node == SIZE_NONE ? 0 : decode_gamma() + 1;
-
         if (segment_cnt == 1 && (cur() & 0x80000000)) {
           global_offset += 1;
           segment_cnt = 0;
         }
-
         return segment_cnt;
       }
 };
 
 struct ResidualSegmentHelper{
   SIZE_TYPE residual_cnt;
-
   SIZE_TYPE left;
   bool first_res;
-
   CgrReader &cgrr;
 
   __device__
     ResidualSegmentHelper(SIZE_TYPE node, CgrReader &cgrr) :
       cgrr(cgrr), first_res(true), left(0), residual_cnt(0) {
-      }
+    }
 
   __device__
     void decode_residual_cnt() {
@@ -151,16 +117,14 @@ struct ResidualSegmentHelper{
 
 struct IntervalSegmentHelper {
   SIZE_TYPE interval_cnt;
-
   SIZE_TYPE left;
   bool first_interval;
-
   CgrReader &cgrr;
 
   __device__
     IntervalSegmentHelper(SIZE_TYPE node, CgrReader &cgrr) :
       cgrr(cgrr), first_interval(true), left(0), interval_cnt(0) {
-      }
+    }
 
   __device__
     void decode_interval_cnt() {
@@ -195,19 +159,15 @@ struct IntervalSegmentHelper {
 
 struct SeriesHelper {
   SIZE_TYPE interval_num;
-
   SIZE_TYPE node;
   SIZE_TYPE dout;
-
   SIZE_TYPE left;
   bool first_res;
   bool first_interval;
-
   CgrReader &curp;
 
   __device__ SeriesHelper(SIZE_TYPE node, CgrReader &curp, SIZE_TYPE dout) :
     node(node), curp(curp), dout(dout), first_res(true), first_interval(true) {
-
       interval_num = dout ? curp.decode_gamma() : 0;
     }
 
@@ -261,15 +221,11 @@ struct SeriesHelper {
 struct BaseHelper {
   SIZE_TYPE interval_idx;
   SIZE_TYPE interval_num;
-
   SIZE_TYPE node;
   SIZE_TYPE dout;
-
   SIZE_TYPE left;
   SIZE_TYPE len ;
-
   bool first_res;
-
   CgrReader &curp;
 
   __device__
@@ -285,19 +241,15 @@ struct BaseHelper {
 
   __device__
     void refresh_interval() {
-
       if (interval_idx >= interval_num) return;
       if (len) return;
-
       if (interval_idx == 0) {
         left = curp.decode_gamma();
         left = curp.decode_first_num(node, left);
       } else {
         left += curp.decode_gamma() + 1;
       }
-
       len = curp.decode_gamma() + MIN_ITV_LEN;
-
       interval_idx++;
     }
 
@@ -325,3 +277,4 @@ struct BaseHelper {
       }
     }
 };
+
