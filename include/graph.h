@@ -64,6 +64,7 @@ public:
 
   void load_compressed_graph(std::string prefix);
   void decompress();
+  void print_compressed_colidx();
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }

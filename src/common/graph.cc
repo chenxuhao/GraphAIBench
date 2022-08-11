@@ -145,9 +145,8 @@ void Graph::load_compressed_graph(std::string prefix) {
 
   // load row offsets
   read_file(prefix+".vertex.bin", vertices_compressed, n_vertices+1);
-  for (vidType v = 0; v < n_vertices+1; v++) {
-    std::cout << "rowptr[" << v << "]=" << vertices_compressed[v] << "\n";
-  }
+  //for (vidType v = 0; v < n_vertices+1; v++)
+  //  std::cout << "rowptr[" << v << "]=" << vertices_compressed[v] << "\n";
 
   // load edges, i.e., column indices
   std::ifstream ifs;
@@ -178,37 +177,43 @@ void Graph::load_compressed_graph(std::string prefix) {
   ifs.close();
 }
 
-void Graph::decompress() {
-  vertices = new eidType[n_vertices+1];
-  edges = new vidType[n_edges];
-
+void Graph::print_compressed_colidx() {
   // print compressed colidx
   for (vidType v = 0; v < n_vertices; v++) {
-    std::cout << "vertex " << v << " neighbor list: ";
     auto begin = vertices_compressed[v];
     auto end = vertices_compressed[v+1];
     auto bit_len = end-begin;
-    int num_words = (bit_len-1)/32 + 1;
+    std::cout << "vertex " << v << " neighbor list (" << bit_len << " bits): ";
     vidType offset = begin % 32;
     auto first_word = edges_compressed[begin / 32];
+    int num_words = 1;
+    if (bit_len > (32-offset))
+      num_words += (bit_len - (32-offset) -1)/32 + 1;
     first_word <<= offset;
     first_word >>= offset;
     std::bitset<32> x(first_word);
-    std::cout << x << " ";
+    std::cout << x << "<" << std::min(bit_len, eidType(32-offset)) << "> ";
     int i = 1;
     for (; i < num_words-1; i++) {
       std::bitset<32> y(edges_compressed[i+begin/32]);
-      std::cout << y << " ";
+      std::cout << y << "<32> ";
     }
-    auto last_word = edges_compressed[i+begin/32];
-    if (end%32) {
-      offset = 32 - (end % 32);
-      last_word >>= offset;
+    if (num_words > 1) {
+      auto last_word = edges_compressed[i+begin/32];
+      if (end%32) {
+        offset = 32 - (end % 32);
+        last_word >>= offset;
+      }
+      std::bitset<32> y(last_word);
+      std::cout << y << "<" << ((end%32)?(end%32):32) << "> ";
     }
-    std::bitset<32> y(last_word);
-    std::cout << y << " ";
     std::cout << "\n";
   }
+}
+
+void Graph::decompress() {
+  vertices = new eidType[n_vertices+1];
+  edges = new vidType[n_edges];
 
   vertices[0] = 0;
   eidType offset = 0;
@@ -216,13 +221,14 @@ void Graph::decompress() {
     CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
     // handle segmented intervals
     auto segment_cnt = decoder.decode_segment_cnt();
-    std::cout << "vertex " << v << " interval segment_cnt: " << segment_cnt << "\n";
+    //std::cout << "vertex " << v << " interval segment_cnt: " << segment_cnt << "\n";
     // for each segment
     for (auto i = 0; i < segment_cnt; i++) {
       IntervalSegmentHelper isHelper(v, decoder);
       isHelper.decode_interval_cnt();
+      auto num_intervals = isHelper.interval_cnt;
       // for each interval in the segment
-      for (auto j = 0; j < isHelper.interval_cnt; j++) {
+      for (auto j = 0; j < num_intervals; j++) {
         auto left = isHelper.get_interval_left();
         auto len = isHelper.get_interval_len();
         for (int k = 0; k < len; k++) {
@@ -232,12 +238,14 @@ void Graph::decompress() {
     }
     // handle segmented residuals
     segment_cnt = decoder.decode_segment_cnt();
-    std::cout << "vertex " << v << " residual segment_cnt: " << segment_cnt << "\n";
+    //std::cout << "vertex " << v << " residual segment_cnt: " << segment_cnt << "\n";
     for (auto i = 0; i < segment_cnt; i++) {
       ResidualSegmentHelper rsHelper(v, decoder);
       rsHelper.decode_residual_cnt();
+      //std::cout << "\t residual count in segment[" << i << "]: " << rsHelper.residual_cnt << "\n";
+      auto num_res = rsHelper.residual_cnt;
       // for each residual in the segment
-      for (auto j = 0; j < rsHelper.residual_cnt; j++) {
+      for (auto j = 0; j < num_res; j++) {
         auto residual = rsHelper.get_residual();
         edges[offset++] = residual;
       }
