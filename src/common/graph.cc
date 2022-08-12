@@ -40,6 +40,11 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
     reverse_edges = edges;
   }
 
+  // compute maximum degree
+  if (max_degree == 0) compute_max_degree();
+  //else std::cout << "max_degree: " << max_degree << "\n";
+  assert(max_degree > 0 && max_degree < n_vertices);
+
   // read vertex labels
   if (use_vlabel) {
     assert (num_vertex_classes > 0);
@@ -105,7 +110,6 @@ Graph::Graph(std::string prefix, bool use_dag, bool directed,
     assert(!directed); // must be undirected before orientation
     orientation();
   }
-  // compute maximum degree
   VertexSet::MAX_DEGREE = std::max(max_degree, VertexSet::MAX_DEGREE);
   labels_frequency_.clear();
 }
@@ -125,18 +129,21 @@ Graph::~Graph() {
 void Graph::read_meta_info(std::string prefix, bool bipartite) {
   std::ifstream f_meta((prefix + ".meta.txt").c_str());
   assert(f_meta);
+  int64_t nv = 0;
   if (bipartite) {
     f_meta >> n_vert0 >> n_vert1;
-    n_vertices = n_vert0 + n_vert1;
-  } else f_meta >> n_vertices;
+    nv = int64_t(n_vert0) + int64_t(n_vert1);
+  } else f_meta >> nv;
   f_meta >> n_edges >> vid_size >> eid_size >> vlabel_size >> elabel_size
          >> max_degree >> feat_len >> num_vertex_classes >> num_edge_classes;
   assert(sizeof(vidType) == vid_size);
   assert(sizeof(eidType) == eid_size);
   assert(sizeof(vlabel_t) == vlabel_size);
   //assert(sizeof(elabel_t) == elabel_size);
-  assert(max_degree > 0 && max_degree < n_vertices);
   f_meta.close();
+  assert(nv > 0 && n_edges > 0);
+  if (vid_size == 4) assert(nv < 4294967295);
+  n_vertices = nv;
 }
 
 void Graph::load_compressed_graph(std::string prefix) {
@@ -336,18 +343,26 @@ void Graph::allocateFrom(vidType nv, eidType ne) {
   vertices[0] = 0;
 }
 
-vidType Graph::compute_max_degree() {
+void Graph::compute_max_degree() {
   std::cout << "computing the maximum degree\n";
   Timer t;
   t.Start();
+  #pragma omp parallel for reduction(max:max_degree)
+  for (vidType v = 0; v < n_vertices; v++) {
+    auto deg = get_degree(v);
+    if (deg > max_degree) max_degree = deg;
+  }
+  /*
   std::vector<vidType> degrees(n_vertices, 0);
   #pragma omp parallel for
   for (vidType v = 0; v < n_vertices; v++) {
     degrees[v] = vertices[v+1] - vertices[v];
   }
-  vidType max_degree = *(std::max_element(degrees.begin(), degrees.end()));
-  t.Start();
-  return max_degree;
+  max_degree = *(std::max_element(degrees.begin(), degrees.end()));
+  */
+  t.Stop();
+  std::cout << "maximum degree: " << max_degree << "\n";
+  std::cout << "Time computing the maximum degree: " << t.Seconds() << " sec\n";
 }
 
 void Graph::orientation() {

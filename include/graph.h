@@ -179,7 +179,7 @@ public:
   void print_graph() const;
 
  protected:
-  vidType compute_max_degree();
+  void compute_max_degree();
   void read_meta_info(std::string prefix, bool bipartite = false);
   bool binary_search(vidType key, eidType begin, eidType end) const;
 };

@@ -8,7 +8,7 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
   {
     num_threads = omp_get_num_threads();
   }
-  std::cout << "OpenMP TC (" << num_threads << " threads)\n";
+  std::cout << "OpenMP Triangle Counting (" << num_threads << " threads)\n";
   Timer t;
   t.Start();
   uint64_t counter = 0;

@@ -9,7 +9,7 @@ __global__ void warp_vertex_nvshmem(vidType begin, vidType end, GraphGPU g, vidT
  
   AccType count = 0;
   vidType *buffer  = &buffers[int64_t(warp_id)*int64_t(max_deg)];
-  int subgraph_size = (g.V()-1) / npes + 1;
+  vidType subgraph_size = (g.V()-1) / npes + 1;
   auto start_idx = g.edge_begin(begin);
   //if (thread_id == 0) printf("mype=%d, npes=%d, begin=%d, end=%d, subgraph_size=%d\n", mype, npes, begin, end, subgraph_size);
   for (auto v = warp_id+begin; v < end; v += num_warps) {
@@ -28,7 +28,7 @@ __global__ void warp_vertex_nvshmem(vidType begin, vidType end, GraphGPU g, vidT
       //if (thread_lane == 0) printf("v=%d, u=%d, v_deg=%d, u_deg=%d, u_pe=%d, u_offset=%d\n", v, u, v_size, u_size, pe, u_offset);
       if (pe != mype) { // remote data fetch
         //if (thread_lane == 0) printf("remote data access: u=%d, pe=%d, u_deg=%d\n", u, pe, u_size);
-        nvshmemx_int_get_warp(buffer, u_ptr, u_size, pe);
+        nvshmemx_uint_get_warp(buffer, u_ptr, u_size, pe);
         assert(u_size <= max_deg);
         u_ptr = buffer;
       }

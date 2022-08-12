@@ -234,7 +234,7 @@ PartitionedGraph::PartitionedGraph(Graph *g, int nc, std::vector<int> cluster_id
 
   // fill vertices into clusters
   std::vector<int> nvs_of_clusters(nc, 0); // number of vertices in each cluster
-  for (int v = 0; v < nv; v++) { // for each vertex v in g
+  for (vidType v = 0; v < nv; v++) { // for each vertex v in g
     auto cid = cluster_ids[v]; // cluster id
     verts_of_clusters[cid].push_back(v);
     vertex_rank_in_cluster[v] = nvs_of_clusters[cid]++;
@@ -292,7 +292,7 @@ void PartitionedGraph::partition2D(std::vector<int> cluster_ids) {
 
   // insert edges to each partition
   std::vector<int> index(num_2D_partitions, 0);
-  for (int v = 0; v < nv; v++) {
+  for (vidType v = 0; v < nv; v++) {
     auto src_cid = cluster_ids[v]; // src cluster id
     for (auto u : g->N(v)) {
       auto dst_cid = cluster_ids[u]; // dst cluster id
@@ -302,10 +302,10 @@ void PartitionedGraph::partition2D(std::vector<int> cluster_ids) {
   }
 
   // compute the offsets for each partition
-  std::vector<int> vlengths(num_2D_partitions, 0);
-  std::vector<int> elengths(num_2D_partitions, 0);
-  std::vector<int> voffsets(num_2D_partitions+1, 0);
-  std::vector<int> eoffsets(num_2D_partitions+1, 0);
+  std::vector<vidType> vlengths(num_2D_partitions, 0);
+  std::vector<vidType> elengths(num_2D_partitions, 0);
+  std::vector<vidType> voffsets(num_2D_partitions+1, 0);
+  std::vector<vidType> eoffsets(num_2D_partitions+1, 0);
   for (int i = 0; i < num_2D_partitions; i ++) {
     vlengths[i] = rowptr_partitioned[i].size();
     elengths[i] = colidx_partitioned[i].size();
@@ -367,22 +367,23 @@ void PartitionedGraph::fetch_partitions(std::string path, std::vector<int> clust
      std::cout << "\n";
      */
   // count the number of vertices |V| in the subgraph
-  int nv_subg = 0, ne_subg = 0;
+  vidType nv_subg = 0;
+  eidType ne_subg = 0;
   for (auto cid : clusters) nv_subg += verts_of_clusters[cid].size();
   std::cout << "number of vertices in the subgraph: " << nv_subg << "\n";
 
-  int nc = clusters.size();
-  int np = nc * nc;
-  std::vector<std::vector<int>> rowptr_partitioned(np); // row pointers of each partition
-  std::vector<std::vector<int>> colidx_partitioned(np); // column indices of each partition 
-  std::vector<int> degrees_subg(nv_subg);
-  int local_pid = 0;
-  int vid_offset = 0;
+  vidType nc = clusters.size();
+  vidType np = nc * nc;
+  std::vector<std::vector<eidType>> rowptr_partitioned(np); // row pointers of each partition
+  VertexLists colidx_partitioned(np); // column indices of each partition 
+  std::vector<vidType> degrees_subg(nv_subg);
+  vidType local_pid = 0;
+  int64_t vid_offset = 0;
   // compute |E| and the degrees for each vertex in the subgraph
   for (auto src_cid : clusters) {
     auto num_v = verts_of_clusters[src_cid].size();
     for (auto dst_cid : clusters) {
-      int pid = src_cid * num_vertex_chunks + dst_cid; // partition id
+      vidType pid = src_cid * num_vertex_chunks + dst_cid; // partition id
       auto start = voffsets[pid];
       auto end = voffsets[pid+1];
       rowptr_partitioned[local_pid].insert(rowptr_partitioned[local_pid].end(), rowptr+start, rowptr+end);
@@ -404,8 +405,8 @@ void PartitionedGraph::fetch_partitions(std::string path, std::vector<int> clust
   for (auto cid : clusters)
     vertices_subg.insert(vertices_subg.end(), verts_of_clusters[cid].begin(), verts_of_clusters[cid].end());
   assert(vertices_subg.size() == size_t(nv_subg));
-  std::map<int, int> global_to_local_idmap;
-  int local_id = 0;
+  std::map<vidType, vidType> global_to_local_idmap;
+  vidType local_id = 0;
   for (auto v : vertices_subg) {
     global_to_local_idmap.insert(std::make_pair(v, local_id++));
   }
@@ -417,8 +418,8 @@ void PartitionedGraph::fetch_partitions(std::string path, std::vector<int> clust
   parallel_prefix_sum<vidType,eidType>(degrees_subg, offsets);
 
   // insert the edges into the subgraph
-  int pid = 0;
-  int src = 0; // src is local id of the source vertex
+  vidType pid = 0;
+  vidType src = 0; // src is local id of the source vertex
   for (auto src_cid : clusters) {
     for (auto v : verts_of_clusters[src_cid]) { // v is the global vertex id
       subg->fixEndEdge(src, offsets[src+1]); // fix row pointers

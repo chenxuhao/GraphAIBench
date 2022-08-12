@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Example: " << argv[0] << " /graph_inputs/mico/graph\n";
     exit(1);
   }
-  std::cout << "Triangle Counting: we assume the neighbor lists are sorted.\n";
+  std::cout << "Triangle Counting: assuming the neighbor lists are sorted.\n";
   Graph g(argv[1], USE_DAG); // use DAG
   //g.print_graph();
   int n_devices = 1;
