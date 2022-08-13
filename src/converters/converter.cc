@@ -42,6 +42,8 @@ void Converter::adjlist2CSR() {
   degrees.resize(nv);
   for (vidType i = 0; i < g->V(); i ++)
     degrees[i] = adj_lists[i].size();
+  auto max_degree = *(std::max_element(degrees.begin(), degrees.end()));
+  std::cout << "maximum degree: " << max_degree << "\n";
   std::vector<eidType> offsets(nv+1);
   parallel_prefix_sum<vidType,eidType>(degrees, offsets.data());
   #pragma omp parallel for
@@ -232,7 +234,7 @@ void Converter::read_sadj(std::string infile_name) {
     nv++;
     result.clear();
     split(line, result);
-    int src = atoi(result[0].c_str());
+    vidType src = atoi(result[0].c_str());
     vlabels.resize(src + 1);
     vlabels[src] = atoi(result[1].c_str());
     std::set<std::pair<vidType, OldEdgeValueT> > neighbors;
