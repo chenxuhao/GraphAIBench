@@ -64,16 +64,16 @@ __device__ __forceinline__ void expandByCta(GraphGPU g, int depth, vidType *dept
 
 __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth, vidType *depths,
                                              WLGPU &in_queue, WLGPU &out_queue) {
-  unsigned id = blockIdx.x * blockDim.x + threadIdx.x;
-  unsigned warp_id = threadIdx.x >> LOG_WARP_SIZE;
-  unsigned lane_id = LaneId();
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  int warp_id = threadIdx.x >> LOG_WARP_SIZE;
+  int lane_id = LaneId();
   __shared__ int owner[NUM_WARPS];
   __shared__ vidType sh_vertex[NUM_WARPS];
   owner[warp_id] = -1;
   vidType size = 0;
   vidType vertex;
-  if(in_queue.pop_id(id, vertex)) {
-    if (vertex != -1)
+  if (in_queue.pop_id(id, vertex)) {
+    if (vertex != vidType(-1))
       size = g.get_degree(vertex);
   }
   while(__any_sync(0xFFFFFFFF, size) >= WARP_SIZE) {
@@ -102,19 +102,19 @@ __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth, vidType *dep
 __global__ void bfs_step(GraphGPU g, int depth, vidType *depths, 
                          WLGPU in_queue, WLGPU out_queue) {
   //expandByCta(g, depth, depths, in_queue, out_queue);
-  expandByWarp(g, depth, depths, in_queue, out_queue);
+  //expandByWarp(g, depth, depths, in_queue, out_queue);
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   vidType vertex;
   const int SCRATCHSIZE = BLOCK_SIZE;
   __shared__ BlockScan::TempStorage temp_storage;
-  __shared__ int gather_offsets[SCRATCHSIZE];
+  __shared__ eidType gather_offsets[SCRATCHSIZE];
   gather_offsets[threadIdx.x] = 0;
   vidType neighbor_size = 0;
   eidType neighbor_offset = 0;
   vidType scratch_offset = 0;
   vidType total_edges = 0;
-  if(in_queue.pop_id(id, vertex)) {
-    if(vertex != -1) {
+  if (in_queue.pop_id(id, vertex)) {
+    if (vertex != vidType(-1)) {
       neighbor_offset = g.edge_begin(vertex);
       neighbor_size = g.get_degree(vertex);
     }
@@ -122,17 +122,17 @@ __global__ void bfs_step(GraphGPU g, int depth, vidType *depths,
   BlockScan(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
   int done = 0;
   int neighbors_done = 0;
-  while(total_edges > 0) {
+  while (total_edges > 0) {
     __syncthreads();
     int i;
-    for(i = 0; neighbors_done + i < neighbor_size && (scratch_offset + i - done) < SCRATCHSIZE; i++) {
+    for (i = 0; neighbors_done + i < neighbor_size && (scratch_offset + i - done) < SCRATCHSIZE; i++) {
       gather_offsets[scratch_offset + i - done] = neighbor_offset + neighbors_done + i;
     }
     neighbors_done += i;
     scratch_offset += i;
     __syncthreads();
-    int edge = gather_offsets[threadIdx.x];
-    if(threadIdx.x < total_edges) {
+    auto edge = gather_offsets[threadIdx.x];
+    if (threadIdx.x < total_edges) {
       process_edge(g, depth, edge, depths, out_queue);
     }
     total_edges -= BLOCK_SIZE;

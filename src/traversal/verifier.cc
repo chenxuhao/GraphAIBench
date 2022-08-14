@@ -5,16 +5,15 @@
 
 void BFSVerifier(Graph &g, vidType source, vidType *depth_to_test) {
   std::cout << "Verifying BFS...\n";
-  auto m = g.V();
-  vector<vidType> depth(m, MYINFINITY);
-  vector<int> to_visit;
+  std::vector<vidType> depth(g.V(), MYINFINITY);
+  std::vector<vidType> to_visit;
   int iter = 0;
   Timer t;
   t.Start();
   depth[source] = 0;
-  to_visit.reserve(m);
+  to_visit.reserve(g.V());
   to_visit.push_back(source);
-  for (std::vector<int>::iterator it = to_visit.begin(); it != to_visit.end(); it++) {
+  for (std::vector<vidType>::iterator it = to_visit.begin(); it != to_visit.end(); it++) {
     auto src = *it;
     for (auto dst : g.N(src)) {
       if (depth[dst] == MYINFINITY) {
@@ -25,12 +24,12 @@ void BFSVerifier(Graph &g, vidType source, vidType *depth_to_test) {
     iter ++;
   }
   t.Stop();
-  std::cout << "iterations = " << iter << "\n";
-  std::cout << "\truntime [serial] = " << t.Seconds() << " sec\n";
+  //std::cout << "iterations = " << iter << "\n";
+  std::cout << "runtime [serial] = " << t.Seconds() << " sec\n";
 
   // Report any mismatches
   bool all_ok = true;
-  for (vidType n = 0; n < m; n ++) {
+  for (vidType n = 0; n < g.V(); n ++) {
     if (depth_to_test[n] != depth[n]) {
       //std::cout << n << ": " << depth_to_test[n] << " != " << depth[n] << std::endl;
       all_ok = false;

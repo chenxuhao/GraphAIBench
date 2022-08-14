@@ -10,11 +10,11 @@ void bfs_step(Graph &g, vidType *depth, SlidingQueue<vidType> &queue) {
   {
     QueueBuffer<vidType> lqueue(queue);
     #pragma omp for
-    for (vidType *q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
-      vidType src = *q_iter;
+    for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
+      auto src = *q_iter;
       for (auto dst : g.N(src)) {
         //int curr_val = parent[dst];
-        int curr_val = depth[dst];
+        auto curr_val = depth[dst];
         if (curr_val == MYINFINITY) { // not visited
           //if (compare_and_swap(parent[dst], curr_val, src)) {
           if (compare_and_swap(depth[dst], curr_val, depth[src] + 1)) {
@@ -33,7 +33,7 @@ void BFSSolver(Graph &g, vidType source, vidType* dist) {
   {
     num_threads = omp_get_num_threads();
   }
-  std::cout << "Launching OpenMP BFS solver (" << num_threads << " threads) ...\n";
+  std::cout << "OpenMP BFS (" << num_threads << " threads)\n";
   VertexList depth(g.V(), MYINFINITY);
   depth[source] = 0;
   int iter = 0;
@@ -49,8 +49,8 @@ void BFSSolver(Graph &g, vidType source, vidType* dist) {
     queue.slide_window();
   }
   t.Stop();
-  std::cout << "\titerations = " << iter << "\n";
-  std::cout << "\truntime [omp_base] = " << t.Seconds() << "sec\n";
+  std::cout << "iterations = " << iter << "\n";
+  std::cout << "runtime [omp_base] = " << t.Seconds() << " sec\n";
   #pragma omp parallel for
   for (vidType i = 0; i < g.V(); i ++)
     dist[i] = depth[i];
