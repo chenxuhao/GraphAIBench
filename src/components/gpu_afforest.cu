@@ -3,7 +3,7 @@
 #include "graph_gpu.h"
 #include "cuda_launch_config.hpp"
 
-vidType SampleFrequentElement(int m, vidType *comp, int64_t num_samples = 1024);
+comp_t SampleFrequentElement(vidType m, comp_t *comp, int64_t num_samples = 1024);
 
 __device__ void link(vidType u, vidType v, comp_t *comp) {
   auto p1 = comp[u];
@@ -86,8 +86,8 @@ void CCSolver(Graph &g, comp_t *h_comp) {
   }
  
   size_t memsize = print_device_info(0);
-  auto nv = g.num_vertices();
-  auto ne = g.num_edges();
+  auto nv = g.V();
+  auto ne = g.E();
   auto md = g.get_max_degree();
   size_t mem_graph = size_t(nv+1)*sizeof(eidType) + size_t(2)*size_t(ne)*sizeof(vidType);
   std::cout << "GPU_total_mem = " << memsize << " graph_mem = " << mem_graph << "\n";

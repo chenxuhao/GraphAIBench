@@ -27,7 +27,7 @@ void bfs_step(Graph &g, vidType *depth, SlidingQueue<vidType> &queue) {
   }
 }
 
-void BFSSolver(Graph &g, int source, vidType* dist) {
+void BFSSolver(Graph &g, vidType source, vidType* dist) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -52,8 +52,8 @@ void BFSSolver(Graph &g, int source, vidType* dist) {
   std::cout << "\titerations = " << iter << "\n";
   std::cout << "\truntime [omp_base] = " << t.Seconds() << "sec\n";
   #pragma omp parallel for
-  for (int i = 0; i < g.V(); i ++)
+  for (vidType i = 0; i < g.V(); i ++)
     dist[i] = depth[i];
 }
 
-void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta) {}
+void SSSPSolver(Graph &g, vidType source, elabel_t *dist, int delta) {}

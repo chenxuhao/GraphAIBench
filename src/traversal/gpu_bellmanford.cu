@@ -3,17 +3,16 @@
 #include "graph_gpu.h"
 #include "worklist.cuh"
 #include "cuda_launch_config.hpp"
+typedef Worklist2<vidType, vidType> WLGPU;
 
-__global__ void bellman_ford(GraphGPU g, elabel_t *dist, 
-                             Worklist2 in_frontier, 
-                             Worklist2 out_frontier) {
+__global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU in_frontier, WLGPU out_frontier) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int src;
+  vidType src;
   if(in_frontier.pop_id(tid, src)) {
-    int row_begin = g.edge_begin(src);
-    int row_end = g.edge_end(src);
-    for (int offset = row_begin; offset < row_end; ++ offset) {
-      int dst = g.getEdgeDst(offset);
+    auto row_begin = g.edge_begin(src);
+    auto row_end = g.edge_end(src);
+    for (auto offset = row_begin; offset < row_end; ++ offset) {
+      auto dst = g.getEdgeDst(offset);
       elabel_t old_dist = dist[dst];
       elabel_t new_dist = dist[src] + g.getEdgeData(offset);
       if (new_dist < old_dist) {
@@ -24,13 +23,13 @@ __global__ void bellman_ford(GraphGPU g, elabel_t *dist,
   }
 }
 
-__global__ void insert(int source, Worklist2 in_frontier) {
+__global__ void insert(vidType source, WLGPU in_frontier) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  if(id == 0) in_frontier.push(source);
+  if (id == 0) in_frontier.push(source);
   return;
 }
 
-void SSSPSolver(Graph &g, int source, elabel_t *h_dist, int delta) {
+void SSSPSolver(Graph &g, vidType source, elabel_t *h_dist, int delta) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   auto ne = g.num_edges();
@@ -44,7 +43,7 @@ void SSSPSolver(Graph &g, int source, elabel_t *h_dist, int delta) {
   assert(nblocks < 65536);
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  int max_blocks_per_SM = maximum_residency(bellman_ford, nthreads, 0);
+  auto max_blocks_per_SM = maximum_residency(bellman_ford, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   //nblocks = std::min(max_blocks, nblocks);
@@ -56,8 +55,8 @@ void SSSPSolver(Graph &g, int source, elabel_t *h_dist, int delta) {
   CUDA_SAFE_CALL(cudaMemcpy(d_dist, h_dist, nv * sizeof(elabel_t), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaMemcpy(&d_dist[source], &zero, sizeof(zero), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
-  Worklist2 wl1(nv), wl2(nv);
-  Worklist2 *in_frontier = &wl1, *out_frontier = &wl2;
+  WLGPU wl1(nv), wl2(nv);
+  WLGPU *in_frontier = &wl1, *out_frontier = &wl2;
 
   Timer t;
   t.Start();
@@ -71,7 +70,7 @@ void SSSPSolver(Graph &g, int source, elabel_t *h_dist, int delta) {
     printf("iteration %d: frontier_size = %d\n", iter, nitems);
     bellman_ford<<<nblocks, nthreads>>>(gg, d_dist, *in_frontier, *out_frontier);
     nitems = out_frontier->nitems();
-    Worklist2 *tmp = in_frontier;
+    WLGPU *tmp = in_frontier;
     in_frontier = out_frontier;
     out_frontier = tmp;
     out_frontier->reset();
@@ -88,4 +87,4 @@ void SSSPSolver(Graph &g, int source, elabel_t *h_dist, int delta) {
   return;
 }
 
-void BFSSolver(Graph &g, int source, vidType *dist) {}
+void BFSSolver(Graph &g, vidType source, vidType *dist) {}

@@ -5,7 +5,7 @@
 
 //[1] Ulrich Meyer and Peter Sanders. "δ-stepping: a parallelizable shortest path
 //    algorithm." Journal of Algorithms, 49(1):114--152, 2003.
-void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta) {
+void SSSPSolver(Graph &g, vidType source, elabel_t *dist, int delta) {
   int num_threads = 1;
 #pragma omp parallel
   {
@@ -88,4 +88,4 @@ void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta) {
   return;
 }
 
-void BFSSolver(Graph &g, int source, vidType *dist) {}
+void BFSSolver(Graph &g, vidType source, vidType *dist) {}

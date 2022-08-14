@@ -1,51 +1,50 @@
 #pragma once
-
+#include "common.h"
+//#define RESIDUAL_SEGMENT_LEN 256
+//const vidType INTERVAL_SEGMENT_LEN = RESIDUAL_SEGMENT_LEN ? (8 * 32) : 0;
 const int MASK_LEN = 8;
-#define RESIDUAL_SEGMENT_LEN 256
-const SIZE_TYPE INTERVAL_SEGMENT_LEN = RESIDUAL_SEGMENT_LEN ? (8 * 32) : 0;
-
-const SIZE_TYPE THREADS_NUM = 256;
+const vidType THREADS_NUM = 256;
 
 template<int THREADS_NUM>
 struct BfsGcgtCta {
-    typedef cub::BlockScan<SIZE_TYPE, THREADS_NUM> BlockScan;
-    typedef cub::WarpScan<SIZE_TYPE> WarpScan;
+    typedef cub::BlockScan<vidType, THREADS_NUM> BlockScan;
+    typedef cub::WarpScan<vidType> WarpScan;
 
     struct SMem {
         typename BlockScan::TempStorage block_temp_storage;
         typename WarpScan::TempStorage temp_storage[THREADS_NUM / 32];
 
-        volatile SIZE_TYPE segment_node[THREADS_NUM];
+        volatile vidType segment_node[THREADS_NUM];
         volatile eidType segment_offset[THREADS_NUM];
 
-        volatile SIZE_TYPE left[THREADS_NUM];
-        volatile SIZE_TYPE len[THREADS_NUM];
+        volatile vidType left[THREADS_NUM];
+        volatile vidType len[THREADS_NUM];
 
-        volatile SIZE_TYPE comm[THREADS_NUM / 32][32];
+        volatile vidType comm[THREADS_NUM / 32][32];
 
-        volatile SIZE_TYPE output_cta_offset;
-        volatile SIZE_TYPE output_warp_offset[THREADS_NUM / 32];
+        volatile vidType output_cta_offset;
+        volatile vidType output_warp_offset[THREADS_NUM / 32];
     };
 
-    SIZE_TYPE iteration;
-    SIZE_TYPE src;
-    SIZE_TYPE *d_in_len;
-    SIZE_TYPE *d_in;
-    SIZE_TYPE *d_out_len;
-    SIZE_TYPE *d_out;
+    vidType iteration;
+    vidType src;
+    vidType *d_in_len;
+    vidType *d_in;
+    vidType *d_out_len;
+    vidType *d_out;
     eidType *offsets;
     vidType *graph;
     mask_t *visited_mask;
-    SIZE_TYPE *labels;
+    vidType *labels;
     SMem *smem;
 
-    SIZE_TYPE thread_id;
-    SIZE_TYPE lane_id;
-    SIZE_TYPE warp_id;
+    vidType thread_id;
+    vidType lane_id;
+    vidType warp_id;
 
-    __device__ BfsGcgtCta(SMem *smem, SIZE_TYPE iteration, SIZE_TYPE src, SIZE_TYPE *d_in_len, SIZE_TYPE *d_in,
-            SIZE_TYPE *d_out_len, SIZE_TYPE *d_out, eidType *offsets, vidType *graph, mask_t *visited_mask,
-            SIZE_TYPE *labels) :
+    __device__ BfsGcgtCta(SMem *smem, vidType iteration, vidType src, vidType *d_in_len, vidType *d_in,
+            vidType *d_out_len, vidType *d_out, eidType *offsets, vidType *graph, mask_t *visited_mask,
+            vidType *labels) :
             smem(smem), iteration(iteration), src(src), d_in_len(d_in_len), d_in(d_in), d_out_len(d_out_len), d_out(
                     d_out), offsets(offsets), graph(graph), visited_mask(visited_mask), labels(labels) {
         thread_id = threadIdx.x;
@@ -54,7 +53,7 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void interval_cta_gather(SIZE_TYPE &left, SIZE_TYPE &len) {
+    void interval_cta_gather(vidType &left, vidType &len) {
 
         while (__syncthreads_or(len >= THREADS_NUM)) {
             // vie for control of block
@@ -71,12 +70,12 @@ struct BfsGcgtCta {
             }
             __syncthreads();
 
-            SIZE_TYPE gather = smem->comm[0][1] + thread_id;
-            SIZE_TYPE gather_end = smem->comm[0][2];
-            SIZE_TYPE neighbour;
-            SIZE_TYPE thread_data_in;
-            SIZE_TYPE thread_data_out;
-            SIZE_TYPE block_aggregate;
+            vidType gather = smem->comm[0][1] + thread_id;
+            vidType gather_end = smem->comm[0][2];
+            vidType neighbour;
+            vidType thread_data_in;
+            vidType thread_data_out;
+            vidType block_aggregate;
             
             while (__syncthreads_or(gather < gather_end)) {
                 neighbour = gather;
@@ -101,7 +100,7 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void interval_warp_gather(SIZE_TYPE &left, SIZE_TYPE &len) {
+    void interval_warp_gather(vidType &left, vidType &len) {
         while (__any_sync(FULL_MASK, len >= 32)) {
 
             // vie for control of warp
@@ -116,12 +115,12 @@ struct BfsGcgtCta {
                 len %= 32;
             }
 
-            SIZE_TYPE gather = smem->comm[warp_id][1] + lane_id;
-            SIZE_TYPE gather_end = smem->comm[warp_id][2];
-            SIZE_TYPE neighbour;
-            SIZE_TYPE thread_data_in;
-            SIZE_TYPE thread_data_out;
-            SIZE_TYPE warp_aggregate;
+            vidType gather = smem->comm[warp_id][1] + lane_id;
+            vidType gather_end = smem->comm[warp_id][2];
+            vidType neighbour;
+            vidType thread_data_in;
+            vidType thread_data_out;
+            vidType warp_aggregate;
             while (__any_sync(FULL_MASK, gather < gather_end)) {
                 neighbour = gather;
                 if (gather < gather_end) {
@@ -144,19 +143,19 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void interval_scan_gather(SIZE_TYPE &left, SIZE_TYPE &len) {
-        SIZE_TYPE thread_data = len;
+    void interval_scan_gather(vidType &left, vidType &len) {
+        vidType thread_data = len;
 
-        SIZE_TYPE rsv_rank;
-        SIZE_TYPE total;
-        SIZE_TYPE remain;
-        SIZE_TYPE cnt = 0;
+        vidType rsv_rank;
+        vidType total;
+        vidType remain;
+        vidType cnt = 0;
 
         __syncthreads();
         BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
         __syncthreads();
 
-        SIZE_TYPE cta_progress = 0;
+        vidType cta_progress = 0;
 
         while (cta_progress < total) {
             remain = total - cta_progress;
@@ -168,7 +167,7 @@ struct BfsGcgtCta {
             }
             __syncthreads();
 
-            SIZE_TYPE neighbour;
+            vidType neighbour;
 
             if (thread_id < min(remain, THREADS_NUM)) {
                 neighbour = smem->left[thread_id];
@@ -177,8 +176,8 @@ struct BfsGcgtCta {
                 thread_data = 0;
             __syncthreads();
 
-            SIZE_TYPE scatter;
-            SIZE_TYPE block_aggregate;
+            vidType scatter;
+            vidType block_aggregate;
 
             BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, scatter, block_aggregate);
             __syncthreads();
@@ -198,29 +197,29 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void expand_intervals(SIZE_TYPE left, SIZE_TYPE len) {
+    void expand_intervals(vidType left, vidType len) {
         interval_cta_gather(left, len);
         interval_warp_gather(left, len);
         interval_scan_gather(left, len);
     }
 
     __device__
-    void handle_one_interval_segment(SIZE_TYPE node, volatile eidType &global_offset) {
+    void handle_one_interval_segment(vidType node, volatile eidType &global_offset) {
         CgrReader cgrr;
         cgrr.init(node, graph, global_offset);
         IntervalSegmentHelper sh(node, cgrr);
         sh.decode_interval_cnt();
 
-        SIZE_TYPE thread_data = sh.interval_cnt;
+        vidType thread_data = sh.interval_cnt;
 
-        SIZE_TYPE rsv_rank;
-        SIZE_TYPE total;
+        vidType rsv_rank;
+        vidType total;
 
         __syncthreads();
         BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
         __syncthreads();
 
-        SIZE_TYPE cta_progress = 0;
+        vidType cta_progress = 0;
 
         while (cta_progress < total) {
             smem->len[thread_id] = 0;
@@ -244,9 +243,9 @@ struct BfsGcgtCta {
     __device__
     void handle_segmented_intervals(CgrReader &cgrr) {
         // for retrieve global offset for last segment
-        SIZE_TYPE last_segment = SIZE_NONE;
+        vidType last_segment = SIZE_NONE;
 
-        SIZE_TYPE segment_cnt = cgrr.decode_segment_cnt();
+        vidType segment_cnt = cgrr.decode_segment_cnt();
 
         // cta gather
         while (__syncthreads_or(segment_cnt >= THREADS_NUM)) {
@@ -267,7 +266,7 @@ struct BfsGcgtCta {
             }
             __syncthreads();
 
-            SIZE_TYPE node = smem->segment_node[0];
+            vidType node = smem->segment_node[0];
             volatile eidType offset = smem->segment_offset[0] + INTERVAL_SEGMENT_LEN * thread_id;
             handle_one_interval_segment(node, offset);
             if (thread_id == THREADS_NUM - 1) smem->segment_offset[thread_id] = offset;
@@ -279,16 +278,16 @@ struct BfsGcgtCta {
             }
         }
 
-        SIZE_TYPE thread_data = segment_cnt;
+        vidType thread_data = segment_cnt;
 
-        SIZE_TYPE rsv_rank;
-        SIZE_TYPE total;
+        vidType rsv_rank;
+        vidType total;
 
         __syncthreads();
         BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
         __syncthreads();
 
-        SIZE_TYPE cta_progress = 0;
+        vidType cta_progress = 0;
 
         while (cta_progress < total) {
             smem->segment_node[thread_id] = SIZE_NONE;
@@ -299,10 +298,10 @@ struct BfsGcgtCta {
                 if ((rsv_rank + 32 < cta_progress + THREADS_NUM) && (segment_cnt >= 32)) {
                     smem->comm[warp_id][0] = lane_id;
                 }
-                SIZE_TYPE boss_lane = smem->comm[warp_id][0];
-                SIZE_TYPE boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
+                vidType boss_lane = smem->comm[warp_id][0];
+                vidType boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
                 eidType boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
-                SIZE_TYPE boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
+                vidType boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
 
                 smem->segment_node[boss_rsv_rank - cta_progress + lane_id] = boss_node;
                 smem->segment_offset[boss_rsv_rank - cta_progress + lane_id] = boss_global_offset + lane_id * INTERVAL_SEGMENT_LEN;
@@ -347,7 +346,7 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void handle_one_residual_segment(SIZE_TYPE node, eidType global_offset) {
+    void handle_one_residual_segment(vidType node, eidType global_offset) {
 
         CgrReader cgrr;
         cgrr.init(node, graph, global_offset);
@@ -355,11 +354,11 @@ struct BfsGcgtCta {
         sh.decode_residual_cnt();
 
         while (__all_sync(FULL_MASK, sh.residual_cnt)) {
-            SIZE_TYPE neighbour = sh.get_residual();
-            SIZE_TYPE thread_data = unvisited(neighbour) ? 1 : 0;
+            vidType neighbour = sh.get_residual();
+            vidType thread_data = unvisited(neighbour) ? 1 : 0;
 
-            SIZE_TYPE scatter;
-            SIZE_TYPE warp_aggregate;
+            vidType scatter;
+            vidType warp_aggregate;
 
             WarpScan(smem->temp_storage[warp_id]).ExclusiveSum(thread_data, scatter, warp_aggregate);
 
@@ -372,15 +371,15 @@ struct BfsGcgtCta {
             }
         }
 
-        SIZE_TYPE thread_data = sh.residual_cnt;
+        vidType thread_data = sh.residual_cnt;
 
-        SIZE_TYPE rsv_rank;
-        SIZE_TYPE total;
-        SIZE_TYPE remain;
+        vidType rsv_rank;
+        vidType total;
+        vidType remain;
 
         WarpScan(smem->temp_storage[warp_id]).ExclusiveSum(thread_data, rsv_rank, total);
 
-        SIZE_TYPE warp_progress = 0;
+        vidType warp_progress = 0;
         while (warp_progress < total) {
             remain = total - warp_progress;
 
@@ -389,7 +388,7 @@ struct BfsGcgtCta {
                 rsv_rank++;
             }
 
-            SIZE_TYPE neighbour;
+            vidType neighbour;
 
             if (lane_id < min(remain, 32)) {
                 neighbour = smem->left[thread_id];
@@ -398,8 +397,8 @@ struct BfsGcgtCta {
                 thread_data = 0;
             }
 
-            SIZE_TYPE scatter;
-            SIZE_TYPE warp_aggregate;
+            vidType scatter;
+            vidType warp_aggregate;
 
             WarpScan(smem->temp_storage[warp_id]).ExclusiveSum(thread_data, scatter, warp_aggregate);
 
@@ -418,7 +417,7 @@ struct BfsGcgtCta {
     __device__
     void handle_segmented_residuals(CgrReader &cgrr) {
 
-        SIZE_TYPE segment_cnt = cgrr.decode_segment_cnt();
+        vidType segment_cnt = cgrr.decode_segment_cnt();
 
         // cta gather
         while (__syncthreads_or(segment_cnt >= THREADS_NUM)) {
@@ -435,21 +434,21 @@ struct BfsGcgtCta {
             }
             __syncthreads();
 
-            SIZE_TYPE node = smem->segment_node[0];
+            vidType node = smem->segment_node[0];
             eidType offset = smem->segment_offset[0] + RESIDUAL_SEGMENT_LEN * thread_id;
             handle_one_residual_segment(node, offset);
         }
 
-        SIZE_TYPE thread_data = segment_cnt;
+        vidType thread_data = segment_cnt;
 
-        SIZE_TYPE rsv_rank;
-        SIZE_TYPE total;
+        vidType rsv_rank;
+        vidType total;
 
         __syncthreads();
         BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
         __syncthreads();
 
-        SIZE_TYPE cta_progress = 0;
+        vidType cta_progress = 0;
 
         while (cta_progress < total) {
             smem->segment_node[thread_id] = SIZE_NONE;
@@ -460,10 +459,10 @@ struct BfsGcgtCta {
                 if ((rsv_rank + 32 < cta_progress + THREADS_NUM) && (segment_cnt >= 32)) {
                     smem->comm[warp_id][0] = lane_id;
                 }
-                SIZE_TYPE boss_lane = smem->comm[warp_id][0];
-                SIZE_TYPE boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
+                vidType boss_lane = smem->comm[warp_id][0];
+                vidType boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
                 eidType boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
-                SIZE_TYPE boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
+                vidType boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
 
                 smem->segment_node[boss_rsv_rank - cta_progress + lane_id] = boss_node;
                 smem->segment_offset[boss_rsv_rank - cta_progress + lane_id] = boss_global_offset + lane_id * RESIDUAL_SEGMENT_LEN;
@@ -492,12 +491,12 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void bitmap(SIZE_TYPE &neighbour) {
+    void bitmap(vidType &neighbour) {
         if (neighbour == SIZE_NONE)
             return;
 
         mask_t bit_loc = 1 << (neighbour % MASK_LEN);
-        SIZE_TYPE bit_chunk = visited_mask[neighbour / MASK_LEN];
+        vidType bit_chunk = visited_mask[neighbour / MASK_LEN];
         if (bit_chunk & bit_loc) {
             neighbour = SIZE_NONE;
             return;
@@ -506,17 +505,17 @@ struct BfsGcgtCta {
     }
 
     __device__
-    void update_label_atomic(SIZE_TYPE &neighbour) {
+    void update_label_atomic(vidType &neighbour) {
         if (neighbour == SIZE_NONE) return;
 
-        SIZE_TYPE ret = atomicCAS(labels + neighbour, SIZE_NONE, iteration);
+        vidType ret = atomicCAS(labels + neighbour, SIZE_NONE, iteration);
         if (ret != SIZE_NONE) {
             neighbour = SIZE_NONE;
         }
     }
 
     __device__
-    void update_label(SIZE_TYPE &neighbour) {
+    void update_label(vidType &neighbour) {
         if (neighbour == SIZE_NONE)
             return;
 
@@ -529,7 +528,7 @@ struct BfsGcgtCta {
     }
 
     __device__
-    bool unvisited(SIZE_TYPE &neighbour) {
+    bool unvisited(vidType &neighbour) {
         bitmap(neighbour);
         update_label(neighbour);
         return neighbour != SIZE_NONE;
@@ -537,11 +536,11 @@ struct BfsGcgtCta {
 
     __device__
     void process() {
-        SIZE_TYPE cta_offset = blockDim.x * blockIdx.x;
+        vidType cta_offset = blockDim.x * blockIdx.x;
 
         while (cta_offset < d_in_len[0]) {
 
-            SIZE_TYPE node;
+            vidType node;
             eidType row_begin;
             CgrReader cgrr;
 

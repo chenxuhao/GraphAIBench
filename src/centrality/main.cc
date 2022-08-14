@@ -30,7 +30,7 @@ bc_linear_base: data-driven GPU implementation, one thread per vertex using CUDA
 bc_linear_lb: data-driven GPU implementation, one thread per edge using CUDA
 */
 
-void BCSolver(Graph &g, int source, score_t *scores);
+void BCSolver(Graph &g, vidType source, score_t *scores);
 void BCVerifier(Graph &g, int source, int num_iters, score_t *scores_to_test);
 
 int main(int argc, char *argv[]) {
@@ -41,10 +41,10 @@ int main(int argc, char *argv[]) {
     std::cout << "Example: " << argv[0] << " ../inputs/mico/graph\n";
     exit(1);
   }
-  bool symmetrize = false;
-  bool need_reverse = false;
-  if (argc > 3) symmetrize = atoi(argv[3]);
-  if (argc > 4) need_reverse = atoi(argv[4]);
+  //bool symmetrize = false;
+  //bool need_reverse = false;
+  //if (argc > 3) symmetrize = atoi(argv[3]);
+  //if (argc > 4) need_reverse = atoi(argv[4]);
   Graph g(argv[1]);
   g.print_meta_data();
 

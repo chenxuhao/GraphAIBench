@@ -22,7 +22,7 @@ int main(int argc,char *argv[]) {
   hCG hcg;
   hOS hos;
 
-  SIZE_TYPE node_num = load_compressed_graph(input_path, hcg, hos);
+  auto node_num = load_compressed_graph(input_path, hcg, hos);
 
   // for lo buf
   hcg.push_back(0);
@@ -36,7 +36,7 @@ int main(int argc,char *argv[]) {
   dOS dos(hos);
   __dsync__;
 
-  thrust::host_vector<SIZE_TYPE> results(node_num);
+  thrust::host_vector<vidType> results(node_num);
 
   // warm up
   cg_bfs(0, node_num, RAW_PTR(dos), RAW_PTR(dcg), RAW_PTR(results));
@@ -48,12 +48,12 @@ int main(int argc,char *argv[]) {
   double bfs_time_sum = 0.0;
   int iter_num = 100;
   for (int i = 0; i < iter_num; i++) {
-    SIZE_TYPE source = rand() % node_num;
+    vidType source = rand() % node_num;
 
     double cur_time = cg_bfs(source, node_num, RAW_PTR(dos), RAW_PTR(dcg), RAW_PTR(results));
     bfs_time_sum += cur_time;
 
-    SIZE_TYPE unvisited_cnt = thrust::count(results.begin(), results.end(), SIZE_NONE);
+    vidType unvisited_cnt = thrust::count(results.begin(), results.end(), SIZE_NONE);
 
     printf("[%d]\tsource_node: %d\trunning_time: %.5lf\tvisited_num: %d\n",
         i, source, cur_time, node_num - unvisited_cnt
@@ -101,7 +101,7 @@ int load_compressed_graph(std::string file_path, hCG &hcg, hOS &hos) {
 	ifs.close();
 
 	// load offset
-	SIZE_TYPE num_node;
+	vidType num_node;
 	hos.clear();
 	hos.push_back(0);
 	std::ifstream ifs_offset;

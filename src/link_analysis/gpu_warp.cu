@@ -124,14 +124,14 @@ void PRSolver(Graph &g, score_t *scores) {
   const score_t base_score = (1.0f - kDamp) / nv;
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  const int nSM = deviceProp.multiProcessorCount;
+  auto nSM = deviceProp.multiProcessorCount;
 #ifdef FUSED
-  const int max_blocks_per_SM = maximum_residency(pull_fused, nthreads, 0);
+  auto max_blocks_per_SM = maximum_residency(pull_fused, nthreads, 0);
 #else
-  const int max_blocks_per_SM = maximum_residency(pull_step, nthreads, 0);
+  auto max_blocks_per_SM = maximum_residency(pull_step, nthreads, 0);
 #endif
-  const int max_blocks = max_blocks_per_SM * nSM;
-  const int mblocks = std::min(max_blocks, DIVIDE_INTO(nv, WARPS_PER_BLOCK));
+  vidType max_blocks = max_blocks_per_SM * nSM;
+  auto mblocks = std::min(max_blocks, DIVIDE_INTO(nv, WARPS_PER_BLOCK));
 
   Timer t;
   t.Start();

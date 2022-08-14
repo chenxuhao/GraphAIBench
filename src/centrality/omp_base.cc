@@ -46,7 +46,7 @@ void PBFS(Graph &g, int source, std::vector<int> &path_counts,
   depth_index.push_back(queue.begin());
 }
 
-void BCSolver(Graph &g, int source, score_t *scores) {
+void BCSolver(Graph &g, vidType source, score_t *scores) {
   auto m = g.V();
   int num_threads = 1;
   #pragma omp parallel
@@ -94,10 +94,10 @@ void BCSolver(Graph &g, int source, score_t *scores) {
   // Normalize scores
   score_t biggest_score = 0;
   #pragma omp parallel for reduction(max : biggest_score)
-  for (int n = 0; n < m; n ++)
+  for (vidType n = 0; n < m; n ++)
     biggest_score = max(biggest_score, scores[n]);
   #pragma omp parallel for
-  for (int n = 0; n < m; n ++)
+  for (vidType n = 0; n < m; n ++)
     scores[n] = scores[n] / biggest_score;
   t.Stop();
 

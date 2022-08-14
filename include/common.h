@@ -34,9 +34,9 @@ typedef uint8_t patid_t;   // pattern id type
 typedef uint8_t mask_t;    // mask type
 typedef uint8_t label_t;   // label type
 typedef uint8_t vlabel_t;  // vertex label type
-//typedef int32_t elabel_t;  // edge label type
+typedef int32_t elabel_t;  // edge label type
 //typedef uint16_t elabel_t; // edge label type
-typedef float   elabel_t;  // edge label type
+//typedef float   elabel_t;  // edge label type
 typedef uint8_t cmap_vt;   // cmap value type
 typedef uint32_t vidType;   // vertex ID type
 typedef int64_t eidType;   // edge ID type
@@ -88,8 +88,9 @@ extern int max_iters;    // maximum number of iterations
 // Compression
 #define ZETA_K 3
 #define MIN_ITV_LEN 4
+#define INTERVAL_SEGMENT_LEN 256
+#define RESIDUAL_SEGMENT_LEN 256
 static const uint32_t SIZE_NONE = 0xffffffff;
-using SIZE_TYPE = int32_t;
 
 enum Status {
   Idle,

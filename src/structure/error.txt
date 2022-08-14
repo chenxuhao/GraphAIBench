@@ -1,0 +1,18 @@
+input file path: /home/cxh/datasets/automine/citeseer, graph name: citeseer
+|V|: 3312, |E|: 9072, Max Degree: 99
+vertex-|Σ|: 6
+edge-|Σ|: 101
+This graph has no input vertex features
+|V|: 3312, |E|: 9072, Max Degree: 99
+vertex-|Σ|: 6
+edge-|Σ|: 101
+This graph has no input vertex features
+vertex 390 interval segment_cnt: 1
+	 interval count in segment[0]: 1
+	 interval: [153, 4]
+vertex 390 residual segment_cnt: 2
+	 residual count in segment[0]: 41
+	 residual count in segment[1]: 54
+OpenMP TC (1 threads)
+runtime [tc_omp_base] = 0.001756 sec
+total_num_triangles = 6996

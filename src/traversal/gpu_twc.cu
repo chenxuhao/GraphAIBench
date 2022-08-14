@@ -5,12 +5,12 @@
 #include "utils.cuh"
 #include "worklist.cuh"
 #include "cuda_launch_config.hpp"
+typedef Worklist2<vidType, vidType> WLGPU;
 
-typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
+typedef cub::BlockScan<vidType, BLOCK_SIZE> BlockScan;
 
-__device__ __forceinline__ void process_edge(GraphGPU g, int depth, int edge, 
-    vidType *depths, Worklist2 &out_queue) {
-  int dst = g.getEdgeDst(edge);
+__device__ __forceinline__ void process_edge(GraphGPU g, int depth, eidType edge, vidType *depths, WLGPU &out_queue) {
+  auto dst = g.getEdgeDst(edge);
   if (depths[dst] == MYINFINITY) {
     depths[dst] = depth;
     out_queue.push(dst);
@@ -18,13 +18,13 @@ __device__ __forceinline__ void process_edge(GraphGPU g, int depth, int edge,
 }
 
 __device__ __forceinline__ void expandByCta(GraphGPU g, int depth, vidType *depths,
-                                            Worklist2 &in_queue, Worklist2 &out_queue) {
+                                            WLGPU &in_queue, WLGPU &out_queue) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  int vertex;
+  vidType vertex;
   __shared__ int owner;
-  __shared__ int sh_vertex;
+  __shared__ vidType sh_vertex;
   owner = -1;
-  int size = 0;
+  vidType size = 0;
   if (in_queue.pop_id(id, vertex)) {
     size = g.get_degree(vertex);
   }
@@ -36,7 +36,7 @@ __device__ __forceinline__ void expandByCta(GraphGPU g, int depth, vidType *dept
     __syncthreads();
     if (owner == threadIdx.x) {
       sh_vertex = vertex;
-      in_queue.d_queue[id] = -1;
+      in_queue.invalidate(id);
       owner = -1;
       size = 0;
     }
@@ -44,11 +44,11 @@ __device__ __forceinline__ void expandByCta(GraphGPU g, int depth, vidType *dept
     auto row_begin = g.edge_begin(sh_vertex);
     auto row_end = g.edge_end(sh_vertex+1);
     auto neighbor_size = row_end - row_begin;
-    int num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
-    for (int i = threadIdx.x; i < num; i += blockDim.x) {
+    auto num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
+    for (auto i = threadIdx.x; i < num; i += blockDim.x) {
       auto edge = row_begin + i;
-      //int dst = 0;
-      //int ncnt = 0;
+      //vidType dst = 0;
+      //vidType ncnt = 0;
       if (i < neighbor_size) {
         process_edge(g, depth, edge, depths, out_queue);
         //dst = g.getEdgeDst(edge);
@@ -57,21 +57,21 @@ __device__ __forceinline__ void expandByCta(GraphGPU g, int depth, vidType *dept
         //  ncnt = 1;
         //}
       }
-      //out_queue.push_1item<BlockScan>(ncnt, dst, BLOCK_SIZE);
+      //out_queue.push_1item<BlockScan>(ncnt, dst);
     }
   }
 }
 
 __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth, vidType *depths,
-                                             Worklist2 &in_queue, Worklist2 &out_queue) {
+                                             WLGPU &in_queue, WLGPU &out_queue) {
   unsigned id = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned warp_id = threadIdx.x >> LOG_WARP_SIZE;
   unsigned lane_id = LaneId();
   __shared__ int owner[NUM_WARPS];
-  __shared__ int sh_vertex[NUM_WARPS];
+  __shared__ vidType sh_vertex[NUM_WARPS];
   owner[warp_id] = -1;
-  int size = 0;
-  int vertex;
+  vidType size = 0;
+  vidType vertex;
   if(in_queue.pop_id(id, vertex)) {
     if (vertex != -1)
       size = g.get_degree(vertex);
@@ -81,17 +81,17 @@ __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth, vidType *dep
       owner[warp_id] = lane_id;
     if(owner[warp_id] == lane_id) {
       sh_vertex[warp_id] = vertex;
-      in_queue.d_queue[id] = -1;
+      in_queue.invalidate(id);
       owner[warp_id] = -1;
       size = 0;
     }
-    int winner = sh_vertex[warp_id];
-    int row_begin = g.edge_begin(winner);
-    int row_end = g.edge_end(winner);
-    int neighbor_size = row_end - row_begin;
-    int num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
-    for(int i = lane_id; i < num; i+= WARP_SIZE) {
-      int edge = row_begin + i;
+    auto winner = sh_vertex[warp_id];
+    auto row_begin = g.edge_begin(winner);
+    auto row_end = g.edge_end(winner);
+    auto neighbor_size = row_end - row_begin;
+    auto num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
+    for(auto i = lane_id; i < num; i+= WARP_SIZE) {
+      auto edge = row_begin + i;
       if(i < neighbor_size) {
         process_edge(g, depth, edge, depths, out_queue);
       }
@@ -100,19 +100,19 @@ __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth, vidType *dep
 }
 
 __global__ void bfs_step(GraphGPU g, int depth, vidType *depths, 
-                         Worklist2 in_queue, Worklist2 out_queue) {
+                         WLGPU in_queue, WLGPU out_queue) {
   //expandByCta(g, depth, depths, in_queue, out_queue);
   expandByWarp(g, depth, depths, in_queue, out_queue);
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  int vertex;
+  vidType vertex;
   const int SCRATCHSIZE = BLOCK_SIZE;
   __shared__ BlockScan::TempStorage temp_storage;
   __shared__ int gather_offsets[SCRATCHSIZE];
   gather_offsets[threadIdx.x] = 0;
-  int neighbor_size = 0;
-  int neighbor_offset = 0;
-  int scratch_offset = 0;
-  int total_edges = 0;
+  vidType neighbor_size = 0;
+  eidType neighbor_offset = 0;
+  vidType scratch_offset = 0;
+  vidType total_edges = 0;
   if(in_queue.pop_id(id, vertex)) {
     if(vertex != -1) {
       neighbor_offset = g.edge_begin(vertex);
@@ -140,13 +140,13 @@ __global__ void bfs_step(GraphGPU g, int depth, vidType *depths,
   }
 }
 
-__global__ void insert(int source, Worklist2 in_queue) {
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void insert(vidType source, WLGPU in_queue) {
+  auto id = blockIdx.x * blockDim.x + threadIdx.x;
   if(id == 0) in_queue.push(source);
   return;
 }
 
-void BFSSolver(Graph &g, int source, vidType *h_depths) {
+void BFSSolver(Graph &g, vidType source, vidType *h_depths) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   auto ne = g.num_edges();
@@ -160,7 +160,7 @@ void BFSSolver(Graph &g, int source, vidType *h_depths) {
   if (nblocks > 65536) nblocks = 65536;
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  int max_blocks_per_SM = maximum_residency(bfs_step, nthreads, 0);
+  auto max_blocks_per_SM = maximum_residency(bfs_step, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   //nblocks = std::min(max_blocks, nblocks);
@@ -173,8 +173,8 @@ void BFSSolver(Graph &g, int source, vidType *h_depths) {
   CUDA_SAFE_CALL(cudaMemcpy(&d_depths[source], &zero, sizeof(zero), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
-  Worklist2 queue1(ne), queue2(ne);
-  Worklist2 *in_frontier = &queue1, *out_frontier = &queue2;
+  WLGPU queue1(ne), queue2(ne);
+  WLGPU *in_frontier = &queue1, *out_frontier = &queue2;
   std::cout << "CUDA BFS (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   Timer t;
@@ -189,7 +189,7 @@ void BFSSolver(Graph &g, int source, vidType *h_depths) {
     printf("iteration=%d, frontier_size=%d\n", iter, nitems);
     bfs_step<<<nblocks, nthreads>>>(gg, iter, d_depths, *in_frontier, *out_frontier);
     nitems = out_frontier->nitems();
-    Worklist2 *tmp = in_frontier;
+    WLGPU *tmp = in_frontier;
     in_frontier = out_frontier;
     out_frontier = tmp;
     out_frontier->reset();
@@ -206,4 +206,4 @@ void BFSSolver(Graph &g, int source, vidType *h_depths) {
   return;
 }
 
-void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta) {}
+void SSSPSolver(Graph &g, vidType source, elabel_t *dist, int delta) {}

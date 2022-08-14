@@ -4,9 +4,9 @@
 #include "platform_atomics.h"
 #include <random>
 
-vidType SampleFrequentElement(int m, comp_t *comp, int64_t num_samples = 1024);
+vidType SampleFrequentElement(vidType m, comp_t *comp, int64_t num_samples = 1024);
 void Link(vidType u, vidType v, comp_t *comp);
-void Compress(int m, comp_t *comp);
+void Compress(vidType m, comp_t *comp);
 
 void CCSolver(Graph &g, comp_t *comp) {
   if (!g.has_reverse_graph()) {
@@ -41,7 +41,7 @@ void CCSolver(Graph &g, comp_t *comp) {
 
   // Sample 'comp' to find the most frequent element -- due to prior
   // compression, this value represents the largest intermediate component
-  vidType c = SampleFrequentElement(m, comp);
+  auto c = SampleFrequentElement(m, comp);
 
   // Final 'link' phase over remaining edges (excluding largest component)
   if (!g.is_directed()) {
@@ -91,7 +91,7 @@ void Link(vidType u, vidType v, comp_t *comp) {
 }
 
 // Reduce depth of tree for each component to 1 by crawling up parents
-void Compress(int m, comp_t *comp) {
+void Compress(vidType m, comp_t *comp) {
   #pragma omp parallel for schedule(static, 2048)
   for (vidType n = 0; n < m; n++) {
     while (comp[n] != comp[comp[n]]) {

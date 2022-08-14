@@ -106,9 +106,9 @@ void cgr_compressor::encode_intervals(const vidType v) {
     size_type cur_len = itv_len[i] - this->_min_itv_len;
 
     // check if cur seg is overflowed
-    if (this->_itv_seg_len &&
+    if (_itv_seg_len &&
         gamma_size(itv_cnt + 1) + cur_seg.size() + gamma_size(cur_left) + gamma_size(cur_len) >
-        this->_itv_seg_len) {
+        size_t(_itv_seg_len)) {
       segs.emplace_back(segment(itv_cnt, cur_seg));
       itv_cnt = 0;
       cur_left = int_2_nat(itv_left[i] - v);
@@ -161,9 +161,9 @@ void cgr_compressor::encode_residuals(const vidType v) {
 
   bits cur_seg;
   size_type res_cnt = 0;
-  std::cout << "res[" << v << "] = <";
+  //std::cout << "res[" << v << "] = <";
   for (size_t i = 0; i < res.size(); i++) {
-    std::cout << res[i] << " ";
+    //std::cout << res[i] << " ";
     size_type cur;
     if (res_cnt == 0) {
       cur = int_2_nat(res[i] - v);
@@ -171,7 +171,7 @@ void cgr_compressor::encode_residuals(const vidType v) {
       cur = res[i] - res[i - 1] - 1;
     }
     // check if cur seg is overflowed
-    if (this->_res_seg_len && gamma_size(res_cnt + 1) + cur_seg.size() + zeta_size(cur) > this->_res_seg_len) {
+    if (_res_seg_len && gamma_size(res_cnt + 1) + cur_seg.size() + zeta_size(cur) > size_t(_res_seg_len)) {
       segs.emplace_back(segment(res_cnt, cur_seg));
       res_cnt = 0;
       cur = int_2_nat(res[i] - v);
@@ -180,7 +180,7 @@ void cgr_compressor::encode_residuals(const vidType v) {
     res_cnt++;
     append_zeta(cur_seg, cur);
   }
-  std::cout << ">\n";
+  //std::cout << ">\n";
 
   // handle last partial segment
   if (segs.empty()) {
@@ -192,15 +192,15 @@ void cgr_compressor::encode_residuals(const vidType v) {
     }
   }
 
-  std::cout << "vertex " << v << " residual segment_count: " << segs.size() << "\n";
-  if (this->_res_seg_len != 0) {
+  //std::cout << "vertex " << v << " residual segment_count: " << segs.size() << "\n";
+  if (_res_seg_len != 0) {
     append_gamma(bit_arr, segs.size() - 1);
     for (size_t i = 0; i < segs.size(); i++) {
-      size_type align = i + 1 == segs.size() ? 0 : this->_res_seg_len;
+      size_type align = i + 1 == segs.size() ? 0 : _res_seg_len;
       append_segment(bit_arr, segs[i].first, segs[i].second, align);
-      std::cout << "residual[" << i << "] = <" << segs[i].first << ",";
-      print_bits(segs[i].second);
-      std::cout << ">\n";
+      //std::cout << "residual[" << i << "] = <" << segs[i].first << ",";
+      //print_bits(segs[i].second);
+      //std::cout << ">\n";
     }
   } else {
     bit_arr.insert(bit_arr.end(), cur_seg.begin(), cur_seg.end());
@@ -211,8 +211,8 @@ void cgr_compressor::append_segment(bits &bit_array, size_type cnt, bits &cur_se
   bits buf;
   append_gamma(buf, cnt);
   buf.insert(buf.end(), cur_seg.begin(), cur_seg.end());
-  assert(align == 0 or buf.size() <= align);
-  while (buf.size() < align) buf.emplace_back(false);
+  assert(align == 0 or buf.size() <= size_t(align));
+  while (buf.size() < size_t(align)) buf.emplace_back(false);
   bit_array.insert(bit_array.end(), buf.begin(), buf.end());
 }
 

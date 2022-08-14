@@ -7,13 +7,14 @@
 #include "worklist.cuh"
 #include "cutil_subset.h"
 #include "cuda_launch_config.hpp"
+typedef Worklist2<vidType, vidType> WLGPU;
 
-__global__ void initialize(int m, int *depths) {
+__global__ void initialize(vidType m, int *depths) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id < m) depths[id] = -1;
 }
 
-__global__ void insert(Worklist2 in_queue, int src, int *path_counts, int *depths) {
+__global__ void insert(WLGPU in_queue, int src, int *path_counts, int *depths) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id == 0) {
     in_queue.push(src);
@@ -23,9 +24,9 @@ __global__ void insert(Worklist2 in_queue, int src, int *path_counts, int *depth
   return;
 }
 
-__global__ void push_frontier(Worklist2 in_queue, int *queue, int queue_len) {
+__global__ void push_frontier(WLGPU in_queue, int *queue, int queue_len) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int vertex;
+  vidType vertex;
   if (in_queue.pop_id(tid, vertex))
     queue[queue_len+tid] = vertex;
 }
@@ -37,9 +38,9 @@ __global__ void bc_normalize(int m, score_t *scores, score_t max_score) {
 
 // Shortest path calculation by forward BFS
 __global__ void bc_forward(GraphGPU g, int depth, int *path_counts, int *depths, 
-                           Worklist2 in_queue, Worklist2 out_queue) {
+                           WLGPU in_queue, WLGPU out_queue) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int src;
+  vidType src;
   if (in_queue.pop_id(tid, src)) {
     int row_begin = g.edge_begin(src);
     int row_end = g.edge_end(src); 
@@ -77,7 +78,7 @@ __global__ void bc_reverse(int num, GraphGPU g, int depth,
   }
 }
 
-void BCSolver(Graph &g, int source, score_t *h_scores) {
+void BCSolver(Graph &g, vidType source, score_t *h_scores) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   auto ne = g.num_edges();
@@ -114,8 +115,8 @@ void BCSolver(Graph &g, int source, score_t *h_scores) {
   int frontiers_len = 0;
   vector<int> depth_index;
   depth_index.push_back(0);
-  Worklist2 wl1(nv), wl2(nv);
-  Worklist2 *inwl = &wl1, *outwl = &wl2;
+  WLGPU wl1(nv), wl2(nv);
+  WLGPU *inwl = &wl1, *outwl = &wl2;
   initialize <<<nblocks, nthreads>>> (nv, d_depths);
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
@@ -132,7 +133,7 @@ void BCSolver(Graph &g, int source, score_t *h_scores) {
     bc_forward<<<nblocks, nthreads>>>(gg, depth, d_path_counts, d_depths, *inwl, *outwl);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     nitems = outwl->nitems();
-    Worklist2 *tmp = inwl;
+    WLGPU *tmp = inwl;
     inwl = outwl;
     outwl = tmp;
     outwl->reset();

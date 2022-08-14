@@ -17,11 +17,11 @@ cub::CachingDeviceAllocator g_allocator(true);
 extern cub::CachingDeviceAllocator g_allocator;
 
 template<int THREADS_NUM>
-__global__ void cg_expand_contract_kernel(SIZE_TYPE iteration, SIZE_TYPE src, 
-        SIZE_TYPE *d_in_len, SIZE_TYPE *d_in,
-        SIZE_TYPE *d_out_len, SIZE_TYPE *d_out, 
+__global__ void cg_expand_contract_kernel(vidType iteration, vidType src, 
+        vidType *d_in_len, vidType *d_in,
+        vidType *d_out_len, vidType *d_out, 
         eidType *offsets, vidType *graph, 
-        mask_t *visited_mask, SIZE_TYPE *labels) {
+        mask_t *visited_mask, vidType *labels) {
   typedef BfsGcgtCta<THREADS_NUM> CTA;
   __shared__ typename CTA::SMem smem;
   if (iteration == 1) {
@@ -40,16 +40,16 @@ __global__ void cg_expand_contract_kernel(SIZE_TYPE iteration, SIZE_TYPE src,
   cta.process();
 }
 
-__host__ double cg_bfs(SIZE_TYPE src, SIZE_TYPE node_num, eidType *offsets, vidType *graph, SIZE_TYPE *results) {
+__host__ double cg_bfs(vidType src, vidType node_num, eidType *offsets, vidType *graph, vidType *results) {
     // node frontier double buffer
-    cub::DoubleBuffer<SIZE_TYPE> d_frontiers;
-    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_frontiers.d_buffers[0], sizeof(SIZE_TYPE) * node_num));
-    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_frontiers.d_buffers[1], sizeof(SIZE_TYPE) * node_num));
+    cub::DoubleBuffer<vidType> d_frontiers;
+    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_frontiers.d_buffers[0], sizeof(vidType) * node_num));
+    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_frontiers.d_buffers[1], sizeof(vidType) * node_num));
 
     // node frontier lens
-    cub::DoubleBuffer<SIZE_TYPE> d_len;
-    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_len.d_buffers[0], sizeof(SIZE_TYPE)));
-    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_len.d_buffers[1], sizeof(SIZE_TYPE)));
+    cub::DoubleBuffer<vidType> d_len;
+    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_len.d_buffers[0], sizeof(vidType)));
+    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_len.d_buffers[1], sizeof(vidType)));
 
     // bitmap
     mask_t *visited_mask;
@@ -58,25 +58,25 @@ __host__ double cg_bfs(SIZE_TYPE src, SIZE_TYPE node_num, eidType *offsets, vidT
     CubDebugExit(cudaMemset(visited_mask, 0, sizeof(mask_t) * ((node_num - 1) / MASK_LEN + 1)));
 
     // bfs labels
-    SIZE_TYPE *d_labels;
-    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_labels, sizeof(SIZE_TYPE) * node_num));
-    CubDebugExit(cudaMemset(d_labels, 0xFF, sizeof(SIZE_TYPE) * node_num));
+    vidType *d_labels;
+    CubDebugExit(g_allocator.DeviceAllocate((void** )&d_labels, sizeof(vidType) * node_num));
+    CubDebugExit(cudaMemset(d_labels, 0xFF, sizeof(vidType) * node_num));
 
     int iteration = 1;
-    SIZE_TYPE h_out_len[1] = {1};
+    vidType h_out_len[1] = {1};
 
     __dsync__;
     GpuTimer timer;
     timer.Start();
 
     while (true) {
-        SIZE_TYPE BLOCKS_NUM = min(4096 * 100, h_out_len[0] / THREADS_NUM + 1);
+        vidType BLOCKS_NUM = min(4096 * 100, h_out_len[0] / THREADS_NUM + 1);
 
-        CubDebugExit(cudaMemset(d_len.Alternate(), 0, sizeof(SIZE_TYPE)));
+        CubDebugExit(cudaMemset(d_len.Alternate(), 0, sizeof(vidType)));
         cg_expand_contract_kernel<THREADS_NUM> <<<BLOCKS_NUM, THREADS_NUM>>>(iteration, src, d_len.Current(),
                 d_frontiers.Current(), d_len.Alternate(), d_frontiers.Alternate(), offsets, graph, visited_mask,
                 d_labels);
-        CubDebugExit(cudaMemcpy(h_out_len, d_len.Alternate(), sizeof(SIZE_TYPE), cudaMemcpyDeviceToHost));
+        CubDebugExit(cudaMemcpy(h_out_len, d_len.Alternate(), sizeof(vidType), cudaMemcpyDeviceToHost));
 
         if (h_out_len[0] == 0)
             break;
@@ -90,7 +90,7 @@ __host__ double cg_bfs(SIZE_TYPE src, SIZE_TYPE node_num, eidType *offsets, vidT
     timer.Stop();
     auto bfs_time = timer.Elapsed();
 
-    CubDebugExit(cudaMemcpy(results, d_labels, sizeof(SIZE_TYPE) * node_num, cudaMemcpyDeviceToHost));
+    CubDebugExit(cudaMemcpy(results, d_labels, sizeof(vidType) * node_num, cudaMemcpyDeviceToHost));
 
     if (d_frontiers.d_buffers[0])
         CubDebugExit(g_allocator.DeviceFree(d_frontiers.d_buffers[0]));

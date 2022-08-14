@@ -2,8 +2,10 @@
 #include "graph.h"
 #include "operations.cuh"
 #include "cutil_subset.h"
+#ifdef USE_NVSHMEM
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#endif
 
 class GraphGPU {
 protected:

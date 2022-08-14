@@ -2,7 +2,7 @@
 // Authors: Xuhao Chen <cxh@mit.edu>
 #include "graph.h"
 
-void CCSolver(Graph &g, vidType *comp) {
+void CCSolver(Graph &g, comp_t *comp) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -22,9 +22,9 @@ void CCSolver(Graph &g, vidType *comp) {
     //printf("Executing iteration %d ...\n", iter);
     #pragma omp parallel for schedule(dynamic, 64)
     for (int src = 0; src < g.V(); src ++) {
-      vidType comp_src = comp[src];
+      auto comp_src = comp[src];
       for (auto dst : g.N(src)) {
-        vidType comp_dst = comp[dst];
+        auto comp_dst = comp[dst];
         if (comp_src == comp_dst) continue;
         // Hooking condition so lower component ID wins independent of direction
         int high_comp = comp_src > comp_dst ? comp_src : comp_dst;
@@ -36,7 +36,7 @@ void CCSolver(Graph &g, vidType *comp) {
       }
     }
     #pragma omp parallel for
-    for (int n = 0; n < g.V(); n++) {
+    for (vidType n = 0; n < g.V(); n++) {
       while (comp[n] != comp[comp[n]]) {
         comp[n] = comp[comp[n]];
       }

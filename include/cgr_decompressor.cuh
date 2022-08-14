@@ -5,62 +5,62 @@ class CgrReader {
   public:
     eidType global_offset;
     vidType *graph;
-    SIZE_TYPE node;
+    vidType node;
 
     __device__
-      void init(SIZE_TYPE node, vidType *graph, eidType global_offset) {
+      void init(vidType node, vidType *graph, eidType global_offset) {
         this->node = node;
         this->graph = graph;
         this->global_offset = global_offset;
       }
 
     static __device__
-      SIZE_TYPE decode_first_num(SIZE_TYPE node, SIZE_TYPE x) {
+      vidType decode_first_num(vidType node, vidType x) {
         return (x & 1) ? node - (x >> 1) - 1 : node + (x >> 1);
       }
 
     __device__
       vidType cur() {
         eidType chunk = global_offset / 32;
-        SIZE_TYPE buf_hi = graph[chunk];
-        SIZE_TYPE buf_lo = graph[chunk + 1];
-        SIZE_TYPE offset = global_offset % 32;
+        vidType buf_hi = graph[chunk];
+        vidType buf_lo = graph[chunk + 1];
+        vidType offset = global_offset % 32;
         return __funnelshift_l(buf_lo, buf_hi, offset);
       }
 
     __device__
-      SIZE_TYPE decode_unary() {
-        SIZE_TYPE tmp = cur();
-        SIZE_TYPE x = __clz(tmp);
+      vidType decode_unary() {
+        vidType tmp = cur();
+        vidType x = __clz(tmp);
         global_offset += x;
         return x + 1;
       }
 
     __device__
-      SIZE_TYPE decode_int(SIZE_TYPE len) {
-        SIZE_TYPE x = cur() >> (32 - len);
+      vidType decode_int(vidType len) {
+        vidType x = cur() >> (32 - len);
         global_offset += len;
         return x;
       }
 
     __device__
-      SIZE_TYPE decode_gamma() {
-        SIZE_TYPE h = decode_unary();
+      vidType decode_gamma() {
+        vidType h = decode_unary();
         return this->decode_int(h) - 1;
       }
 
 #if ZETA_K != 1
     __device__
-      SIZE_TYPE decode_zeta() {
-        SIZE_TYPE h = decode_unary();
+      vidType decode_zeta() {
+        vidType h = decode_unary();
         global_offset++;
-        SIZE_TYPE x = decode_int(h * ZETA_K);
+        vidType x = decode_int(h * ZETA_K);
         return x - 1;
       }
 #endif
 
     __device__
-      SIZE_TYPE decode_residual_code() {
+      vidType decode_residual_code() {
 #if ZETA_K == 1
         return decode_gamma();
 #else
@@ -69,8 +69,8 @@ class CgrReader {
       }
 
     __device__
-      SIZE_TYPE decode_segment_cnt() {
-        SIZE_TYPE segment_cnt = node == SIZE_NONE ? 0 : decode_gamma() + 1;
+      vidType decode_segment_cnt() {
+        vidType segment_cnt = node == SIZE_NONE ? 0 : decode_gamma() + 1;
         if (segment_cnt == 1 && (cur() & 0x80000000)) {
           global_offset += 1;
           segment_cnt = 0;
@@ -80,13 +80,13 @@ class CgrReader {
 };
 
 struct ResidualSegmentHelper{
-  SIZE_TYPE residual_cnt;
-  SIZE_TYPE left;
+  vidType residual_cnt;
+  vidType left;
   bool first_res;
   CgrReader &cgrr;
 
   __device__
-    ResidualSegmentHelper(SIZE_TYPE node, CgrReader &cgrr) :
+    ResidualSegmentHelper(vidType node, CgrReader &cgrr) :
       cgrr(cgrr), first_res(true), left(0), residual_cnt(0) {
     }
 
@@ -96,7 +96,7 @@ struct ResidualSegmentHelper{
     }
 
   __device__
-    SIZE_TYPE get_residual() {
+    vidType get_residual() {
       if (first_res) {
         left = decode_first_num();
         first_res = false;
@@ -108,21 +108,21 @@ struct ResidualSegmentHelper{
     }
 
   __device__
-    SIZE_TYPE decode_first_num() {
-      SIZE_TYPE x = cgrr.decode_residual_code();
+    vidType decode_first_num() {
+      vidType x = cgrr.decode_residual_code();
       return (x & 1) ? cgrr.node - (x >> 1) - 1 : cgrr.node + (x >> 1);
     }
 
 };
 
 struct IntervalSegmentHelper {
-  SIZE_TYPE interval_cnt;
-  SIZE_TYPE left;
+  vidType interval_cnt;
+  vidType left;
   bool first_interval;
   CgrReader &cgrr;
 
   __device__
-    IntervalSegmentHelper(SIZE_TYPE node, CgrReader &cgrr) :
+    IntervalSegmentHelper(vidType node, CgrReader &cgrr) :
       cgrr(cgrr), first_interval(true), left(0), interval_cnt(0) {
     }
 
@@ -132,7 +132,7 @@ struct IntervalSegmentHelper {
     }
 
   __device__
-    SIZE_TYPE get_interval_left() {
+    vidType get_interval_left() {
       if (first_interval) {
         left = decode_first_num();
         first_interval = false;
@@ -143,36 +143,36 @@ struct IntervalSegmentHelper {
     }
 
   __device__
-    SIZE_TYPE get_interval_len() {
-      SIZE_TYPE len = cgrr.decode_gamma() + MIN_ITV_LEN;
+    vidType get_interval_len() {
+      vidType len = cgrr.decode_gamma() + MIN_ITV_LEN;
       left += len;
       interval_cnt--;
       return len;
     }
 
   __device__
-    SIZE_TYPE decode_first_num() {
-      SIZE_TYPE x = cgrr.decode_gamma();
+    vidType decode_first_num() {
+      vidType x = cgrr.decode_gamma();
       return (x & 1) ? cgrr.node - (x >> 1) - 1 : cgrr.node + (x >> 1);
     }
 };
 
 struct SeriesHelper {
-  SIZE_TYPE interval_num;
-  SIZE_TYPE node;
-  SIZE_TYPE dout;
-  SIZE_TYPE left;
+  vidType interval_num;
+  vidType node;
+  vidType dout;
+  vidType left;
   bool first_res;
   bool first_interval;
   CgrReader &curp;
 
-  __device__ SeriesHelper(SIZE_TYPE node, CgrReader &curp, SIZE_TYPE dout) :
+  __device__ SeriesHelper(vidType node, CgrReader &curp, vidType dout) :
     node(node), curp(curp), dout(dout), first_res(true), first_interval(true) {
       interval_num = dout ? curp.decode_gamma() : 0;
     }
 
   __device__
-    SIZE_TYPE get_interval_left() {
+    vidType get_interval_left() {
       if (first_interval) {
         left = curp.decode_gamma();
         left = curp.decode_first_num(node, left);
@@ -184,15 +184,15 @@ struct SeriesHelper {
     }
 
   __device__
-    SIZE_TYPE get_interval_len() {
-      SIZE_TYPE len = curp.decode_gamma() + MIN_ITV_LEN;
+    vidType get_interval_len() {
+      vidType len = curp.decode_gamma() + MIN_ITV_LEN;
       dout -= len;
       left += len;
       return len;
     }
 
   __device__
-    SIZE_TYPE get_residual() {
+    vidType get_residual() {
       if (first_res) {
         left = curp.decode_residual_code();
         left = curp.decode_first_num(node, left);
@@ -205,7 +205,7 @@ struct SeriesHelper {
     }
 
   __device__
-    SIZE_TYPE calc_residual(SIZE_TYPE x) {
+    vidType calc_residual(vidType x) {
       if (first_res) {
         left = x;
         left = curp.decode_first_num(node, left);
@@ -219,17 +219,17 @@ struct SeriesHelper {
 };
 
 struct BaseHelper {
-  SIZE_TYPE interval_idx;
-  SIZE_TYPE interval_num;
-  SIZE_TYPE node;
-  SIZE_TYPE dout;
-  SIZE_TYPE left;
-  SIZE_TYPE len ;
+  vidType interval_idx;
+  vidType interval_num;
+  vidType node;
+  vidType dout;
+  vidType left;
+  vidType len ;
   bool first_res;
   CgrReader &curp;
 
   __device__
-    BaseHelper (SIZE_TYPE node, CgrReader &curp, SIZE_TYPE dout) : node(node), curp(curp), dout(dout) {
+    BaseHelper (vidType node, CgrReader &curp, vidType dout) : node(node), curp(curp), dout(dout) {
       if (dout) {
         interval_num = curp.decode_gamma();
         interval_idx = 0;
@@ -254,11 +254,11 @@ struct BaseHelper {
     }
 
   __device__
-    SIZE_TYPE fetch_next() {
+    vidType fetch_next() {
       dout--;
       if (len) {
         // interval
-        SIZE_TYPE cur = left;
+        vidType cur = left;
         left++;
         len--;
         refresh_interval();

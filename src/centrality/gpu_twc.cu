@@ -7,19 +7,20 @@
 #include "worklist.cuh"
 #include "cuda_launch_config.hpp"
 
-typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
+typedef cub::BlockScan<vidType, BLOCK_SIZE> BlockScan;
 typedef cub::BlockReduce<score_t, BLOCK_SIZE> BlockReduce;
+typedef Worklist2<vidType, vidType> WLGPU;
 
-__global__ void initialize(int m, int *depths) {
+__global__ void initialize(vidType m, int *depths) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id < m) depths[id] = -1;
 }
 
 // Shortest path calculation by forward BFS
 __global__ void forward_base(GraphGPU g, int depth, int *path_counts, int *depths, 
-                             Worklist2 in_queue, Worklist2 out_queue) {
-  int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int src;
+                             WLGPU in_queue, WLGPU out_queue) {
+  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+  vidType src;
   if (in_queue.pop_id(tid, src)) {
     auto row_begin = g.edge_begin(src);
     auto row_end = g.edge_end(src); 
@@ -41,7 +42,7 @@ __global__ void reverse_base(int num, GraphGPU g, int depth, int start,
                              const int *path_counts, int *depths, score_t *deltas) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < num) {
-    int src = frontiers[start + tid];
+    auto src = frontiers[start + tid];
     auto row_begin = g.edge_begin(src);
     auto row_end = g.edge_end(src); 
     for (auto offset = row_begin; offset < row_end; ++ offset) {
@@ -55,9 +56,9 @@ __global__ void reverse_base(int num, GraphGPU g, int depth, int start,
   }
 }
 
-__device__ __forceinline__ void process_edge(GraphGPU g, int value, int depth, int offset, 
-                                             int *path_counts, int *depths, Worklist2 &out_queue) {
-  int dst = g.getEdgeDst(offset);
+__device__ __forceinline__ void process_edge(GraphGPU g, int value, int depth, eidType offset, 
+                                             int *path_counts, int *depths, WLGPU &out_queue) {
+  auto dst = g.getEdgeDst(offset);
   if ((depths[dst] == -1) && (atomicCAS(&depths[dst], -1, depth) == -1)) {
     assert(out_queue.push(dst));
   }
@@ -66,25 +67,25 @@ __device__ __forceinline__ void process_edge(GraphGPU g, int value, int depth, i
 
 __device__ __forceinline__ void expandByCta(GraphGPU g, int depth,
                                             int *path_counts, int *depths, 
-                                            Worklist2 &in_queue, Worklist2 &out_queue) {
+                                            WLGPU &in_queue, WLGPU &out_queue) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   __shared__ int owner;
-  __shared__ int sh_src;
+  __shared__ vidType sh_src;
   owner = -1;
   int size = 0;
-  int src;
-  if(in_queue.pop_id(id, src)) {
+  vidType src;
+  if (in_queue.pop_id(id, src)) {
     size = g.get_degree(src);
   }
-  while(true) {
-    if(size > BLOCK_SIZE)
+  while (true) {
+    if (size > BLOCK_SIZE)
       owner = threadIdx.x;
     __syncthreads();
-    if(owner == -1) break;
+    if (owner == -1) break;
     __syncthreads();
-    if(owner == threadIdx.x) {
+    if (owner == threadIdx.x) {
       sh_src = src;
-      in_queue.d_queue[id] = -1;
+      in_queue.invalidate(id);
       owner = -1;
       size = 0;
     }
@@ -92,54 +93,54 @@ __device__ __forceinline__ void expandByCta(GraphGPU g, int depth,
     auto row_begin = g.edge_begin(sh_src);
     auto row_end = g.edge_end(sh_src);
     auto neighbor_size = row_end - row_begin;
-    int num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
-    int value = path_counts[sh_src];
-    for(int i = threadIdx.x; i < num; i += blockDim.x) {
-      int dst = 0;
-      int ncnt = 0;
-      int offset = row_begin + i;
-      if(i < neighbor_size) {
+    auto num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
+    auto value = path_counts[sh_src];
+    for (int i = threadIdx.x; i < num; i += blockDim.x) {
+      vidType dst = 0;
+      vidType ncnt = 0;
+      auto offset = row_begin + i;
+      if (i < neighbor_size) {
         dst = g.getEdgeDst(offset);
         if ((depths[dst] == -1) && (atomicCAS(&depths[dst], -1, depth) == -1))
           ncnt = 1;
         if (depths[dst] == depth) atomicAdd(&path_counts[dst], value);
       }
-      out_queue.push_1item<BlockScan>(ncnt, dst, BLOCK_SIZE);
+      out_queue.push_1item<BlockScan>(ncnt, dst);
     }
   }
 }
 
 __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth,
                                              int *path_counts, int *depths, 
-                                             Worklist2 &in_queue, Worklist2 &out_queue) {
+                                             WLGPU &in_queue, WLGPU &out_queue) {
   unsigned id = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned warp_id = threadIdx.x >> LOG_WARP_SIZE;
   unsigned lane_id = LaneId();
   __shared__ int owner[NUM_WARPS];
-  __shared__ int sh_src[NUM_WARPS];
+  __shared__ vidType sh_src[NUM_WARPS];
   owner[warp_id] = -1;
   int size = 0;
-  int src;
-  if(in_queue.pop_id(id, src)) {
+  vidType src;
+  if (in_queue.pop_id(id, src)) {
     if (src != -1) size = g.get_degree(src);
   }
-  while(__any_sync(0xFFFFFFFF, size) >= WARP_SIZE) {
-    if(size >= WARP_SIZE)
+  while (__any_sync(0xFFFFFFFF, size) >= WARP_SIZE) {
+    if (size >= WARP_SIZE)
       owner[warp_id] = lane_id;
     if(owner[warp_id] == lane_id) {
       sh_src[warp_id] = src;
-      in_queue.d_queue[id] = -1;
+      in_queue.invalidate(id);
       owner[warp_id] = -1;
       size = 0;
     }
-    int winner = sh_src[warp_id];
-    int row_begin = g.edge_begin(winner);
-    int row_end = g.edge_end(winner);
-    int neighbor_size = row_end - row_begin;
-    int num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
-    int value = path_counts[winner];
-    for(int i = lane_id; i < num; i+= WARP_SIZE) {
-      int edge = row_begin + i;
+    auto winner = sh_src[warp_id];
+    auto row_begin = g.edge_begin(winner);
+    auto row_end = g.edge_end(winner);
+    auto neighbor_size = row_end - row_begin;
+    auto num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
+    auto value = path_counts[winner];
+    for(auto i = lane_id; i < num; i+= WARP_SIZE) {
+      auto edge = row_begin + i;
       if(i < neighbor_size) {
         process_edge(g, value, depth, edge, path_counts, depths, out_queue);
       }
@@ -148,24 +149,24 @@ __device__ __forceinline__ void expandByWarp(GraphGPU g, int depth,
 }
 
 __global__ void forward_lb(GraphGPU g, int depth, int *path_counts, int *depths, 
-                           Worklist2 in_queue, Worklist2 out_queue) {
+                           WLGPU in_queue, WLGPU out_queue) {
   //expandByCta(g, depth, path_counts, depths, in_queue, out_queue);
   //expandByWarp(g, depth, path_counts, depths, in_queue, out_queue);
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   int tx = threadIdx.x;
-  int src;
+  vidType src;
   const int SCRATCHSIZE = BLOCK_SIZE;
   __shared__ BlockScan::TempStorage temp_storage;
-  __shared__ int gather_offsets[SCRATCHSIZE];
+  __shared__ eidType gather_offsets[SCRATCHSIZE];
   __shared__ int srcsrc[SCRATCHSIZE];
   __shared__ int values[BLOCK_SIZE];
   gather_offsets[threadIdx.x] = 0;
-  int neighbor_size = 0;
-  int neighbor_offset = 0;
-  int scratch_offset = 0;
-  int total_edges = 0;
-  if(in_queue.pop_id(tid, src)) {
-    if(src != -1) {
+  vidType neighbor_size = 0;
+  eidType neighbor_offset = 0;
+  vidType scratch_offset = 0;
+  vidType total_edges = 0;
+  if (in_queue.pop_id(tid, src)) {
+    if (src != vidType(-1)) {
       neighbor_offset = g.edge_begin(src);
       neighbor_size = g.get_degree(src);
       values[tx] = path_counts[src];
@@ -176,16 +177,16 @@ __global__ void forward_lb(GraphGPU g, int depth, int *path_counts, int *depths,
   int neighbors_done = 0;
   while(total_edges > 0) {
     __syncthreads();
-    int i;
-    for(i = 0; neighbors_done + i < neighbor_size && (scratch_offset + i - done) < SCRATCHSIZE; i++) {
+    vidType i = 0;
+    for (; neighbors_done + i < neighbor_size && (scratch_offset + i - done) < SCRATCHSIZE; i++) {
       gather_offsets[scratch_offset + i - done] = neighbor_offset + neighbors_done + i;
       srcsrc[scratch_offset + i - done] = tx;
     }
     neighbors_done += i;
     scratch_offset += i;
     __syncthreads();
-    if(tx < total_edges) {
-      int edge = gather_offsets[tx];
+    if (tx < total_edges) {
+      auto edge = gather_offsets[tx];
       process_edge(g, values[srcsrc[tx]], depth, edge, path_counts, depths, out_queue);
     }
     total_edges -= BLOCK_SIZE;
@@ -205,17 +206,17 @@ __global__ void bc_reverse_warp(int num, GraphGPU g, int depth, int start,
   const int warp_lane   = threadIdx.x / WARP_SIZE;                // warp index within the CTA
   const int num_warps   = (BLOCK_SIZE / WARP_SIZE) * gridDim.x;   // total number of active warps
 
-  for(int index = warp_id; index < num; index += num_warps) {
-    int src = frontiers[start + index];
+  for (auto index = warp_id; index < num; index += num_warps) {
+    auto src = frontiers[start + index];
     // use two threads to fetch Ap[row] and Ap[row+1]
     // this is considerably faster than the straightforward version
     if(thread_lane < 2)
       ptrs[warp_lane][thread_lane] = g.edge_begin(src + thread_lane);
-    const int row_begin = ptrs[warp_lane][0];   //same as: row_start = row_offsets[row];
-    const int row_end   = ptrs[warp_lane][1];   //same as: row_end   = row_offsets[row+1];
+    auto row_begin = ptrs[warp_lane][0];   //same as: row_start = row_offsets[row];
+    auto row_end   = ptrs[warp_lane][1];   //same as: row_end   = row_offsets[row+1];
     score_t sum = 0;
-    for(int offset = row_begin + thread_lane; offset < row_end; offset += WARP_SIZE) {
-      int dst = g.getEdgeDst(offset);
+    for(auto offset = row_begin + thread_lane; offset < row_end; offset += WARP_SIZE) {
+      auto dst = g.getEdgeDst(offset);
       if(depths[dst] == depth + 1) {
         sum += static_cast<score_t>(path_counts[src]) / 
           static_cast<score_t>(__ldg(path_counts+dst)) * (1 + deltas[dst]);
@@ -246,7 +247,7 @@ __device__ __forceinline__ void reverse_expand_cta(int num, GraphGPU g,
   int src = 0;
   int size = 0;
   __shared__ int owner;
-  __shared__ int sh_src;
+  __shared__ vidType sh_src;
   owner = -1;
   if(tid < num) {
     src = frontiers[start + tid];
@@ -265,16 +266,16 @@ __device__ __forceinline__ void reverse_expand_cta(int num, GraphGPU g,
       size = 0;
     }
     __syncthreads();
-    int row_begin = g.edge_begin(sh_src);
-    int row_end = g.edge_end(sh_src);
-    int neighbor_size = row_end - row_begin;
-    int num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
-    int count = path_counts[sh_src];
+    auto row_begin = g.edge_begin(sh_src);
+    auto row_end = g.edge_end(sh_src);
+    auto neighbor_size = row_end - row_begin;
+    auto num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
+    auto count = path_counts[sh_src];
     score_t sum = 0;
-    for(int i = threadIdx.x; i < num; i += blockDim.x) {
-      int offset = row_begin + i;
+    for (auto i = threadIdx.x; i < num; i += blockDim.x) {
+      auto offset = row_begin + i;
       if(i < neighbor_size) {
-        int dst = g.getEdgeDst(offset);
+        auto dst = g.getEdgeDst(offset);
         if(depths[dst] == depth + 1) {
           score_t value = static_cast<score_t>(count) /
             static_cast<score_t>(__ldg(path_counts+dst)) * (1 + deltas[dst]);
@@ -297,37 +298,37 @@ __device__ __forceinline__ void reverse_expand_warp(int num, GraphGPU g, int dep
   unsigned warp_id = threadIdx.x >> LOG_WARP_SIZE;
   unsigned lane_id = LaneId();
   __shared__ int owner[NUM_WARPS];
-  __shared__ int sh_src[NUM_WARPS];
+  __shared__ vidType sh_src[NUM_WARPS];
   __shared__ score_t sdata[BLOCK_SIZE + 16];
   owner[warp_id] = -1;
-  int size = 0;
-  int src = -1;
-  if(tid < num) {
+  vidType size = 0;
+  vidType src = vidType(-1);
+  if (tid < num) {
     src = frontiers[start + tid];
-    if(src != -1) {
+    if (src != vidType(-1)) {
       size = g.get_degree(src);
     }
   }
-  while(__any_sync(0xFFFFFFFF, size) >= WARP_SIZE) {
-    if(size >= WARP_SIZE)
+  while (__any_sync(0xFFFFFFFF, size) >= WARP_SIZE) {
+    if (size >= WARP_SIZE)
       owner[warp_id] = lane_id;
-    if(owner[warp_id] == lane_id) {
+    if (owner[warp_id] == lane_id) {
       sh_src[warp_id] = src;
-      frontiers[start + tid] = -1;
+      frontiers[start + tid] = vidType(-1);
       owner[warp_id] = -1;
       size = 0;
     }
-    int winner = sh_src[warp_id];
-    int row_begin = g.edge_begin(winner);
-    int row_end = g.edge_end(winner);
-    int neighbor_size = row_end - row_begin;
-    int num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
-    int count = path_counts[winner];
+    auto winner = sh_src[warp_id];
+    auto row_begin = g.edge_begin(winner);
+    auto row_end = g.edge_end(winner);
+    auto neighbor_size = row_end - row_begin;
+    auto num = ((neighbor_size + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
+    auto count = path_counts[winner];
     score_t sum = 0;
-    for(int i = lane_id; i < num; i+= WARP_SIZE) {
-      int edge = row_begin + i;
+    for (auto i = lane_id; i < num; i+= WARP_SIZE) {
+      auto edge = row_begin + i;
       if(i < neighbor_size) {
-        int dst = g.getEdgeDst(edge);
+        auto dst = g.getEdgeDst(edge);
         if(depths[dst] == depth + 1) {
           score_t value = static_cast<score_t>(count) /
             static_cast<score_t>(__ldg(path_counts+dst)) * (1 + deltas[dst]);
@@ -356,7 +357,7 @@ __global__ void reverse_lb(int num, GraphGPU g, int depth, int start,
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   int tx = threadIdx.x;
   __shared__ BlockScan::TempStorage temp_storage;
-  __shared__ int gather_offsets[BLOCK_SIZE];
+  __shared__ eidType gather_offsets[BLOCK_SIZE];
   //__shared__ int srcs[BLOCK_SIZE];
   __shared__ int idx[BLOCK_SIZE];
   __shared__ int sh_counts[BLOCK_SIZE];
@@ -366,10 +367,10 @@ __global__ void reverse_lb(int num, GraphGPU g, int depth, int start,
   idx[tx] = 0;
   sh_counts[tx] = 0;
   sh_deltas[tx] = 0;
-  int neighbor_size = 0;
-  int neighbor_offset = 0;
-  int scratch_offset = 0;
-  int total_edges = 0;
+  vidType neighbor_size = 0;
+  eidType neighbor_offset = 0;
+  vidType scratch_offset = 0;
+  vidType total_edges = 0;
   int src = -1;
   if(tid < num) {
     src = frontiers[start + tid];
@@ -382,11 +383,11 @@ __global__ void reverse_lb(int num, GraphGPU g, int depth, int start,
   BlockScan(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
   int done = 0;
   int neighbors_done = 0;
-  while(total_edges > 0) {
+  while (total_edges > 0) {
     __syncthreads();
     int i;
-    for(i = 0; neighbors_done + i < neighbor_size && (scratch_offset + i - done) < BLOCK_SIZE; i++) {
-      int j = scratch_offset + i - done;
+    for (i = 0; neighbors_done + i < neighbor_size && (scratch_offset + i - done) < BLOCK_SIZE; i++) {
+      auto j = scratch_offset + i - done;
       gather_offsets[j] = neighbor_offset + neighbors_done + i;
       //srcs[j] = src;
       idx[j] = tx;
@@ -394,9 +395,9 @@ __global__ void reverse_lb(int num, GraphGPU g, int depth, int start,
     neighbors_done += i;
     scratch_offset += i;
     __syncthreads();
-    if(tx < total_edges) {
-      int offset = gather_offsets[tx];
-      int dst = g.getEdgeDst(offset);
+    if (tx < total_edges) {
+      auto offset = gather_offsets[tx];
+      auto dst = g.getEdgeDst(offset);
       if(depths[dst] == depth + 1) {
         score_t value = static_cast<score_t>(sh_counts[idx[tx]]) / 
           //score_t value = static_cast<score_t>(path_counts[srcs[tx]]) / 
@@ -414,7 +415,7 @@ __global__ void reverse_lb(int num, GraphGPU g, int depth, int start,
   }
 }
 
-__global__ void insert(Worklist2 in_queue, int src, int *path_counts, int *depths) {
+__global__ void insert(WLGPU in_queue, int src, int *path_counts, int *depths) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id == 0) {
     in_queue.push(src);
@@ -424,20 +425,20 @@ __global__ void insert(Worklist2 in_queue, int src, int *path_counts, int *depth
   return;
 }
 
-__global__ void push_frontier(Worklist2 in_queue, int *queue, int queue_len) {
-  int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int vertex;
+__global__ void push_frontier(WLGPU in_queue, vidType *queue, int queue_len) {
+  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+  vidType vertex;
   if (in_queue.pop_id(tid, vertex)) {
     queue[queue_len+tid] = vertex;
   }
 }
 
-__global__ void bc_normalize(int m, score_t *scores, score_t max_score) {
-  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void bc_normalize(vidType m, score_t *scores, score_t max_score) {
+  vidType tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < m) scores[tid] = scores[tid] / (max_score);
 }
 
-void BCSolver(Graph &g, int source, score_t *h_scores) {
+void BCSolver(Graph &g, vidType source, score_t *h_scores) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   auto ne = g.num_edges();
@@ -452,7 +453,7 @@ void BCSolver(Graph &g, int source, score_t *h_scores) {
   assert(nblocks < 65536);
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  int max_blocks_per_SM = maximum_residency(forward_base, nthreads, 0);
+  auto max_blocks_per_SM = maximum_residency(forward_base, nthreads, 0);
   //max_blocks_per_SM = maximum_residency(reverse_base, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
@@ -464,19 +465,20 @@ void BCSolver(Graph &g, int source, score_t *h_scores) {
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_deltas, sizeof(score_t) * nv));
   CUDA_SAFE_CALL(cudaMemset(d_scores, 0, nv * sizeof(score_t)));
   CUDA_SAFE_CALL(cudaMemset(d_deltas, 0, nv * sizeof(score_t)));
-  int *d_path_counts, *d_depths, *d_frontiers;
+  int *d_path_counts, *d_depths;
+  vidType *d_frontiers;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_path_counts, sizeof(int) * nv));
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_depths, sizeof(int) * nv));
-  CUDA_SAFE_CALL(cudaMalloc((void **)&d_frontiers, sizeof(int) * (nv+1)));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_frontiers, sizeof(vidType) * (nv+1)));
   CUDA_SAFE_CALL(cudaMemset(d_path_counts, 0, nv * sizeof(int)));
 
   int depth = 0;
   int nitems = 1;
   int frontiers_len = 0;
-  vector<int> depth_index;
+  std::vector<int> depth_index;
   depth_index.push_back(0);
-  Worklist2 wl1(nv), wl2(nv);
-  Worklist2 *inwl = &wl1, *outwl = &wl2;
+  WLGPU wl1(nv), wl2(nv);
+  WLGPU *inwl = &wl1, *outwl = &wl2;
   initialize <<<nblocks, nthreads>>> (nv, d_depths);
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
@@ -494,7 +496,7 @@ void BCSolver(Graph &g, int source, score_t *h_scores) {
     //forward_base<<<nblocks, nthreads>>>(gg, depth, d_path_counts, d_depths, *inwl, *outwl);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     nitems = outwl->nitems();
-    Worklist2 *tmp = inwl;
+    WLGPU *tmp = inwl;
     inwl = outwl;
     outwl = tmp;
     outwl->reset();

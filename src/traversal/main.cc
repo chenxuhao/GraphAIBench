@@ -2,10 +2,10 @@
 // Authors: Xuhao Chen <cxh@mit.edu>
 #include "graph.h"
 
-void BFSSolver(Graph &g, int source, vidType *dist);
-void BFSVerifier(Graph &g, int source, vidType *depth_to_test);
-void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta);
-void SSSPVerifier(Graph &g, int source, elabel_t *dist);
+void BFSSolver(Graph &g, vidType source, vidType *dist);
+void BFSVerifier(Graph &g, vidType source, vidType *depth_to_test);
+void SSSPSolver(Graph &g, vidType source, elabel_t *dist, int delta);
+void SSSPVerifier(Graph &g, vidType source, elabel_t *dist);
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Example: " << argv[0] << " ../inputs/mico/graph\n";
     exit(1);
   }
-  int source = 0;
+  vidType source = 0;
   if (argc > 2) source = atoi(argv[2]);
   std::cout << "Source vertex: " << source << "\n";
   int delta = -1;

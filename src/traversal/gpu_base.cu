@@ -3,17 +3,16 @@
 #include "graph_gpu.h"
 #include "worklist.cuh"
 #include "cuda_launch_config.hpp"
+typedef Worklist2<vidType, vidType> WLGPU;
 
-__global__ void bfs_step(GraphGPU g, vidType *dists, 
-    Worklist2 in_queue, 
-    Worklist2 out_queue) {
+__global__ void bfs_step(GraphGPU g, vidType *dists, WLGPU in_queue, WLGPU out_queue) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int src;
+  vidType src;
   if (in_queue.pop_id(tid, src)) {
-    int row_begin = g.edge_begin(src);
-    int row_end = g.edge_end(src);
-    for (int offset = row_begin; offset < row_end; ++ offset) {
-      int dst = g.getEdgeDst(offset);
+    auto row_begin = g.edge_begin(src);
+    auto row_end = g.edge_end(src);
+    for (auto offset = row_begin; offset < row_end; ++ offset) {
+      auto dst = g.getEdgeDst(offset);
       if ((dists[dst] == MYINFINITY) && 
           (atomicCAS(&dists[dst], MYINFINITY, dists[src]+1) == MYINFINITY)) {
         assert(out_queue.push(dst));
@@ -22,13 +21,13 @@ __global__ void bfs_step(GraphGPU g, vidType *dists,
   }
 }
 
-__global__ void insert(int source, Worklist2 queue) {
+__global__ void insert(vidType source, WLGPU queue) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if(id == 0) queue.push(source);
   return;
 }
 
-void BFSSolver(Graph &g, int source, vidType *h_dists) {
+void BFSSolver(Graph &g, vidType source, vidType *h_dists) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   auto ne = g.num_edges();
@@ -42,7 +41,7 @@ void BFSSolver(Graph &g, int source, vidType *h_dists) {
   if (nblocks > 65536) nblocks = 65536;
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  int max_blocks_per_SM = maximum_residency(bfs_step, nthreads, 0);
+  auto max_blocks_per_SM = maximum_residency(bfs_step, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   //nblocks = std::min(max_blocks, nblocks);
@@ -55,8 +54,8 @@ void BFSSolver(Graph &g, int source, vidType *h_dists) {
   CUDA_SAFE_CALL(cudaMemcpy(&d_dists[source], &zero, sizeof(zero), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
-  Worklist2 queue1(nv), queue2(nv);
-  Worklist2 *in_frontier = &queue1, *out_frontier = &queue2;
+  WLGPU queue1(nv), queue2(nv);
+  WLGPU *in_frontier = &queue1, *out_frontier = &queue2;
   std::cout << "CUDA BFS (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   Timer t;
@@ -71,7 +70,7 @@ void BFSSolver(Graph &g, int source, vidType *h_dists) {
     printf("iteration %d: frontier_size = %d\n", iter, nitems);
     bfs_step<<<nblocks, nthreads>>>(gg, d_dists, *in_frontier, *out_frontier);
     nitems = out_frontier->nitems();
-    Worklist2 *tmp = in_frontier;
+    WLGPU *tmp = in_frontier;
     in_frontier = out_frontier;
     out_frontier = tmp;
     out_frontier->reset();
@@ -88,4 +87,4 @@ void BFSSolver(Graph &g, int source, vidType *h_dists) {
   return;
 }
 
-void SSSPSolver(Graph &g, int source, elabel_t *dist, int delta) {}
+void SSSPSolver(Graph &g, vidType source, elabel_t *dist, int delta) {}
