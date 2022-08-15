@@ -6,7 +6,7 @@
 #include "cuda_launch_config.hpp"
 #include <cub/cub.cuh>
 
-typedef cub::BlockScan<vidType, BLOCK_SIZE> BlockScan;
+typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
 typedef Worklist2<vidType, vidType> WLGPU;
 
 __global__ void insert(vidType source, WLGPU queue) {
@@ -24,24 +24,24 @@ __device__ __forceinline__ void process_edge(GraphGPU g, vidType src, eidType ed
   }
 }
 
-__device__ void expandByCta(GraphGPU g, elabel_t *dist, WLGPU &inwl, WLGPU &outwl) {
+__device__ __forceinline__
+void expandByCta(GraphGPU g, elabel_t *dist, WLGPU &inwl, WLGPU &outwl) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   vidType vertex;
   __shared__ int owner;
   __shared__ vidType sh_vertex;
   owner = -1;
   int size = 0;
-  if(inwl.pop_id(id, vertex)) {
+  if (inwl.pop_id(id, vertex)) {
     size = g.get_degree(vertex);
   }
-  while(true) {
-    if(size > BLOCK_SIZE)
+  while (true) {
+    if (size > BLOCK_SIZE)
       owner = threadIdx.x;
     __syncthreads();
-    if(owner == -1)
-      break;
+    if (owner == -1) break;
     __syncthreads();
-    if(owner == threadIdx.x) {
+    if (owner == threadIdx.x) {
       sh_vertex = vertex;
       inwl.invalidate(id);
       owner = -1;
@@ -53,18 +53,23 @@ __device__ void expandByCta(GraphGPU g, elabel_t *dist, WLGPU &inwl, WLGPU &outw
     auto neighbor_size = row_end - row_begin;
     auto num = ((neighbor_size + blockDim.x - 1) / blockDim.x) * blockDim.x;
     for (auto i = threadIdx.x; i < num; i += blockDim.x) {
+      auto edge = row_begin + i;
+      if (i < neighbor_size)
+        process_edge(g, sh_vertex, edge, dist, outwl);
+      /*
+      if (i < neighbor_size) {
       vidType dst = 0;
       vidType ncnt = 0;
       if (i < neighbor_size) {
-        auto offset = row_begin + i;
-        dst = g.getEdgeDst(offset);
-        elabel_t new_dist = dist[sh_vertex] + g.getEdgeData(offset);
+        dst = g.getEdgeDst(edge);
+        elabel_t new_dist = dist[sh_vertex] + g.getEdgeData(edge);
         if (new_dist < dist[dst]) {
           atomicMin(&dist[dst], new_dist);
           ncnt = 1;
         }
       }
       outwl.push_1item<BlockScan>(ncnt, dst);
+      //*/
     }
   }
 }
@@ -106,7 +111,7 @@ __device__ __forceinline__ void expandByWarp(GraphGPU g, elabel_t *dist, WLGPU &
 }
 
 __global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU inwl, WLGPU outwl) {
-  //expandByCta(g, dist, inwl, outwl);
+  expandByCta(g, dist, inwl, outwl);
   expandByWarp(g, dist, inwl, outwl);
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   vidType vertex;
@@ -115,10 +120,10 @@ __global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU inwl, WLGPU outwl
   __shared__ eidType gather_offsets[SCRATCHSIZE];
   __shared__ vidType src[SCRATCHSIZE];
   gather_offsets[threadIdx.x] = 0;
-  vidType neighborsize = 0;
   eidType neighboroffset = 0;
-  vidType scratch_offset = 0;
-  vidType total_edges = 0;
+  int neighborsize = 0;
+  int scratch_offset = 0;
+  int total_edges = 0; // this has to be signed integer
   if (inwl.pop_id(id, vertex)) {	  
     if (vertex != -1) {
       neighboroffset = g.edge_begin(vertex);
@@ -131,7 +136,7 @@ __global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU inwl, WLGPU outwl
   while (total_edges > 0) {
     __syncthreads();
     int i;
-    for(i = 0; neighborsdone + i < neighborsize && (scratch_offset + i - done) < SCRATCHSIZE; i++) {
+    for (i = 0; neighborsdone + i < neighborsize && (scratch_offset + i - done) < SCRATCHSIZE; i++) {
       gather_offsets[scratch_offset + i - done] = neighboroffset + neighborsdone + i;
       src[scratch_offset + i - done] = vertex;
     }
@@ -139,7 +144,7 @@ __global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU inwl, WLGPU outwl
     scratch_offset += i;
     __syncthreads();
     auto edge = gather_offsets[threadIdx.x];
-    if(threadIdx.x < total_edges) {
+    if (threadIdx.x < total_edges) {
       process_edge(g, src[threadIdx.x], edge, dist, outwl);
     }
     total_edges -= BLOCK_SIZE;
