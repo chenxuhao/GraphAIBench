@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
   }
   int reverse = 1;
   if (argc > 2) reverse = atoi(argv[2]);
+  std::cout << "PageRank: taking directed graphs only, undirected graphs are treated as bidirected\n";
   Graph g(argv[1], 0 , 1, 0, 0, reverse);
   g.print_meta_data();
 

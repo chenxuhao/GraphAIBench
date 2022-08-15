@@ -124,10 +124,10 @@ void BCVerifier(Graph &g, int source, int num_iters, score_t *scores_to_test) {
 		scores[n] = scores[n] / biggest_score;
 	t.Stop();
 
-	printf("\titerations = %d.\n", max_depth);
+	printf("iterations = %d.\n", max_depth);
 	//std::cout << "\t" << setprecision(8) << "max_score = " << biggest_score << "\n";
-	printf("\tmax_score = %.6f.\n", biggest_score);
-	printf("\truntime [verify] = %f ms.\n", t.Millisecs());
+	printf("max_score = %.6f.\n", biggest_score);
+	printf("runtime [verify] = %f ms.\n", t.Millisecs());
 	//for(int i = 0; i < 10; i++) 
 	//	printf("score[%d]=%f, score_test[%d]=%f\n", i, scores[i], i, scores_to_test[i]);
 	// Compare scores

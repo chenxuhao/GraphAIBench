@@ -1,5 +1,5 @@
 include ../common.mk
-OBJS+=verifier.o
+OBJS += verifier.o
 all: bc_omp_base bc_gpu_base bc_gpu_twc
 
 %.o: %.cc

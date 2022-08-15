@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
   auto num_users = g.V(0);
   auto num_items = g.V(1);
   g.print_meta_data();
+  std::cout << "Matrix completion. WARNING: elabel must be floating point type!\n";
   std::cout << "# users: " << num_users << " ; # items: " << num_items << "\n";
   std::cout << "lambda: " << lambda << " ; step: " << step << " ; max_iter: " 
             << max_iters << " ; epsilon: " << cf_epsilon << " ; K: " << K << "\n";

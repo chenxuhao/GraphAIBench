@@ -67,7 +67,7 @@ void SSSPVerifier(Graph &g, vidType source, elabel_t *dist_to_test) {
     iter ++;
   }
   t.Stop();
-  std::cout << "iterations = " << iter << "\n";
+  //std::cout << "iterations = " << iter << "\n";
   std::cout << "runtime [serial] = " << t.Seconds() << " sec\n";
 
   // Report any mismatches

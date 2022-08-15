@@ -6,7 +6,7 @@ void CCSolver(Graph &g, comp_t *comp);
 void CCVerifier(Graph &g, comp_t *comp_test);
 
 int main(int argc, char *argv[]) {
-  std::cout << "Connected Component by Xuhao Chen\n";
+  //std::cout << "Connected Components\n";
   if (argc < 2) {
     std::cout << "Usage: " << argv[0] << " <graph> [num_gpu(1)] [chunk_size(1024)]"
               << "[symmetrize(0/1)] [reverse(0/1)]\n";

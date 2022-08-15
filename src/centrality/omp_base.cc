@@ -102,6 +102,6 @@ void BCSolver(Graph &g, vidType source, score_t *scores) {
   t.Stop();
 
   std::cout << "iterations = " << depth << ".\n";
-  std::cout << "runtime [bc_gpu_base] = " << t.Seconds() << " sec\n";
+  std::cout << "runtime [bc_omp_base] = " << t.Seconds() << " sec\n";
   return;
 }
