@@ -45,10 +45,10 @@ public:
 
 protected:
   void print_bits(bits in);
-  void encode_node(const vidType v);
-  void intervalize(const vidType v);
-  void encode_intervals(const vidType v);
-  void encode_residuals(const vidType v);
+  void encode_node(const size_type v);
+  void intervalize(const size_type v);
+  void encode_intervals(const size_type v);
+  void encode_residuals(const size_type v);
   void append_segment(bits &bit_array, size_type cnt, bits &cur_seg, size_type align);
   void append_gamma(bits &bit_array, size_type x);
   void append_zeta(bits &bit_array, size_type x);

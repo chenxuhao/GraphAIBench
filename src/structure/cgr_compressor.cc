@@ -47,7 +47,7 @@ void cgr_compressor::write_bit_array(FILE* &of) {
   fwrite(buf.data(), sizeof(unsigned char), buf.size(), of);
 }
 
-void cgr_compressor::encode_node(const vidType v) {
+void cgr_compressor::encode_node(const size_type v) {
   auto &adj = this->_cgr[v];
   adj.node = v;
   adj.outd = g->get_degree(v);
@@ -64,7 +64,7 @@ void cgr_compressor::encode_node(const vidType v) {
   encode_residuals(v);
 }
 
-void cgr_compressor::intervalize(const vidType v) {
+void cgr_compressor::intervalize(const size_type v) {
   size_type cur_left = 0, cur_right = 0;
   auto deg = g->get_degree(v);
   auto neighbors = g->N(v);
@@ -86,7 +86,7 @@ void cgr_compressor::intervalize(const vidType v) {
   }
 }
 
-void cgr_compressor::encode_intervals(const vidType v) {
+void cgr_compressor::encode_intervals(const size_type v) {
   auto &bit_arr = this->_cgr[v].bit_arr;
   auto &itv_left = this->_cgr[v].itv_left;
   auto &itv_len = this->_cgr[v].itv_len;
@@ -96,7 +96,10 @@ void cgr_compressor::encode_intervals(const vidType v) {
 
   bits cur_seg;
   size_type itv_cnt = 0;
+  if (v==113||v==112) std::cout << "vertex " << v << " interval count: " << itv_left.size() << "\n";
   for (size_t i = 0; i < itv_left.size(); i++) {
+    if (v==113) std::cout << "interval[" << i << "] = <" << itv_left[i] << "," << itv_len[i] << ">\n";
+ 
     size_type cur_left = 0;
     if (itv_cnt == 0) {
       cur_left = int_2_nat(itv_left[i] - v);
@@ -131,13 +134,15 @@ void cgr_compressor::encode_intervals(const vidType v) {
   }
 
   if (this->_itv_seg_len != 0) append_gamma(bit_arr, segs.size() - 1);
-  //std::cout << "vertex " << v << " interval segment_count: " << segs.size() << "\n";
+  if (v==113) std::cout << "vertex " << v << " interval segment_count: " << segs.size() << "\n";
   for (size_t i = 0; i < segs.size(); i++) {
     size_type align = i + 1 == segs.size() ? 0 : this->_itv_seg_len;
     append_segment(bit_arr, segs[i].first, segs[i].second, align);
-    //std::cout << "interval[" << i << "] = <" << segs[i].first << ",";
-    //print_bits(segs[i].second);
-    //std::cout << ">\n";
+    if (v==113) {
+      std::cout << "seg[" << i << "] = <" << segs[i].first << ",";
+      print_bits(segs[i].second);
+      std::cout << ">\n";
+    }
   }
 }
 
@@ -152,7 +157,7 @@ void cgr_compressor::print_bits(bits in) {
   }
 }
 
-void cgr_compressor::encode_residuals(const vidType v) {
+void cgr_compressor::encode_residuals(const size_type v) {
   auto &bit_arr = this->_cgr[v].bit_arr;
   auto &res = this->_cgr[v].res;
 

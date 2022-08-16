@@ -20,16 +20,17 @@ inline vidType bs(vidType* ptr, vidType set_size, vidType o){
 
 class VertexSet {
 private: // memory managed regions for per-thread intermediates
+  vidType *ptr;
+  vidType set_size, vid;
+  const bool pooled;
   static thread_local std::vector<vidType*> buffers_exist, buffers_avail;
+
 public:
   static void release_buffers();
   static vidType MAX_DEGREE;
-  vidType *ptr;
-private:
-  vidType set_size, vid;
-  const bool pooled;
-public:
-  VertexSet() : set_size(0), vid(-1), pooled(true) {
+
+  VertexSet() : VertexSet(-1) {}
+  VertexSet(vidType v) : set_size(0), vid(v), pooled(true) {
     if(buffers_avail.size() == 0) { 
       vidType *p = custom_alloc_local<vidType>(MAX_DEGREE);
       buffers_exist.push_back(p);
@@ -49,8 +50,19 @@ public:
       buffers_avail.push_back(ptr);
     }
   }
+
   vidType size() const { return set_size; }
+  void adjust_size(vidType s) { set_size = s; }
   vidType get_vid() const { return vid; }
+  vidType *data() const { return ptr; }
+  const vidType *begin() const { return ptr; }
+  const vidType *end() const { return ptr+set_size; }
+  void add(vidType v) { ptr[set_size++] = v; }
+  void clear() { set_size = 0; }
+  vidType& operator[](size_t i) { return ptr[i]; }
+  const vidType& operator[](size_t i) const { return ptr[i]; }
+  void sort() { std::sort(ptr, ptr+set_size); }
+
   VertexSet operator &(const VertexSet &other) const {
     VertexSet out;
     vidType idx_l = 0, idx_r = 0;
@@ -192,13 +204,6 @@ public:
       return VertexSet(ptr,idx_l,vid);
     }
   }
-  vidType *data() const { return ptr; }
-  const vidType *begin() const { return ptr; }
-  const vidType *end() const { return ptr+set_size; }
-  void add(vidType v) { ptr[set_size++] = v; }
-  void clear() { set_size = 0; }
-  vidType& operator[](size_t i) { return ptr[i]; }
-  const vidType& operator[](size_t i) const { return ptr[i]; }
 };
 
 inline VertexSet difference_set(const VertexSet& a, const VertexSet& b) {

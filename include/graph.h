@@ -64,6 +64,7 @@ public:
 
   void load_compressed_graph(std::string prefix);
   void decompress();
+  int decode_vertex(vidType v, vidType* ptr);
   void print_compressed_colidx();
 
   // get methods for graph meta information
@@ -174,9 +175,12 @@ public:
   vidType difference_set_edgeinduced(vidType v, vidType u, vlabel_t label, VertexSet& result);
   vidType difference_set_edgeinduced(VertexSet& vs, vidType u, vlabel_t label, VertexSet& result);
 
+  vidType intersect_num_compressed(vidType v, vidType u);
+
   // print graph information
   void print_meta_data() const;
   void print_graph() const;
+  void print_neighbors(vidType v) const;
 
  protected:
   void compute_max_degree();
