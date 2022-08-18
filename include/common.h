@@ -86,6 +86,7 @@ extern score_t step;     // learning rate in the algorithm
 extern int max_iters;    // maximum number of iterations
 
 // Compression
+#define USE_INTERVAL 1
 #define ZETA_K 3
 #define MIN_ITV_LEN 4
 #define INTERVAL_SEGMENT_LEN 256

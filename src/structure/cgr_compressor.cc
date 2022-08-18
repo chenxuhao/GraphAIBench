@@ -51,16 +51,20 @@ void cgr_compressor::encode_node(const size_type v) {
   auto &adj = this->_cgr[v];
   adj.node = v;
   adj.outd = g->get_degree(v);
+#if USE_INTERVAL
   adj.itv_left.clear();
   adj.itv_len.clear();
+#endif
   adj.res.clear();
   adj.bit_arr.clear();
   if (this->_res_seg_len == 0) {
     append_gamma(adj.bit_arr, adj.outd);
     if (adj.outd == 0) return;
   }
+#if USE_INTERVAL
   intervalize(v);
   encode_intervals(v);
+#endif
   encode_residuals(v);
 }
 
@@ -77,6 +81,7 @@ void cgr_compressor::intervalize(const size_type v) {
     if ((cur_len >= this->_min_itv_len) && (this->_min_itv_len != 0)) {
       adj.itv_left.emplace_back(neighbors[cur_left]);
       adj.itv_len.emplace_back(cur_len);
+      if (cur_len > _max_itv_len) _max_itv_len = cur_len;
     } else {
       for (auto i = cur_left; i < cur_right; i++) {
         adj.res.emplace_back(neighbors[i]);
@@ -102,10 +107,7 @@ void cgr_compressor::encode_intervals(const size_type v) {
 
   bits cur_seg;
   size_type itv_cnt = 0;
-  //if (v==113||v==112) std::cout << "vertex " << v << " interval count: " << itv_left.size() << "\n";
   for (size_t i = 0; i < itv_left.size(); i++) {
-    //if (v==113) std::cout << "interval[" << i << "] = <" << itv_left[i] << "," << itv_len[i] << ">\n";
- 
     size_type cur_left = 0;
     if (itv_cnt == 0) {
       cur_left = int_2_nat(itv_left[i] - v);
@@ -140,15 +142,9 @@ void cgr_compressor::encode_intervals(const size_type v) {
   }
 
   if (this->_itv_seg_len != 0) append_gamma(bit_arr, segs.size() - 1);
-  //if (v==113) std::cout << "vertex " << v << " interval segment_count: " << segs.size() << "\n";
   for (size_t i = 0; i < segs.size(); i++) {
     size_type align = i + 1 == segs.size() ? 0 : this->_itv_seg_len;
     append_segment(bit_arr, segs[i].first, segs[i].second, align);
-    //if (v==113) {
-    //  std::cout << "seg[" << i << "] = <" << segs[i].first << ",";
-    //  print_bits(segs[i].second);
-    //  std::cout << ">\n";
-    //}
   }
 }
 
@@ -165,16 +161,18 @@ void cgr_compressor::print_bits(bits in) {
 
 void cgr_compressor::encode_residuals(const size_type v) {
   auto &bit_arr = this->_cgr[v].bit_arr;
+#if USE_INTERVAL
   auto &res = this->_cgr[v].res;
+#else
+  auto res = g->N(v);
+#endif
 
   typedef std::pair<size_type, bits> segment;
   std::vector<segment> segs;
 
   bits cur_seg;
   size_type res_cnt = 0;
-  //std::cout << "res[" << v << "] = <";
   for (size_t i = 0; i < res.size(); i++) {
-    //std::cout << res[i] << " ";
     size_type cur;
     if (res_cnt == 0) {
       cur = int_2_nat(res[i] - v);
@@ -191,7 +189,6 @@ void cgr_compressor::encode_residuals(const size_type v) {
     res_cnt++;
     append_zeta(cur_seg, cur);
   }
-  //std::cout << ">\n";
 
   // handle last partial segment
   if (segs.empty()) {
@@ -203,15 +200,11 @@ void cgr_compressor::encode_residuals(const size_type v) {
     }
   }
 
-  //std::cout << "vertex " << v << " residual segment_count: " << segs.size() << "\n";
   if (_res_seg_len != 0) {
     append_gamma(bit_arr, segs.size() - 1);
     for (size_t i = 0; i < segs.size(); i++) {
       size_type align = i + 1 == segs.size() ? 0 : _res_seg_len;
       append_segment(bit_arr, segs[i].first, segs[i].second, align);
-      //std::cout << "residual[" << i << "] = <" << segs[i].first << ",";
-      //print_bits(segs[i].second);
-      //std::cout << ">\n";
     }
   } else {
     bit_arr.insert(bit_arr.end(), cur_seg.begin(), cur_seg.end());
@@ -265,6 +258,7 @@ size_type cgr_compressor::zeta_size(size_type x) {
 }
 
 void cgr_compressor::compress() {
+  max_num_res_per_node = g->get_max_degree();
   pre_encoding();
   this->_cgr.clear();
   this->_cgr.resize(g->V());
@@ -272,6 +266,9 @@ void cgr_compressor::compress() {
   for (vidType i = 0; i < g->V(); i++) {
     encode_node(i);
   }
+  std::cout << "max_num_itv_per_node = " << max_num_itv_per_node 
+            << " max_num_res_per_node = " << max_num_res_per_node
+            << " max_itv_len = " << _max_itv_len << "\n";
 }
 
 void cgr_compressor::pre_encoding() {

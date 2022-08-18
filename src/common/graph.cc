@@ -233,15 +233,18 @@ void Graph::decompress() {
   }
 }
 
-void Graph::decode_vertex(vidType v, VertexSet& adj) {
+void Graph::decode_vertex(vidType v, VertexSet& adj, bool ordered) {
   vidType deg = decode_vertex(v, adj.data());
   adj.adjust_size(deg);
-  adj.sort();
+  if (ordered) adj.sort();
 }
 
 vidType Graph::decode_vertex(vidType v, vidType* ptr) {
   CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
-  vidType num_neighbors = decode_intervals(v, decoder, ptr);
+  vidType num_neighbors = 0;
+#if USE_INTERVAL
+  num_neighbors = decode_intervals(v, decoder, ptr);
+#endif
   num_neighbors = decode_residuals(v, decoder, num_neighbors, ptr);
   return num_neighbors;
 }
@@ -565,12 +568,52 @@ bool Graph::binary_search(vidType key, eidType begin, eidType end) const {
   return false;
 }
 
+vidType Graph::intersect_num_compressed(VertexSet& vs, vidType u, vidType up) {
+  vidType num = 0;
+  CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
+#if USE_INTERVAL
+  VertexList u_begins, u_ends;
+  auto u_deg_itv = decode_intervals(u, u_decoder, u_begins, u_ends);
+  int u_size = u_begins.size();
+#endif
+  VertexSet u_residuals(u);
+  auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
+  u_residuals.adjust_size(u_deg_res);
+  int v_size = vs.size();
+
+#if USE_INTERVAL
+  // compare vs and u_itv
+  int idx_l = 0, idx_r = 0;
+  while (idx_l < v_size && idx_r < u_size) {
+    auto v = vs[idx_l];
+    if (v >= up) break;
+    auto u_begin = u_begins[idx_r];
+    if (u_begin >= up) break;
+    if (v < u_begin) {
+      idx_l++;
+      continue;
+    }
+    auto u_end = u_ends[idx_r];
+    if (v >= u_end) {
+      if (v == u_end) idx_l++;
+      idx_r++;
+      continue;
+    }
+    if (v >= u_begin && v < u_end) {
+      num++;
+      idx_l++;
+    }
+  }
+#endif
+  // compare vs and u_res
+  num += intersection_num(vs, u_residuals, up);
+  return num;
+}
+
 vidType Graph::intersect_num_compressed(vidType v, vidType u, vidType up) {
   vidType num = 0;
-  VertexList v_begins;
-  VertexList v_ends;
-  VertexList u_begins;
-  VertexList u_ends;
+  VertexList v_begins, v_ends;
+  VertexList u_begins, u_ends;
   VertexSet v_residuals(v);
   VertexSet u_residuals(u);
 
@@ -578,13 +621,11 @@ vidType Graph::intersect_num_compressed(vidType v, vidType u, vidType up) {
   auto v_deg_itv = decode_intervals(v, v_decoder, v_begins, v_ends);
   auto v_deg_res = decode_residuals(v, v_decoder, 0, v_residuals.data());
   v_residuals.adjust_size(v_deg_res);
-  //v_residuals.sort();
 
   CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
   auto u_deg_itv = decode_intervals(u, u_decoder, u_begins, u_ends);
   auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
-  //u_residuals.sort();
 
   int v_size = v_begins.size();
   int u_size = u_begins.size();
@@ -612,17 +653,26 @@ vidType Graph::intersect_num_compressed(vidType v, vidType u, vidType up) {
     num += std::min(up, std::min(v_end, u_end)) - std::max(v_begin, u_begin);
   }
   // compare v_itv and u_res
-  for (auto u_res : u_residuals) {
+  idx_l = 0, idx_r = 0;
+  int u_res_size = u_residuals.size();
+  while (idx_l < v_size && idx_r < u_res_size) {
+    auto u_res = u_residuals[idx_r];
     if (u_res >= up) break;
-    for (int i = 0; i < v_size; i++) {
-      auto v_begin = v_begins[i];
-      if (v_begin >= up) break;
-      if (u_res < v_begin) continue;
-      auto v_end = v_ends[i];
-      if (u_res < v_end) {
-        num++;
-        break;
-      }
+    auto v_begin = v_begins[idx_l];
+    if (v_begin >= up) break;
+    if (u_res < v_begin) {
+      idx_r++;
+      continue;
+    }
+    auto v_end = v_ends[idx_l];
+    if (u_res >= v_end) {
+      if (u_res == v_end) idx_r++;
+      idx_l++;
+      continue;
+    }
+    if (u_res >= v_begin && u_res < v_end) {
+      num++;
+      idx_r++;
     }
   }
   // compare v_res and u_itv

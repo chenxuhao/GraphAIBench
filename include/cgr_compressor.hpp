@@ -9,7 +9,8 @@ class cgr_compressor {
 
   Graph *g;
   int _zeta_k;
-  int _min_itv_len;
+  int _min_itv_len; // minimum length of an interval
+  int _max_itv_len; // maximum length of an interval
   int _itv_seg_len; // number of intervals in a segment
   int _res_seg_len; // number of residuals in a segment
   int max_num_itv_per_node; // max number of intervals in a node's adjlist
@@ -39,7 +40,7 @@ class cgr_compressor {
 public:
   explicit cgr_compressor(Graph *graph, int zeta_k = 3, int min_itv_len = 4, 
                           int itv_seg_len = 0, int res_seg_len = 4 * 32)
-          : g(graph), _zeta_k(zeta_k), _min_itv_len(min_itv_len),
+          : g(graph), _zeta_k(zeta_k), _min_itv_len(min_itv_len), _max_itv_len(min_itv_len),
             _itv_seg_len(itv_seg_len), _res_seg_len(res_seg_len),
             max_num_itv_per_node(0), max_num_res_per_node(0) {}
   void compress();

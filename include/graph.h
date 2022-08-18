@@ -66,7 +66,7 @@ public:
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix);
   void decompress();
-  void decode_vertex(vidType v, VertexSet &adj);
+  void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex(vidType v, vidType* ptr);
   vidType decode_intervals(vidType v, CgrReader &decoder, vidType *ptr);
   vidType decode_intervals(vidType v, CgrReader &decoder, VertexList &begin, VertexList &end);
@@ -181,6 +181,7 @@ public:
   vidType difference_set_edgeinduced(VertexSet& vs, vidType u, vlabel_t label, VertexSet& result);
 
   vidType intersect_num_compressed(vidType v, vidType u, vidType up);
+  vidType intersect_num_compressed(VertexSet& vs, vidType u, vidType up);
 
   // print graph information
   void print_meta_data() const;

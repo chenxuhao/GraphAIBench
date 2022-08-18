@@ -7,8 +7,6 @@ int main(int argc,char *argv[]) {
     abort();
   }
   Graph g(argv[1]);
-  g.print_neighbors(113);
-  std::cout << "\n";
 
   auto compressor = cgr_compressor(&g, 3, 4, INTERVAL_SEGMENT_LEN, RESIDUAL_SEGMENT_LEN);
   compressor.compress();
