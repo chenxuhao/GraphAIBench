@@ -1,6 +1,5 @@
 #include "graph.h"
 #include "scan.h"
-#include "cgr_decompressor.h"
 
 Graph::Graph(std::string prefix, bool use_dag, bool directed, 
              bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
@@ -234,23 +233,31 @@ void Graph::decompress() {
   }
 }
 
-int Graph::decode_vertex(vidType v, vidType* decompressed_ptr) {
-  auto compressed_ptr = &edges_compressed[0];
-  auto start = vertices_compressed[v];
-  int num_neighbors = 0;
-  CgrReader decoder(v, compressed_ptr, start);
+void Graph::decode_vertex(vidType v, VertexSet& adj) {
+  vidType deg = decode_vertex(v, adj.data());
+  adj.adjust_size(deg);
+  adj.sort();
+}
+
+vidType Graph::decode_vertex(vidType v, vidType* ptr) {
+  CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
+  vidType num_neighbors = decode_intervals(v, decoder, ptr);
+  num_neighbors = decode_residuals(v, decoder, num_neighbors, ptr);
+  return num_neighbors;
+}
+
+vidType Graph::decode_intervals(vidType v, CgrReader &decoder, vidType* ptr) {
+  vidType num_neighbors = 0;
   // handle segmented intervals
   auto segment_cnt = decoder.decode_segment_cnt();
-  //std::cout << "vertex " << v << " interval segment_cnt: " << segment_cnt << "\n";
   // for each segment
   auto interval_offset = decoder.global_offset;
   for (vidType i = 0; i < segment_cnt; i++) {
-    CgrReader cgrr(v, compressed_ptr, interval_offset);
+    CgrReader cgrr(v, &edges_compressed[0], interval_offset);
     //IntervalSegmentHelper isHelper(v, decoder);
     IntervalSegmentHelper isHelper(v, cgrr);
     isHelper.decode_interval_cnt();
     auto num_intervals = isHelper.interval_cnt;
-    //std::cout << "\t interval count in segment[" << i << "]: " << num_intervals << "\n";
     // for each interval in the segment
     for (vidType j = 0; j < num_intervals; j++) {
       auto left = isHelper.get_interval_left();
@@ -258,7 +265,7 @@ int Graph::decode_vertex(vidType v, vidType* decompressed_ptr) {
       assert(left < n_vertices);
       assert(len < max_degree);
       for (vidType k = 0; k < len; k++) {
-        decompressed_ptr[num_neighbors++] = left+k;
+        ptr[num_neighbors++] = left+k;
       }
     }
     interval_offset += INTERVAL_SEGMENT_LEN;
@@ -267,20 +274,54 @@ int Graph::decode_vertex(vidType v, vidType* decompressed_ptr) {
     else
       decoder.global_offset += INTERVAL_SEGMENT_LEN;
   }
+  return num_neighbors;
+}
+
+vidType Graph::decode_intervals(vidType v, CgrReader &decoder, VertexList &itv_begin, VertexList &itv_end) {
+  vidType num_neighbors = 0;
+  // handle segmented intervals
+  auto segment_cnt = decoder.decode_segment_cnt();
+  // for each segment
+  auto interval_offset = decoder.global_offset;
+  for (vidType i = 0; i < segment_cnt; i++) {
+    CgrReader cgrr(v, &edges_compressed[0], interval_offset);
+    //IntervalSegmentHelper isHelper(v, decoder);
+    IntervalSegmentHelper isHelper(v, cgrr);
+    isHelper.decode_interval_cnt();
+    auto num_intervals = isHelper.interval_cnt;
+    // for each interval in the segment
+    for (vidType j = 0; j < num_intervals; j++) {
+      auto left = isHelper.get_interval_left();
+      auto len = isHelper.get_interval_len();
+      assert(left < n_vertices);
+      assert(len < max_degree);
+      itv_begin.push_back(left);
+      itv_end.push_back(left+len);
+      num_neighbors += len;
+    }
+    interval_offset += INTERVAL_SEGMENT_LEN;
+    if (i == segment_cnt-1) // last segment
+      decoder.global_offset = cgrr.global_offset;
+    else
+      decoder.global_offset += INTERVAL_SEGMENT_LEN;
+  }
+  return num_neighbors;
+}
+
+vidType Graph::decode_residuals(vidType v, CgrReader &decoder, vidType offset, vidType *ptr) {
+  vidType num_neighbors = offset;
   // handle segmented residuals
-  segment_cnt = decoder.decode_segment_cnt();
-  //std::cout << "vertex " << v << " residual segment_cnt: " << segment_cnt << "\n";
+  auto segment_cnt = decoder.decode_segment_cnt();
   auto residual_offset = decoder.global_offset;
   for (vidType i = 0; i < segment_cnt; i++) {
-    CgrReader cgrr(v, compressed_ptr, residual_offset);
+    CgrReader cgrr(v, &edges_compressed[0], residual_offset);
     ResidualSegmentHelper rsHelper(v, cgrr);
     rsHelper.decode_residual_cnt();
-    //std::cout << "\t residual count in segment[" << i << "]: " << rsHelper.residual_cnt << "\n";
     auto num_res = rsHelper.residual_cnt;
     // for each residual in the segment
     for (vidType j = 0; j < num_res; j++) {
       auto residual = rsHelper.get_residual();
-      decompressed_ptr[num_neighbors++] = residual;
+      ptr[num_neighbors++] = residual;
     }
     residual_offset += RESIDUAL_SEGMENT_LEN;
     decoder.global_offset += RESIDUAL_SEGMENT_LEN;
@@ -524,23 +565,82 @@ bool Graph::binary_search(vidType key, eidType begin, eidType end) const {
   return false;
 }
 
-vidType Graph::intersect_num_compressed(vidType v, vidType u) {
-  VertexList v_ptr(max_degree);
-  VertexList u_ptr(max_degree);
-  vidType v_size = decode_vertex(v, &v_ptr[0]);
-  vidType u_size = decode_vertex(u, &u_ptr[0]);
-  assert(v_size <= max_degree && u_size <= max_degree);
-  //std::cout << "v_deg = " << v_size << " u_deg = " << u_size << "\n";
-
+vidType Graph::intersect_num_compressed(vidType v, vidType u, vidType up) {
   vidType num = 0;
-  vidType idx_l = 0, idx_r = 0;
+  VertexList v_begins;
+  VertexList v_ends;
+  VertexList u_begins;
+  VertexList u_ends;
+  VertexSet v_residuals(v);
+  VertexSet u_residuals(u);
+
+  CgrReader v_decoder(v, &edges_compressed[0], vertices_compressed[v]);
+  auto v_deg_itv = decode_intervals(v, v_decoder, v_begins, v_ends);
+  auto v_deg_res = decode_residuals(v, v_decoder, 0, v_residuals.data());
+  v_residuals.adjust_size(v_deg_res);
+  //v_residuals.sort();
+
+  CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
+  auto u_deg_itv = decode_intervals(u, u_decoder, u_begins, u_ends);
+  auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
+  u_residuals.adjust_size(u_deg_res);
+  //u_residuals.sort();
+
+  int v_size = v_begins.size();
+  int u_size = u_begins.size();
+
+  // compare v_itv and u_itv
+  int idx_l = 0, idx_r = 0;
   while (idx_l < v_size && idx_r < u_size) {
-    vidType a = v_ptr[idx_l];
-    vidType b = u_ptr[idx_r];
-    if (a <= b) idx_l++;
-    if (b <= a) idx_r++;
-    if (a == b) num++;
+    auto v_begin = v_begins[idx_l];
+    auto v_end = v_ends[idx_l];
+    auto u_begin = u_begins[idx_r];
+    auto u_end = u_ends[idx_r];
+    assert(v_end > v_begin);
+    assert(u_end > u_begin);
+    if (v_begin >= up || u_begin >= up) break;
+    if (v_begin >= u_end) {
+      idx_r++;
+      continue;
+    }
+    if (u_begin >= v_end) {
+      idx_l++;
+      continue;
+    }
+    if (v_end >= u_end) idx_r++;
+    if (v_end <= u_end) idx_l++;
+    num += std::min(up, std::min(v_end, u_end)) - std::max(v_begin, u_begin);
   }
+  // compare v_itv and u_res
+  for (auto u_res : u_residuals) {
+    if (u_res >= up) break;
+    for (int i = 0; i < v_size; i++) {
+      auto v_begin = v_begins[i];
+      if (v_begin >= up) break;
+      if (u_res < v_begin) continue;
+      auto v_end = v_ends[i];
+      if (u_res < v_end) {
+        num++;
+        break;
+      }
+    }
+  }
+  // compare v_res and u_itv
+  for (auto v_res : v_residuals) {
+    if (v_res >= up) break;
+    for (int i = 0; i < u_size; i++) {
+      auto u_begin = u_begins[i];
+      if (u_begin >= up) break;
+      if (v_res < u_begin) continue;
+      auto u_end = u_ends[i];
+      if (v_res < u_end) {
+        num++;
+        break;
+      }
+    }
+  }
+  // compare v_res and u_res
+  num += intersection_num(v_residuals, u_residuals, up);
   return num;
 }
 

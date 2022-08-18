@@ -84,6 +84,12 @@ void cgr_compressor::intervalize(const size_type v) {
     }
     cur_left = cur_right;
   }
+  auto num_intervals = adj.itv_left.size();
+  auto num_residuals = adj.res.size();
+  if (max_num_itv_per_node < num_intervals)
+    max_num_itv_per_node = num_intervals;
+  if (max_num_res_per_node < num_residuals)
+    max_num_res_per_node = num_residuals;
 }
 
 void cgr_compressor::encode_intervals(const size_type v) {
@@ -96,9 +102,9 @@ void cgr_compressor::encode_intervals(const size_type v) {
 
   bits cur_seg;
   size_type itv_cnt = 0;
-  if (v==113||v==112) std::cout << "vertex " << v << " interval count: " << itv_left.size() << "\n";
+  //if (v==113||v==112) std::cout << "vertex " << v << " interval count: " << itv_left.size() << "\n";
   for (size_t i = 0; i < itv_left.size(); i++) {
-    if (v==113) std::cout << "interval[" << i << "] = <" << itv_left[i] << "," << itv_len[i] << ">\n";
+    //if (v==113) std::cout << "interval[" << i << "] = <" << itv_left[i] << "," << itv_len[i] << ">\n";
  
     size_type cur_left = 0;
     if (itv_cnt == 0) {
@@ -134,15 +140,15 @@ void cgr_compressor::encode_intervals(const size_type v) {
   }
 
   if (this->_itv_seg_len != 0) append_gamma(bit_arr, segs.size() - 1);
-  if (v==113) std::cout << "vertex " << v << " interval segment_count: " << segs.size() << "\n";
+  //if (v==113) std::cout << "vertex " << v << " interval segment_count: " << segs.size() << "\n";
   for (size_t i = 0; i < segs.size(); i++) {
     size_type align = i + 1 == segs.size() ? 0 : this->_itv_seg_len;
     append_segment(bit_arr, segs[i].first, segs[i].second, align);
-    if (v==113) {
-      std::cout << "seg[" << i << "] = <" << segs[i].first << ",";
-      print_bits(segs[i].second);
-      std::cout << ">\n";
-    }
+    //if (v==113) {
+    //  std::cout << "seg[" << i << "] = <" << segs[i].first << ",";
+    //  print_bits(segs[i].second);
+    //  std::cout << ">\n";
+    //}
   }
 }
 

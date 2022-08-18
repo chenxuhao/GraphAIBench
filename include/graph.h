@@ -1,5 +1,6 @@
 #pragma once
 #include "VertexSet.h"
+#include "cgr_decompressor.h"
 
 using namespace std;
 
@@ -62,10 +63,14 @@ public:
   Graph(const Graph &)=delete;
   Graph& operator=(const Graph &)=delete;
 
+  void print_compressed_colidx();
   void load_compressed_graph(std::string prefix);
   void decompress();
-  int decode_vertex(vidType v, vidType* ptr);
-  void print_compressed_colidx();
+  void decode_vertex(vidType v, VertexSet &adj);
+  vidType decode_vertex(vidType v, vidType* ptr);
+  vidType decode_intervals(vidType v, CgrReader &decoder, vidType *ptr);
+  vidType decode_intervals(vidType v, CgrReader &decoder, VertexList &begin, VertexList &end);
+  vidType decode_residuals(vidType v, CgrReader &decoder, vidType offset, vidType* ptr);
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }
@@ -175,7 +180,7 @@ public:
   vidType difference_set_edgeinduced(vidType v, vidType u, vlabel_t label, VertexSet& result);
   vidType difference_set_edgeinduced(VertexSet& vs, vidType u, vlabel_t label, VertexSet& result);
 
-  vidType intersect_num_compressed(vidType v, vidType u);
+  vidType intersect_num_compressed(vidType v, vidType u, vidType up);
 
   // print graph information
   void print_meta_data() const;
