@@ -14,6 +14,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   for (vidType u = 0; u < g.V(); u ++) {
     VertexSet adj_u(u); // u's adjacency list
     g.decode_vertex(u, adj_u, USE_INTERVAL);
+    //auto adj_u = g.N(u);
     for (auto v : adj_u) {
       if (v > u) break;
       //auto num = (uint64_t)g.intersect_num_compressed(u, v, v);
@@ -24,7 +25,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   t.Stop();
   std::cout << "runtime [tc_omp_compressed_opt] = " << t.Seconds() << " sec\n";
   std::cout << "total_num_triangles = " << counter << "\n";
-
+/*
   t.Start();
   counter = 0;
   #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
@@ -39,9 +40,10 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
       counter += num;
     }
   }
-  total = counter;
   t.Stop();
   std::cout << "runtime [tc_omp_compressed_naive] = " << t.Seconds() << " sec\n";
+*/
+  total = counter;
   return;
 }
 

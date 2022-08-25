@@ -17,7 +17,7 @@ bfs_gcgt: bfs_main.o
 	mv $@ $(BIN)
 
 tc_omp_compressed: tc_omp_compressed.o tc_main.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_omp_compressed.o tc_main.o $(OBJS) -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_omp_compressed.o tc_main.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
 clean:

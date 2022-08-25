@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
   int adj_sorted = 1;
   if (argc > 2) n_devices = atoi(argv[2]);
   if (argc > 3) chunk_size = atoi(argv[3]);
-  //g.print_meta_data();
+  g.print_meta_data();
   if (argc > 4) adj_sorted = atoi(argv[4]);
   if (!adj_sorted) g.sort_neighbors();
   uint64_t total = 0;

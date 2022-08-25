@@ -14,9 +14,9 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
   uint64_t counter = 0;
   #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
   for (vidType u = 0; u < g.V(); u ++) {
-    auto yu = g.N(u);
-    for (auto v : yu) {
-      counter += (uint64_t)intersection_num(yu, g.N(v));
+    auto adj_u = g.N(u);
+    for (auto v : adj_u) {
+      counter += (uint64_t)intersection_num(adj_u, g.N(v));
     }
   }
   total = counter;

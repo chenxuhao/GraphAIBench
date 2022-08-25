@@ -220,6 +220,8 @@ void Graph::print_compressed_colidx() {
 }
 
 void Graph::decompress() {
+  Timer t;
+  t.Start();
   vertices = new eidType[n_vertices+1];
   edges = new vidType[n_edges];
   vertices[0] = 0;
@@ -231,6 +233,8 @@ void Graph::decompress() {
     vertices[v+1] = offset;
     std::sort(edges+vertices[v], edges+offset);
   }
+  t.Stop();
+  std::cout << "Graph decompressed time: " << t.Seconds() << "\n";
 }
 
 void Graph::decode_vertex(vidType v, VertexSet& adj, bool ordered) {
