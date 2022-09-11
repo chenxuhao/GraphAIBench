@@ -4,6 +4,7 @@
 #include "cutil_subset.h"
 #include "cuda_profiler_api.h"
 #include "cgr_decompressor.cuh"
+#include <cub/cub.cuh>
 #ifdef USE_NVSHMEM
 #include <nvshmem.h>
 #include <nvshmemx.h>
@@ -439,16 +440,236 @@ public:
   }
 
   inline __device__ vidType cta_decompress(vidType v, vidType *adj) {
-    vidType degree = 0;
+    vidType num_neighbors = 0;
     CgrReaderGPU cgrr;
     auto row_begin = d_rowptr_compressed[v];
     cgrr.init(v, d_colidx_compressed, row_begin);
-    return degree;
+    SMem *smem;
+    num_neighbors += handle_segmented_intervals(cgrr, smem, adj);
+    num_neighbors += handle_segmented_residuals(cgrr, smem, adj);
+    return num_neighbors;
   }
 
-  inline __device__ vidType cta_intersect_compressed(vidType src, vidType dst) {
+  inline __device__ vidType cta_intersect_compressed(vidType v, vidType *adj_v, vidType u_degree, vidType *adj_u) {
     vidType count = 0;
+    auto v_degree = cta_decompress(v, adj_v);
+    count = intersect_num(adj_v, v_degree, adj_u, u_degree);
     return count;
   }
+
+  typedef cub::BlockScan<vidType, BLOCK_SIZE> BlockScan;
+  typedef cub::WarpScan<vidType> WarpScan;
+  struct SMem {
+    typename BlockScan::TempStorage block_temp_storage;
+    typename WarpScan::TempStorage temp_storage[BLOCK_SIZE / 32];
+    volatile vidType segment_node[BLOCK_SIZE];
+    volatile eidType segment_offset[BLOCK_SIZE];
+    volatile vidType left[BLOCK_SIZE];
+    volatile vidType len[BLOCK_SIZE];
+    volatile vidType comm[BLOCK_SIZE / 32][32];
+    volatile vidType output_cta_offset;
+    volatile vidType output_warp_offset[BLOCK_SIZE / 32];
+  };
+
+  __device__ vidType handle_segmented_intervals(CgrReaderGPU &cgrr, SMem *smem, vidType *ptr) {
+    vidType num_neighbors = 0;
+    vidType thread_id = threadIdx.x;
+    vidType lane_id = thread_id % 32;
+    vidType warp_id = thread_id / 32;
+
+    // for retrieve global offset for last segment
+    vidType last_segment = SIZE_NONE;
+    vidType segment_cnt = cgrr.decode_segment_cnt();
+    // cta gather
+    while (__syncthreads_or(segment_cnt >= BLOCK_SIZE)) {
+      // vie for control of block
+      if (segment_cnt >= BLOCK_SIZE) smem->comm[0][0] = thread_id;
+      __syncthreads();
+      // winner describes adjlist
+      if (smem->comm[0][0] == thread_id) {
+        smem->segment_node[0] = cgrr.node;
+        smem->segment_offset[0] = cgrr.global_offset;
+        segment_cnt -= BLOCK_SIZE;
+        cgrr.global_offset += INTERVAL_SEGMENT_LEN * BLOCK_SIZE;
+        if (segment_cnt == 0) {
+          last_segment = BLOCK_SIZE - 1;
+        }
+      }
+      __syncthreads();
+      vidType v = smem->segment_node[0];
+      volatile eidType offset = smem->segment_offset[0] + INTERVAL_SEGMENT_LEN * thread_id;
+      handle_one_interval_segment(v, offset, smem, ptr);
+      if (thread_id == BLOCK_SIZE - 1) smem->segment_offset[thread_id] = offset;
+      __syncthreads();
+      if (last_segment != SIZE_NONE) {
+        cgrr.global_offset = smem->segment_offset[last_segment];
+        last_segment = SIZE_NONE;
+      }
+    }
+
+    vidType thread_data = segment_cnt;
+    vidType rsv_rank = 0;
+    vidType total = 0;
+    __syncthreads();
+    BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
+    __syncthreads();
+    vidType cta_progress = 0;
+    while (cta_progress < total) {
+      smem->segment_node[thread_id] = SIZE_NONE;
+      __syncthreads();
+
+      while (__any_sync(FULL_MASK, (rsv_rank + 32 < cta_progress + BLOCK_SIZE) && (segment_cnt >= 32))) {
+        // vie for control of warp
+        if ((rsv_rank + 32 < cta_progress + BLOCK_SIZE) && (segment_cnt >= 32)) {
+          smem->comm[warp_id][0] = lane_id;
+        }
+        vidType boss_lane = smem->comm[warp_id][0];
+        vidType boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
+        eidType boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
+        vidType boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
+        smem->segment_node[boss_rsv_rank - cta_progress + lane_id] = boss_node;
+        smem->segment_offset[boss_rsv_rank - cta_progress + lane_id] = boss_global_offset + lane_id * INTERVAL_SEGMENT_LEN;
+        if (boss_lane == lane_id) {
+          rsv_rank += 32;
+          segment_cnt -= 32;
+          cgrr.global_offset += 32 * INTERVAL_SEGMENT_LEN;
+
+          if (segment_cnt == 0) {
+            last_segment = boss_rsv_rank - cta_progress + 31;
+          }
+        }
+      }
+      while ((rsv_rank < cta_progress + BLOCK_SIZE) && segment_cnt) {
+        smem->segment_offset[rsv_rank - cta_progress] = cgrr.global_offset;
+        smem->segment_node[rsv_rank - cta_progress] = cgrr.node;
+        segment_cnt--;
+        if (0 == segment_cnt) {
+          last_segment = rsv_rank - cta_progress;
+        }
+        rsv_rank++;
+        cgrr.global_offset += INTERVAL_SEGMENT_LEN;
+      }
+      __syncthreads();
+      handle_one_interval_segment(smem->segment_node[thread_id], smem->segment_offset[thread_id], smem, ptr);
+      cta_progress += BLOCK_SIZE;
+      __syncthreads();
+      if (last_segment != SIZE_NONE) {
+        cgrr.global_offset = smem->segment_offset[last_segment];
+        last_segment = SIZE_NONE;
+      }
+    }
+    return num_neighbors;
+  }
+
+  __device__ vidType handle_one_interval_segment(vidType v, volatile eidType &global_offset, SMem *smem, vidType *ptr) {
+    vidType num_neighbors = 0;
+    vidType thread_id = threadIdx.x;
+    CgrReaderGPU cgrr;
+    cgrr.init(v, d_colidx_compressed, global_offset);
+    IntervalSegmentHelperGPU sh(v, cgrr);
+    sh.decode_interval_cnt();
+    vidType thread_data = sh.interval_cnt;
+    vidType rsv_rank;
+    vidType total;
+    __syncthreads();
+    BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
+    __syncthreads();
+    vidType cta_progress = 0;
+    while (cta_progress < total) {
+      smem->len[thread_id] = 0;
+      __syncthreads();
+      while ((rsv_rank < cta_progress + BLOCK_SIZE) && (sh.interval_cnt)) {
+        smem->left[rsv_rank - cta_progress] = sh.get_interval_left();
+        smem->len[rsv_rank - cta_progress] = sh.get_interval_len();
+        rsv_rank++;
+      }
+      __syncthreads();
+      for (vidType k = 0; k < smem->len[thread_id]; k++) {
+        ptr[num_neighbors++] = smem->left[thread_id] + k;
+      }
+      cta_progress += BLOCK_SIZE;
+      __syncthreads();
+    }
+    global_offset = cgrr.global_offset;
+    return num_neighbors;
+  }
+
+  __device__ vidType handle_segmented_residuals(CgrReaderGPU &cgrr, SMem *smem, vidType *ptr) {
+    vidType num_neighbors = 0;
+    vidType thread_id = threadIdx.x;
+    vidType lane_id = thread_id % 32;
+    vidType warp_id = thread_id / 32;
+    vidType segment_cnt = cgrr.decode_segment_cnt();
+    // cta gather
+    while (__syncthreads_or(segment_cnt >= BLOCK_SIZE)) {
+      // vie for control of block
+      if (segment_cnt >= BLOCK_SIZE) smem->comm[0][0] = thread_id;
+      __syncthreads();
+      // winner describes adjlist
+      if (smem->comm[0][0] == thread_id) {
+        smem->segment_node[0] = cgrr.node;
+        smem->segment_offset[0] = cgrr.global_offset;
+        segment_cnt -= BLOCK_SIZE;
+        cgrr.global_offset += RESIDUAL_SEGMENT_LEN * BLOCK_SIZE;
+      }
+      __syncthreads();
+      vidType node = smem->segment_node[0];
+      eidType offset = smem->segment_offset[0] + RESIDUAL_SEGMENT_LEN * thread_id;
+      handle_one_residual_segment(node, offset, ptr);
+    }
+    vidType thread_data = segment_cnt;
+    vidType rsv_rank = 0;
+    vidType total = 0;
+    __syncthreads();
+    BlockScan(smem->block_temp_storage).ExclusiveSum(thread_data, rsv_rank, total);
+    __syncthreads();
+    vidType cta_progress = 0;
+    while (cta_progress < total) {
+      smem->segment_node[thread_id] = SIZE_NONE;
+      __syncthreads();
+      while (__any_sync(FULL_MASK, (rsv_rank + 32 < cta_progress + BLOCK_SIZE) && (segment_cnt >= 32))) {
+        // vie for control of warp
+        if ((rsv_rank + 32 < cta_progress + BLOCK_SIZE) && (segment_cnt >= 32)) {
+          smem->comm[warp_id][0] = lane_id;
+        }
+        vidType boss_lane = smem->comm[warp_id][0];
+        vidType boss_node = __shfl_sync(FULL_MASK, cgrr.node, boss_lane);
+        eidType boss_global_offset = __shfl_sync(FULL_MASK, cgrr.global_offset, boss_lane);
+        vidType boss_rsv_rank = __shfl_sync(FULL_MASK, rsv_rank, boss_lane);
+        smem->segment_node[boss_rsv_rank - cta_progress + lane_id] = boss_node;
+        smem->segment_offset[boss_rsv_rank - cta_progress + lane_id] = boss_global_offset + lane_id * RESIDUAL_SEGMENT_LEN;
+        if (boss_lane == lane_id) {
+          rsv_rank += 32;
+          segment_cnt -= 32;
+          cgrr.global_offset += 32 * RESIDUAL_SEGMENT_LEN;
+        }
+      }
+      while ((rsv_rank < cta_progress + BLOCK_SIZE) && segment_cnt) {
+        smem->segment_offset[rsv_rank - cta_progress] = cgrr.global_offset;
+        smem->segment_node[rsv_rank - cta_progress] = cgrr.node;
+        rsv_rank++;
+        segment_cnt--;
+        cgrr.global_offset += RESIDUAL_SEGMENT_LEN;
+      }
+      __syncthreads();
+      handle_one_residual_segment(smem->segment_node[thread_id], smem->segment_offset[thread_id], ptr);
+      cta_progress += BLOCK_SIZE;
+      __syncthreads();
+    }
+    return num_neighbors;
+  }
+
+  __device__ vidType handle_one_residual_segment(vidType v, eidType offset, vidType *ptr) {
+    vidType num_neighbors = offset;
+    CgrReaderGPU cgrr;
+    cgrr.init(v, d_colidx_compressed, offset);
+    ResidualSegmentHelperGPU sh(v, cgrr);
+    sh.decode_residual_cnt();
+    while (__all_sync(FULL_MASK, sh.residual_cnt)) {
+      ptr[num_neighbors++] = sh.get_residual();
+    }
+    return num_neighbors;
+  }
+
 };
 

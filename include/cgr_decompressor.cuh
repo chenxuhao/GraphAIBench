@@ -74,9 +74,9 @@ struct ResidualSegmentHelperGPU {
   vidType residual_cnt;
   vidType left;
   bool first_res;
-  CgrReader &cgrr;
+  CgrReaderGPU &cgrr;
 
-  __device__ ResidualSegmentHelperGPU(vidType node, CgrReader &cgrr) :
+  __device__ ResidualSegmentHelperGPU(vidType node, CgrReaderGPU &cgrr) :
     cgrr(cgrr), first_res(true), left(0), residual_cnt(0) {
     }
 
@@ -106,9 +106,9 @@ struct IntervalSegmentHelperGPU {
   vidType interval_cnt;
   vidType left;
   bool first_interval;
-  CgrReader &cgrr;
+  CgrReaderGPU &cgrr;
 
-  __device__ IntervalSegmentHelperGPU(vidType node, CgrReader &cgrr) :
+  __device__ IntervalSegmentHelperGPU(vidType node, CgrReaderGPU &cgrr) :
     cgrr(cgrr), first_interval(true), left(0), interval_cnt(0) {
     }
 
@@ -146,9 +146,9 @@ struct SeriesHelperGPU {
   vidType left;
   bool first_res;
   bool first_interval;
-  CgrReader &curp;
+  CgrReaderGPU &curp;
 
-  __device__ SeriesHelperGPU(vidType node, CgrReader &curp, vidType dout) :
+  __device__ SeriesHelperGPU(vidType node, CgrReaderGPU &curp, vidType dout) :
     node(node), curp(curp), dout(dout), first_res(true), first_interval(true) {
       interval_num = dout ? curp.decode_gamma() : 0;
     }
@@ -204,9 +204,9 @@ struct BaseHelperGPU {
   vidType left;
   vidType len ;
   bool first_res;
-  CgrReader &curp;
+  CgrReaderGPU &curp;
 
-  __device__ BaseHelperGPU (vidType node, CgrReader &curp, vidType dout) :
+  __device__ BaseHelperGPU (vidType node, CgrReaderGPU &curp, vidType dout) :
     node(node), curp(curp), dout(dout) {
       if (dout) {
         interval_num = curp.decode_gamma();

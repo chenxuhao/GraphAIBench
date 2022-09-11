@@ -1,6 +1,5 @@
 // Copyright (c) 2020 MIT
 // Author: Xuhao Chen
-#include <cub/cub.cuh>
 #include "graph_gpu.h"
 #include "cuda_launch_config.hpp"
 

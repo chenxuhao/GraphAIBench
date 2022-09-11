@@ -1,6 +1,5 @@
 // Copyright (c) 2022 MIT
 // Author: Xuhao Chen
-#include <cub/cub.cuh>
 #include "graph_gpu.h"
 #include "cuda_launch_config.hpp"
 
@@ -30,7 +29,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   // allocate buffer for decompressed adjacency lists
-  size_t per_block_buffer_size = size_t(md) * sizeof(vidType);
+  size_t per_block_buffer_size = 2 * size_t(md) * sizeof(vidType);
   size_t buffer_size = nblocks * per_block_buffer_size;
   std::cout << "buffer size: " << buffer_size/(1024*1024) << " MB\n";
   vidType *buffer;
