@@ -20,5 +20,9 @@ tc_omp_compressed: tc_omp_compressed.o tc_main.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_omp_compressed.o tc_main.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
+tc_gpu_compressed: tc_gpu_compressed.o tc_main.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_gpu_compressed.o tc_main.o $(OBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
 clean:
 	rm *.o

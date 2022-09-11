@@ -7,6 +7,8 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
     num_threads = omp_get_num_threads();
   }
   std::cout << "OpenMP Triangle Counting on Compressed Graph (" << num_threads << " threads)\n";
+  timers[SETOPS] = 0.0;
+  timers[DECOMPRESS] = 0.0;
   Timer t;
   t.Start();
   uint64_t counter = 0;
@@ -25,6 +27,8 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   t.Stop();
   std::cout << "runtime [tc_omp_compressed_opt] = " << t.Seconds() << " sec\n";
   std::cout << "total_num_triangles = " << counter << "\n";
+  std::cout << "Set operations time: "   << timers[SETOPS] << "\n";
+  std::cout << "Decompress time: "   << timers[DECOMPRESS] << "\n";
 /*
   t.Start();
   counter = 0;

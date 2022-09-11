@@ -1,10 +1,12 @@
-// CTA-centric edge parallel: each thread block takes one edge
-__global__ void cta_triangle_compressed(GraphGPU g, AccType *total) {
+// CTA-centric vertex parallel: each thread block takes one vertex
+__global__ void cta_vertex_compressed(GraphGPU g, vidType *buffer, vidType max_deg, AccType *total) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   AccType count = 0;
+  vidType *adj_list = buffer + max_deg*blockIdx.x;
   for (vidType v = blockIdx.x; v < g.V(); v += gridDim.x) {
-    for (vidType i = 0; i < g.get_degree_compressed(u); i++) {
-      auto u = g.N_compressed(v, i);
+    auto deg = g.cta_decompress(v, adj_list);
+    for (vidType i = 0; i < deg; i++) {
+      auto u = adj_list[i];
       count += g.cta_intersect_compressed(v, u);
     }
   }

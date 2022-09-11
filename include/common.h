@@ -92,6 +92,12 @@ extern int max_iters;    // maximum number of iterations
 #define INTERVAL_SEGMENT_LEN 256
 #define RESIDUAL_SEGMENT_LEN 256
 static const uint32_t SIZE_NONE = 0xffffffff;
+enum OPS {
+  DECOMPRESS,
+  SETOPS,
+};
+extern std::map<OPS,double> timers;
+
 
 enum Status {
   Idle,

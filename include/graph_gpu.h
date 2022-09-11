@@ -2,6 +2,8 @@
 #include "graph.h"
 #include "operations.cuh"
 #include "cutil_subset.h"
+#include "cuda_profiler_api.h"
+#include "cgr_decompressor.cuh"
 #ifdef USE_NVSHMEM
 #include <nvshmem.h>
 #include <nvshmemx.h>
@@ -17,7 +19,9 @@ protected:
   int num_vertex_classes;           // number of unique vertex labels
   int num_edge_classes;             // number of unique edge labels
   eidType *d_rowptr, *d_in_rowptr;  // row pointers of CSR format
+  eidType *d_rowptr_compressed;     // row pointers of Compressed Graph Representation (CGR)
   vidType *d_colidx, *d_in_colidx;  // column induces of CSR format
+  vidType *d_colidx_compressed;     // column induces of Compressed Graph Representation (CGR)
   vidType *d_src_list, *d_dst_list; // for COO format
   vlabel_t *d_vlabels;              // vertex labels
   elabel_t *d_elabels;              // edge labels
@@ -431,6 +435,19 @@ public:
       if (binary_search_2phase_cta(search, cache, key, search_size))
         count += 1;
     }
+    return count;
+  }
+
+  inline __device__ vidType cta_decompress(vidType v, vidType *adj) {
+    vidType degree = 0;
+    CgrReaderGPU cgrr;
+    auto row_begin = d_rowptr_compressed[v];
+    cgrr.init(v, d_colidx_compressed, row_begin);
+    return degree;
+  }
+
+  inline __device__ vidType cta_intersect_compressed(vidType src, vidType dst) {
+    vidType count = 0;
     return count;
   }
 };

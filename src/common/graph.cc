@@ -1,5 +1,6 @@
 #include "graph.h"
 #include "scan.h"
+std::map<OPS,double> timers;
 
 Graph::Graph(std::string prefix, bool use_dag, bool directed, 
              bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
@@ -574,6 +575,8 @@ bool Graph::binary_search(vidType key, eidType begin, eidType end) const {
 
 vidType Graph::intersect_num_compressed(VertexSet& vs, vidType u, vidType up) {
   vidType num = 0;
+  Timer t;
+  t.Start();
   CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
 #if USE_INTERVAL
   VertexList u_begins, u_ends;
@@ -584,7 +587,10 @@ vidType Graph::intersect_num_compressed(VertexSet& vs, vidType u, vidType up) {
   auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
   int v_size = vs.size();
+  t.Stop();
+  timers[DECOMPRESS] += t.Seconds();
 
+  t.Start();
 #if USE_INTERVAL
   // compare vs and u_itv
   int idx_l = 0, idx_r = 0;
@@ -611,6 +617,8 @@ vidType Graph::intersect_num_compressed(VertexSet& vs, vidType u, vidType up) {
 #endif
   // compare vs and u_res
   num += intersection_num(vs, u_residuals, up);
+  t.Stop();
+  timers[SETOPS] += t.Seconds();
   return num;
 }
 

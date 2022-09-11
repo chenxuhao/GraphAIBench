@@ -1,25 +1,15 @@
-// Copyright (c) 2020 MIT
+// Copyright (c) 2022 MIT
 // Author: Xuhao Chen
 #include <cub/cub.cuh>
 #include "graph_gpu.h"
 #include "cuda_launch_config.hpp"
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
+#include "triangle_cta_compressed.cuh"
 
-#ifdef VERTEX_PAR
-const std::string name = "gpu_vp";
-#include "bs_warp_vertex.cuh"
-#else
-#ifdef CTA_CENTRIC
-const std::string name = "gpu_cta";
-#include "bs_cta_edge.cuh"
-#else
-const std::string name = "gpu_base";
-#include "bs_warp_edge.cuh"
-#endif
-#endif
+void triangle_count(Graph &g, uint64_t &total) {}
 
-void TCSolver(Graph &g, uint64_t &total, int, int) {
+void triangle_count_compressed(Graph &g, uint64_t &total) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   auto ne = g.num_edges();
@@ -29,46 +19,35 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
 
   GraphGPU gg(g);
   size_t nthreads = BLOCK_SIZE;
-  size_t nblocks = (ne-1)/WARPS_PER_BLOCK+1;
+  size_t nblocks = (nv-1)/nthreads+1;
   if (nblocks > 65536) nblocks = 65536;
+  int max_blocks_per_SM = maximum_residency(cta_vertex_compressed, nthreads, 0);
+  std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-
-#ifdef VERTEX_PAR
-  std::cout << "Vertex parallel\n";
-  int max_blocks_per_SM = maximum_residency(warp_vertex, nthreads, 0);
-#else
-  auto nnz = gg.init_edgelist(g);
-  std::cout << "Edge parallel: edgelist size = " << nnz << "\n";
-  int max_blocks_per_SM = maximum_residency(warp_edge, nthreads, 0);
-#endif
-  std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
-  //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
-  //nblocks = std::min(max_blocks, nblocks);
+  size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
+  nblocks = std::min(max_blocks, nblocks);
   std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
- 
+
+  // allocate buffer for decompressed adjacency lists
+  size_t per_block_buffer_size = size_t(md) * sizeof(vidType);
+  size_t buffer_size = nblocks * per_block_buffer_size;
+  std::cout << "buffer size: " << buffer_size/(1024*1024) << " MB\n";
+  vidType *buffer;
+  CUDA_SAFE_CALL(cudaMalloc((void **)&buffer, buffer_size));
+
   AccType h_total = 0, *d_total;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
 
-  cudaProfilerStart();
   Timer t;
   t.Start();
-#ifdef VERTEX_PAR
-  warp_vertex<<<nblocks, nthreads>>>(0, nv, gg, d_total);
-#else
-#ifdef CTA_CENTRIC
-  cta_edge<<<nblocks, nthreads>>>(ne, gg, d_total);
-#else
-  warp_edge<<<nblocks, nthreads>>>(ne, gg, d_total);
-#endif
-#endif
+  cta_vertex_compressed<<<nblocks, nthreads>>>(gg, buffer, md, d_total);
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
   t.Stop();
-  cudaProfilerStop();
 
-  std::cout << "runtime [" << name << "] = " << t.Seconds() << " sec\n";
+  std::cout << "runtime [tc_gpu_compressed] = " << t.Seconds() << " sec\n";
   std::cout << "throughput = " << double(ne) / t.Seconds() / 1e9 << " billion Traversed Edges Per Second (TEPS)\n";
   CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
   total = h_total;
