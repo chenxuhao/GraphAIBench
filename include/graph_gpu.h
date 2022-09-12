@@ -20,8 +20,8 @@ protected:
   int num_vertex_classes;           // number of unique vertex labels
   int num_edge_classes;             // number of unique edge labels
   eidType *d_rowptr, *d_in_rowptr;  // row pointers of CSR format
-  eidType *d_rowptr_compressed;     // row pointers of Compressed Graph Representation (CGR)
   vidType *d_colidx, *d_in_colidx;  // column induces of CSR format
+  eidType *d_rowptr_compressed;     // row pointers of Compressed Graph Representation (CGR)
   vidType *d_colidx_compressed;     // column induces of Compressed Graph Representation (CGR)
   vidType *d_src_list, *d_dst_list; // for COO format
   vlabel_t *d_vlabels;              // vertex labels
@@ -213,6 +213,13 @@ public:
         d_in_colidx = d_colidx;
       }
     }
+    if (hg.is_compressed()) {
+      CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+      CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, hg.rowptr_compressed(), (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+      auto len = hg.get_compressed_colidx_length();
+      CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, len * sizeof(uint32_t)));
+      CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, hg.colidx_compressed(), len * sizeof(uint32_t), cudaMemcpyHostToDevice));
+    }
     t.Stop();
     std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
   }
@@ -327,133 +334,59 @@ public:
   }
 
   // using a warp to compute the intersection of the neighbor lists of two vertices
-  inline __device__ vidType warp_intersect(vidType src, vidType dst) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+  inline __device__ vidType warp_intersect(vidType v, vidType u) {
     vidType count = 0;
-    assert(src != dst);
-    vidType src_size = getOutDegree(src);
-    vidType dst_size = getOutDegree(dst);
-    if (src_size == 0 || dst_size == 0) return 0;
-    vidType* lookup = d_colidx + edge_begin(src);
-    vidType* search = d_colidx + edge_begin(dst);
-    vidType lookup_size = src_size;
-    vidType search_size = dst_size;
-    if (src_size > dst_size) {
-      auto temp = lookup;
-      lookup = search;
-      search = temp;
-      search_size = src_size;
-      lookup_size = dst_size;
-    }
-    for (vidType i = thread_lane; i < lookup_size; i += WARP_SIZE) {
-      auto key = lookup[i];
-      if (binary_search(search, key, search_size))
-        count += 1;
-    }
+    assert(v != u);
+    vidType v_degree = getOutDegree(v);
+    vidType u_degree = getOutDegree(u);
+    if (v_degree == 0 || u_degree == 0) return 0;
+    vidType* adj_v = d_colidx + edge_begin(v);
+    vidType* adj_u = d_colidx + edge_begin(u);
+    count = intersect_num(adj_v, v_degree, adj_u, u_degree);
     return count;
   }
 
   // using a CTA to compute the intersection of the neighbor lists of two vertices
-  inline __device__ vidType cta_intersect(vidType src, vidType dst) {
+  inline __device__ vidType cta_intersect(vidType v, vidType u) {
     vidType count = 0;
-    assert(src != dst);
-    vidType src_size = getOutDegree(src);
-    vidType dst_size = getOutDegree(dst);
-    if (src_size == 0 || dst_size == 0) return 0;
-    vidType* lookup = d_colidx + edge_begin(src);
-    vidType* search = d_colidx + edge_begin(dst);
-    vidType lookup_size = src_size;
-    vidType search_size = dst_size;
-    if (src_size > dst_size) {
-      auto temp = lookup;
-      lookup = search;
-      search = temp;
-      search_size = src_size;
-      lookup_size = dst_size;
-    }
-    for (vidType i = threadIdx.x; i < lookup_size; i += BLOCK_SIZE) {
-      auto key = lookup[i];
-      if (binary_search(search, key, search_size))
-        count += 1;
-    }
+    assert(v != u);
+    vidType v_degree = getOutDegree(v);
+    vidType u_degree = getOutDegree(u);
+    if (v_degree == 0 || u_degree == 0) return 0;
+    vidType* adj_v = d_colidx + edge_begin(v);
+    vidType* adj_u = d_colidx + edge_begin(u);
+    count = intersect_num_cta(adj_v, v_degree, adj_u, u_degree);
     return count;
   }
 
-  // using a warp to compute the intersection of the neighbor lists of two vertices with caching
-  inline __device__ vidType warp_intersect_cache(vidType src, vidType dst) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
-    int warp_lane   = threadIdx.x / WARP_SIZE;                // warp index within the CTA
-    __shared__ vidType cache[BLOCK_SIZE];
-    vidType count = 0;
-    assert(src != dst);
-    vidType src_size = getOutDegree(src);
-    vidType dst_size = getOutDegree(dst);
-    if (src_size == 0 || dst_size == 0) return 0;
-    vidType* lookup = d_colidx + edge_begin(src);
-    vidType* search = d_colidx + edge_begin(dst);
-    vidType lookup_size = src_size;
-    vidType search_size = dst_size;
-    if (src_size > dst_size) {
-      auto temp = lookup;
-      lookup = search;
-      search = temp;
-      search_size = src_size;
-      lookup_size = dst_size;
-    }
-    cache[warp_lane * WARP_SIZE + thread_lane] = search[thread_lane * search_size / WARP_SIZE];
-    __syncwarp();
-    for (vidType i = thread_lane; i < lookup_size; i += WARP_SIZE) {
-      auto key = lookup[i];
-      if (binary_search_2phase(search, cache, key, search_size))
-        count += 1;
-    }
-    return count;
-  }
-
-  // using a cta compute the intersection of the neighbor lists of two vertices with caching
-  inline __device__ vidType cta_intersect_cache(vidType src, vidType dst) {
-    __shared__ vidType cache[BLOCK_SIZE];
-    vidType count = 0;
-    assert(src != dst);
-    vidType src_size = getOutDegree(src);
-    vidType dst_size = getOutDegree(dst);
-    if (src_size == 0 || dst_size == 0) return 0;
-    vidType* lookup = d_colidx + edge_begin(src);
-    vidType* search = d_colidx + edge_begin(dst);
-    vidType lookup_size = src_size;
-    vidType search_size = dst_size;
-    if (src_size > dst_size) {
-      auto temp = lookup;
-      lookup = search;
-      search = temp;
-      search_size = src_size;
-      lookup_size = dst_size;
-    }
-    cache[threadIdx.x] = search[threadIdx.x * search_size / BLOCK_SIZE];
-    __syncthreads();
-    for (vidType i = threadIdx.x; i < lookup_size; i += BLOCK_SIZE) {
-      auto key = lookup[i];
-      if (binary_search_2phase_cta(search, cache, key, search_size))
-        count += 1;
-    }
-    return count;
-  }
-
+  // using a CTA to decompress the adj list of a vertex
   inline __device__ vidType cta_decompress(vidType v, vidType *adj) {
     vidType num_neighbors = 0;
     CgrReaderGPU cgrr;
     auto row_begin = d_rowptr_compressed[v];
     cgrr.init(v, d_colidx_compressed, row_begin);
-    SMem *smem;
-    num_neighbors += handle_segmented_intervals(cgrr, smem, adj);
-    num_neighbors += handle_segmented_residuals(cgrr, smem, adj);
+    __shared__ SMem smem;
+    num_neighbors += handle_segmented_intervals(cgrr, &smem, adj);
+    num_neighbors += handle_segmented_residuals(cgrr, &smem, adj+num_neighbors);
     return num_neighbors;
   }
 
+  inline __device__ vidType cta_intersect_compressed(vidType *adj_v, vidType v_degree, vidType *adj_u, vidType u_degree) {
+    vidType count = 0;
+    count = intersect_num_cta(adj_v, v_degree, adj_u, u_degree);
+    return count;
+  }
   inline __device__ vidType cta_intersect_compressed(vidType v, vidType *adj_v, vidType u_degree, vidType *adj_u) {
     vidType count = 0;
     auto v_degree = cta_decompress(v, adj_v);
-    count = intersect_num(adj_v, v_degree, adj_u, u_degree);
+    count = intersect_num_cta(adj_v, v_degree, adj_u, u_degree);
+    return count;
+  }
+  inline __device__ vidType cta_intersect_compressed(vidType v, vidType u, vidType *adj_v, vidType *adj_u) {
+    vidType count = 0;
+    auto v_degree = cta_decompress(v, adj_v);
+    auto u_degree = cta_decompress(u, adj_u);
+    count = intersect_num_cta(adj_v, v_degree, adj_u, u_degree);
     return count;
   }
 
@@ -600,6 +533,7 @@ public:
     vidType lane_id = thread_id % 32;
     vidType warp_id = thread_id / 32;
     vidType segment_cnt = cgrr.decode_segment_cnt();
+    vidType ptr_offset = 0;
     // cta gather
     while (__syncthreads_or(segment_cnt >= BLOCK_SIZE)) {
       // vie for control of block
@@ -613,9 +547,10 @@ public:
         cgrr.global_offset += RESIDUAL_SEGMENT_LEN * BLOCK_SIZE;
       }
       __syncthreads();
-      vidType node = smem->segment_node[0];
+      vidType v = smem->segment_node[0];
       eidType offset = smem->segment_offset[0] + RESIDUAL_SEGMENT_LEN * thread_id;
-      handle_one_residual_segment(node, offset, ptr);
+      auto count = handle_one_residual_segment(v, offset, ptr+ptr_offset);
+      ptr_offset += count;
     }
     vidType thread_data = segment_cnt;
     vidType rsv_rank = 0;
@@ -652,7 +587,8 @@ public:
         cgrr.global_offset += RESIDUAL_SEGMENT_LEN;
       }
       __syncthreads();
-      handle_one_residual_segment(smem->segment_node[thread_id], smem->segment_offset[thread_id], ptr);
+      auto count = handle_one_residual_segment(smem->segment_node[thread_id], smem->segment_offset[thread_id], ptr+ptr_offset);
+      ptr_offset += count;
       cta_progress += BLOCK_SIZE;
       __syncthreads();
     }
@@ -660,7 +596,7 @@ public:
   }
 
   __device__ vidType handle_one_residual_segment(vidType v, eidType offset, vidType *ptr) {
-    vidType num_neighbors = offset;
+    vidType num_neighbors = 0;
     CgrReaderGPU cgrr;
     cgrr.init(v, d_colidx_compressed, offset);
     ResidualSegmentHelperGPU sh(v, cgrr);
@@ -670,6 +606,5 @@ public:
     }
     return num_neighbors;
   }
-
 };
 

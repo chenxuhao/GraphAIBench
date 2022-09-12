@@ -1,6 +1,33 @@
 #pragma once
 #include "search.cuh"
 
+// cta-wise intersetion of two lists using the binary seach algorithm
+template <typename T = vidType>
+__forceinline__ __device__ T intersect_num_cta(T* a, T size_a, T* b, T size_b) {
+  if (size_a == 0 || size_b == 0) return 0;
+  vidType count = 0;
+  vidType* lookup = a;
+  vidType* search = b;
+  T lookup_size = size_a;
+  T search_size = size_b;
+  if (size_a > size_b) {
+    lookup = b;
+    search = a;
+    lookup_size = size_b;
+    search_size = size_a;
+  }
+  __shared__ vidType cache[BLOCK_SIZE];
+  cache[threadIdx.x] = search[threadIdx.x * search_size / BLOCK_SIZE];
+  __syncthreads();
+  for (vidType i = threadIdx.x; i < lookup_size; i += BLOCK_SIZE) {
+    auto key = lookup[i];
+    //if (binary_search(search, key, search_size))
+    if (binary_search_2phase_cta(search, cache, key, search_size))
+      count += 1;
+  }
+  return count;
+}
+
 // warp-wise intersetion of two lists using the binary seach algorithm
 template <typename T = vidType>
 __forceinline__ __device__ T intersect_bs(T* a, T size_a, T* b, T size_b, T* c) {

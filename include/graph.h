@@ -16,7 +16,8 @@ protected:
   std::string name_;            // name of the graph
   std::string inputfile_path;   // file path of the graph
   bool is_directed_;            // is it a directed graph?
-  bool is_bipartite;            // is it a bipartite graph?
+  bool is_bipartite_;           // is it a bipartite graph?
+  bool is_compressed_;          // is it a compressed graph?
   bool has_reverse;             // has reverse/incoming edges maintained
   vidType max_degree;           // maximun degree
   vidType n_vertices;           // number of vertices
@@ -82,8 +83,11 @@ public:
   std::string get_name() const { return name_; }
   std::string get_inputfile_path() const { return inputfile_path; }
   bool is_directed() const { return is_directed_; }
+  bool is_bipartite() const { return is_bipartite_; }
+  bool is_compressed() const { return is_compressed_; }
   bool has_reverse_graph() const { return has_reverse; }
   vidType get_max_degree() const { return max_degree; }
+  size_t get_compressed_colidx_length() const { return edges_compressed.size(); }
 
   // get methods for graph topology information
   vidType get_degree(vidType v) const { return vertices[v+1] - vertices[v]; }
@@ -106,7 +110,9 @@ public:
   VertexSet out_neigh(vidType v, vidType off = 0) const; // get the outgoing neighbor list of vertex v
   VertexSet in_neigh(vidType v) const;              // get the ingoing neighbor list of vertex v
   void build_reverse_graph();
-
+  const eidType* rowptr_compressed() const { return vertices_compressed; } // get row pointers array
+  const uint32_t* colidx_compressed() const { return &edges_compressed[0]; }    // get column indices array
+ 
   // Galois compatible APIs
   vidType size() const { return n_vertices; }
   eidType sizeEdges() const { return n_edges; }
