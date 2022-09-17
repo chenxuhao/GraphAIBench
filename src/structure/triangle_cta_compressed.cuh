@@ -6,8 +6,11 @@ __global__ void cta_vertex_compressed(GraphGPU g, vidType *buffer, vidType max_d
   vidType *adj_u = buffer + max_deg*(2*blockIdx.x+1);
   for (vidType v = blockIdx.x; v < g.V(); v += gridDim.x) {
     auto deg = g.cta_decompress(v, adj_v);
+    //if (threadIdx.x == 0) printf("v %d, v_deg %d\n", v, deg);
+    assert(deg == g.get_degree(v));
     for (vidType i = 0; i < deg; i++) {
       auto u = adj_v[i];
+      //if (threadIdx.x == 0) printf("\t u %d\n", u);
       count += g.cta_intersect_compressed(u, adj_u, deg, adj_v);
     }
   }

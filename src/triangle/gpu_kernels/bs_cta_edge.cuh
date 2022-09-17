@@ -9,7 +9,7 @@ __global__ void cta_edge(eidType ne, GraphGPU g, AccType *total) {
       u = g.get_dst(eid);
     }
     __syncthreads();
-    count += g.cta_intersect_cache(v, u);
+    count += g.cta_intersect(v, u);
   }
   AccType block_num = BlockReduce(temp_storage).Sum(count);
   if (threadIdx.x == 0) atomicAdd(total, block_num);

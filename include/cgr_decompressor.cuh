@@ -7,6 +7,11 @@ class CgrReaderGPU {
     vidType *graph;
     vidType node;
 
+    __device__ CgrReaderGPU() {}
+
+    __device__ CgrReaderGPU(vidType v, vidType *g, eidType off) :
+      node(v), graph(g), global_offset(off) { }
+
     __device__ void init(vidType node, vidType *graph, eidType global_offset) {
       this->node = node;
       this->graph = graph;
@@ -19,6 +24,7 @@ class CgrReaderGPU {
 
     __device__ vidType cur() {
       eidType chunk = global_offset / 32;
+      //if (threadIdx.x == 0) printf("v %d chunk=%ld, global_offset=%ld\n", node, chunk, global_offset);
       vidType buf_hi = graph[chunk];
       vidType buf_lo = graph[chunk + 1];
       vidType offset = global_offset % 32;

@@ -39,7 +39,11 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
 #else
   auto nnz = gg.init_edgelist(g);
   std::cout << "Edge parallel: edgelist size = " << nnz << "\n";
+#ifdef CTA_CENTRIC
+  int max_blocks_per_SM = maximum_residency(cta_edge, nthreads, 0);
+#else
   int max_blocks_per_SM = maximum_residency(warp_edge, nthreads, 0);
+#endif
 #endif
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;

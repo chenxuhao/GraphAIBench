@@ -4,7 +4,7 @@ std::map<OPS,double> timers;
 
 Graph::Graph(std::string prefix, bool use_dag, bool directed, 
              bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
-    is_directed_(directed), is_bipartite_(bipartite), 
+    is_directed_(directed), is_bipartite_(bipartite), is_compressed_(false), 
     max_degree(0), n_vertices(0), n_edges(0), 
     nnz(0), max_label_frequency_(0), max_label(0),
     feat_len(0), num_vertex_classes(0), num_edge_classes(0), 

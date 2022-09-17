@@ -31,7 +31,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   // allocate buffer for decompressed adjacency lists
   size_t per_block_buffer_size = 2 * size_t(md) * sizeof(vidType);
   size_t buffer_size = nblocks * per_block_buffer_size;
-  std::cout << "buffer size: " << buffer_size/(1024*1024) << " MB\n";
+  std::cout << "buffer size: " << float(buffer_size)/float(1024*1024) << " MB\n";
   vidType *buffer;
   CUDA_SAFE_CALL(cudaMalloc((void **)&buffer, buffer_size));
 

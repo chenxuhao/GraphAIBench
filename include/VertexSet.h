@@ -29,7 +29,7 @@ public:
   static void release_buffers();
   static vidType MAX_DEGREE;
 
-  VertexSet() : VertexSet(-1) {}
+  VertexSet() : VertexSet(vidType(-1)) {}
   VertexSet(vidType v) : set_size(0), vid(v), pooled(true) {
     if(buffers_avail.size() == 0) { 
       vidType *p = custom_alloc_local<vidType>(MAX_DEGREE);
@@ -189,19 +189,19 @@ public:
   vidType difference_ns(const VertexSet &other, vidType upper) const;
 
   VertexSet bounded(vidType up) const {
-    if(set_size > 64) {
-      vidType idx_l = -1;
+    if (set_size > 64) {
+      vidType idx_l = vidType(-1);
       vidType idx_r = set_size;
-      while(idx_r-idx_l > 1) {
+      while (idx_r-idx_l > 1) {
         vidType idx_t = (idx_l+idx_r)/2;
-        if(ptr[idx_t] < up)idx_l = idx_t;
+        if (ptr[idx_t] < up) idx_l = idx_t;
         else idx_r = idx_t;
       }
-      return VertexSet(ptr,idx_l+1,vid);
+      return VertexSet(ptr, idx_l+1, vid);
     } else {
       vidType idx_l = 0;
-      while(idx_l < set_size && ptr[idx_l] < up) ++idx_l;
-      return VertexSet(ptr,idx_l,vid);
+      while (idx_l < set_size && ptr[idx_l] < up) ++idx_l;
+      return VertexSet(ptr, idx_l, vid);
     }
   }
 };
