@@ -2,7 +2,7 @@ include ../common.mk
 OBJS = VertexSet.o graph.o graph_partition.o
 NVFLAGS += -dc
 INCLUDES += -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
-all: test_graph_partition test_nvlink
+all: test_graph_partition test_nvlink test_cta_sort
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
@@ -15,6 +15,10 @@ all: test_graph_partition test_nvlink
 
 test_graph_partition: $(OBJS) test_graph_partition.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) test_graph_partition.o -o $@ -lgomp
+	mv $@ $(BIN)
+
+test_cta_sort: 
+	$(NVCC) -O3 $(INCLUDES) test_cta_sort.cu -o test_cta_sort
 	mv $@ $(BIN)
 
 test_nvlink: 

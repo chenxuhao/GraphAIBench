@@ -6,13 +6,13 @@
 constexpr vidType VID_MIN = 0;
 constexpr vidType VID_MAX = std::numeric_limits<vidType>::max();
 
-inline vidType bs(vidType* ptr, vidType set_size, vidType o){
-  vidType idx_l = -1;
-  vidType idx_r = set_size;
+inline vidType bs(vidType* ptr, int set_size, vidType o){
+  int idx_l = -1;
+  int idx_r = set_size;
   //guarantees in this area is that idx_l is before where we would put o 
-  while(idx_r-idx_l > 1){
-    vidType idx_t = (idx_l+idx_r)/2;
-    if(ptr[idx_t] < o)idx_l = idx_t;
+  while (idx_r-idx_l > 1){
+    auto idx_t = (idx_l+idx_r)/2;
+    if (ptr[idx_t] < o) idx_l = idx_t;
     else idx_r = idx_t;
   }
   return idx_l+1;
