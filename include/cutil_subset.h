@@ -115,3 +115,11 @@ static size_t get_gpu_mem_size(int device = 0) {
   return prop.totalGlobalMem;
 }
 
+template <typename NumeratorT, typename DenominatorT>
+__host__ __device__ __forceinline__ constexpr NumeratorT
+DivideAndRoundUp(NumeratorT n, DenominatorT d) {
+  // Static cast to undo integral promotion.
+  return static_cast<NumeratorT>(n / d + (n % d != 0 ? 1 : 0));
+}
+
+

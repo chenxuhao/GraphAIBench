@@ -1,5 +1,6 @@
 #pragma once
 #include "cutil_subset.h"
+#include "sort.cuh"
 #include "set_intersect.cuh"
 #include "set_difference.cuh"
 

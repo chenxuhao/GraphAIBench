@@ -4,8 +4,6 @@
 #include "cutil_subset.h"
 #include "cuda_profiler_api.h"
 #include "cgr_decompressor.cuh"
-#include <cub/cub.cuh>
-#include <cub/device/dispatch/dispatch_segmented_sort.cuh>
 
 #ifdef USE_NVSHMEM
 #include <nvshmem.h>
@@ -385,17 +383,9 @@ public:
     return count;
   }
  
-  inline __device__ vidType cta_decompress(vidType v, vidType *adj) {
-    typedef cub::DeviceSegmentedSortPolicy<vidType, cub::NullType> DispatchSegmentedSort;
-    using MaxPolicyT = typename DispatchSegmentedSort::MaxPolicy;
-    cub::detail::device_double_buffer<vidType> d_keys_double_buffer(NULL, NULL);
-    cta_decompress<MaxPolicyT>(v, adj, d_keys_double_buffer);
-  }
-
   // using a CTA to decompress the adj list of a vertex
-  template <typename ChainedPolicyT>
-  inline __device__ vidType cta_decompress(vidType v, vidType *adj,
-                                           cub::detail::device_double_buffer<vidType> d_keys_double_buffer) {
+  inline __device__ vidType cta_decompress(vidType v, vidType *adj) {
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
     CgrReaderGPU cgrr;
     cgrr.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
     //if (threadIdx.x == 0) printf("v %d global_offset %ld\n", v, d_rowptr_compressed[v]);
@@ -407,70 +397,7 @@ public:
     //handle_segmented_residuals(cgrr, &smem, adj, &num_items);
     decode_intervals(v, cgrr, adj, &num_items);
     decode_residuals(v, cgrr, adj, &num_items);
-
-    /*
-    __shared__ vidType neighbors[256];
-    assert(num_items <= 256);
-    if (threadIdx.x == 0) {
-      for (vidType i = num_items; i < 256; i++) {
-        neighbors[i] = INT_MAX;
-      }
-    }
-    __syncthreads();
-    typedef cub::BlockRadixSort<vidType, BLOCK_SIZE, 1> BlockRadixSort;
-    __shared__ typename BlockRadixSort::TempStorage temp_storage;
-    BlockRadixSort(temp_storage).Sort(neighbors+threadIdx.x);
-    if (threadIdx.x < num_items) adj[threadIdx.x] = neighbors[threadIdx.x];
-    */
-
-    using KeyT = vidType;
-    using ValueT = cub::NullType;
-    using OffsetT = vidType;
-    using ActivePolicyT = typename ChainedPolicyT::ActivePolicy;
-    using LargeSegmentPolicyT = typename ActivePolicyT::LargeSegmentPolicy;
-    using MediumPolicyT = typename ActivePolicyT::SmallAndMediumSegmentedSortPolicyT::MediumPolicyT;
-    assert(num_items > 0);
-
-    using WarpReduceT = cub::WarpReduce<KeyT>;
-    using AgentWarpMergeSortT = cub::AgentSubWarpSort<0, MediumPolicyT, KeyT, ValueT, OffsetT>;
-    using AgentSegmentedRadixSortT = cub::AgentSegmentedRadixSort<0, LargeSegmentPolicyT, KeyT, ValueT, OffsetT>;
-    __shared__ union
-    {
-      typename AgentSegmentedRadixSortT::TempStorage block_sort;
-      typename WarpReduceT::TempStorage warp_reduce;
-      typename AgentWarpMergeSortT::TempStorage medium_warp_sort;
-    } temp_storage;
-    AgentSegmentedRadixSortT agent(num_items, temp_storage.block_sort);
-
-    constexpr int begin_bit = 0;
-    constexpr int end_bit = sizeof(KeyT) * 8;
-    constexpr int cacheable_tile_size = LargeSegmentPolicyT::BLOCK_THREADS * LargeSegmentPolicyT::ITEMS_PER_THREAD;
-    if (num_items <= MediumPolicyT::ITEMS_PER_TILE) {
-      // Sort by a single warp
-      if (threadIdx.x < MediumPolicyT::WARP_THREADS) {
-        AgentWarpMergeSortT(temp_storage.medium_warp_sort).ProcessSegment(num_items, adj, adj, (ValueT*)NULL, (ValueT*)NULL);
-      }
-    } else if (num_items < cacheable_tile_size) {
-      // Sort by a CTA if data fits into shared memory
-      agent.ProcessSinglePass(begin_bit, end_bit, adj, NULL, adj, NULL);
-    } else {
-      // Sort by a CTA with multiple reads from global memory
-      int current_bit = begin_bit;
-      int pass_bits = (cub::min)(int{LargeSegmentPolicyT::RADIX_BITS}, (end_bit - current_bit));
-      d_keys_double_buffer = cub::detail::device_double_buffer<KeyT>(
-                             d_keys_double_buffer.current(), d_keys_double_buffer.alternate());
-      agent.ProcessIterative(current_bit, pass_bits, adj, NULL, d_keys_double_buffer.current(), NULL);
-      current_bit += pass_bits;
-      #pragma unroll 1
-      while (current_bit < end_bit) {
-        pass_bits = (cub::min)(int{LargeSegmentPolicyT::RADIX_BITS}, (end_bit - current_bit));
-        cub::CTA_SYNC();
-        agent.ProcessIterative(current_bit, pass_bits, d_keys_double_buffer.current(), 
-                               NULL, d_keys_double_buffer.alternate(), NULL);
-        d_keys_double_buffer.swap();
-        current_bit += pass_bits;
-      }
-    }
+    cta_sort(num_items, adj, adj);
     return num_items;
   }
 
