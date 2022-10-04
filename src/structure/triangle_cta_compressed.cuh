@@ -1,5 +1,6 @@
 // CTA-centric vertex parallel: each thread block takes one vertex
-__global__ void cta_vertex_compressed(GraphGPU g, vidType *buffer, vidType max_deg, AccType *total) {
+__global__ void __launch_bounds__(BLOCK_SIZE, 4)
+cta_vertex_compressed(GraphGPU g, vidType *buffer, vidType max_deg, AccType *total) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   AccType count = 0;
   vidType *buf1 = buffer + max_deg*(3*blockIdx.x);
@@ -9,10 +10,10 @@ __global__ void cta_vertex_compressed(GraphGPU g, vidType *buffer, vidType max_d
   for (vidType v = blockIdx.x; v < g.V(); v += gridDim.x) {
     adj_v = g.cta_decompress(v, buf1, buf2, deg_v);
     //if (threadIdx.x == 0) printf("v %d, v_deg %d\n", v, deg_v);
-    assert(deg_v == g.get_degree(v));
+    //assert(deg_v == g.get_degree(v));
     for (vidType i = 0; i < deg_v; i++) {
       auto u = adj_v[i];
-      //__syncthreads();
+      if (u > v) break;
       vidType *adj_u, deg_u = 0;
       if (adj_v == buf2) {
         adj_u = g.cta_decompress(u, buf1, buf3, deg_u);
@@ -31,7 +32,7 @@ __global__ void cta_vertex_compressed(GraphGPU g, vidType *buffer, vidType max_d
         printf("] \n");
       }
       */
-      count += intersect_num_cta(adj_u, deg_u, adj_v, deg_v);
+      count += intersect_num_cta(adj_u, deg_u, adj_v, deg_v, u);
     }
   }
   AccType block_num = BlockReduce(temp_storage).Sum(count);

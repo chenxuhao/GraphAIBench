@@ -22,10 +22,10 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   if (nblocks > 65536) nblocks = 65536;
   int max_blocks_per_SM = maximum_residency(cta_vertex_compressed, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
-  cudaDeviceProp deviceProp;
-  CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
-  nblocks = std::min(max_blocks, nblocks);
+  //cudaDeviceProp deviceProp;
+  //CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
+  //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
+  //nblocks = std::min(max_blocks, nblocks);
   std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   // allocate buffer for decompressed adjacency lists

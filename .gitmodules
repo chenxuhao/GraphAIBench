@@ -1,0 +1,6 @@
+[submodule "external/parlaylib"]
+	path = external/parlaylib
+	url = https://github.com/ParAlg/parlaylib
+[submodule "external/PAM"]
+	path = external/PAM
+	url = https://github.com/ldhulipala/PAM

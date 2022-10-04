@@ -28,6 +28,38 @@ __forceinline__ __device__ T intersect_num_cta(T* a, T size_a, T* b, T size_b) {
   return count;
 }
 
+// cta-wise intersetion of two lists with upper bound using the binary seach algorithm
+template <typename T = vidType>
+__forceinline__ __device__ T intersect_num_cta(T* a, T size_a, T* b, T size_b, T upper_bound) {
+  if (size_a == 0 || size_b == 0) return 0;
+  vidType count = 0;
+  vidType* lookup = a;
+  vidType* search = b;
+  T lookup_size = size_a;
+  T search_size = size_b;
+  if (size_a > size_b) {
+    lookup = b;
+    search = a;
+    lookup_size = size_b;
+    search_size = size_a;
+  }
+  __shared__ vidType cache[BLOCK_SIZE];
+  cache[threadIdx.x] = search[threadIdx.x * search_size / BLOCK_SIZE];
+  __syncthreads();
+  for (vidType i = threadIdx.x; i < lookup_size; i += BLOCK_SIZE) {
+    auto key = lookup[i];
+    int is_smaller = key < upper_bound ? 1 : 0;
+    int found = 0;
+    if (is_smaller && binary_search_2phase_cta(search, cache, key, search_size))
+      found = 1;
+    count += found;
+    unsigned active = __activemask();
+    unsigned mask = __ballot_sync(active, is_smaller);
+    if (mask != FULL_MASK) break;
+  }
+  return count;
+}
+
 // warp-wise intersetion of two lists using the binary seach algorithm
 template <typename T = vidType>
 __forceinline__ __device__ T intersect_bs(T* a, T size_a, T* b, T size_b, T* c) {

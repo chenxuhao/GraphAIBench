@@ -99,6 +99,7 @@ public:
   vidType* adj_ptr(vidType v) const { return &edges[vertices[v]]; }
   vidType N(vidType v, vidType n) const { return edges[vertices[v]+n];} // get the n-th neighbor of v
   VertexSet N(vidType v) const;              // get the neighbor list of vertex v
+  eidType get_eid(vidType v, vidType n) const { return vertices[v]+n;} // get the edge id of the n-th edge of v
   eidType* rowptr() { return vertices; } // get row pointers array
   vidType* colidx() { return edges; }    // get column indices array
   const eidType* rowptr() const { return vertices; } // get row pointers array
@@ -129,6 +130,7 @@ public:
   // get methods for labels and coreness
   vlabel_t get_vlabel(vidType v) const { return vlabels[v]; }
   elabel_t get_elabel(eidType e) const { return elabels[e]; }
+  elabel_t get_elabel(vidType v, vidType n) const { return elabels[vertices[v]+n]; } // get the label of the n-th edge of v
   int get_vertex_classes() { return num_vertex_classes; } // number of distinct vertex labels
   int get_edge_classes() { return num_edge_classes; } // number of distinct edge labels
   int get_frequent_labels(int threshold);
