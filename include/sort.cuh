@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include <cub/cub.cuh>
+#ifdef USE_DEVICE_SORT
 #include <cub/device/dispatch/dispatch_segmented_sort.cuh>
 
 template <int BlockThreads, class KeyT>
@@ -105,23 +106,5 @@ inline __device__ vidType* cta_sort(OffsetT num_items, KeyT *src, KeyT *buffer) 
   __syncthreads();
   return result;
 }
+#endif
 
-/*
-  const int byte_size  = 8;
-  const int num_bits   = sizeof(KeyT) * byte_size;
-  const int num_passes = DivideAndRoundUp(num_bits, radix_bits);
-  const bool is_num_passes_odd = num_passes & 1;
-  bool is_overwrite_okay = false;
-  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys_in), keys_out);
-  cub::detail::temporary_storage::layout<5> temporary_storage_layout;
-  auto keys_slot = temporary_storage_layout.get_slot(0);
-  //auto large_and_medium_partitioning_slot = temporary_storage_layout.get_slot(2);
-  //auto small_partitioning_slot = temporary_storage_layout.get_slot(3);
-  //auto group_sizes_slot = temporary_storage_layout.get_slot(4);
-  auto keys_allocation = keys_slot->create_alias<KeyT>();
-  if (!is_overwrite_okay) keys_allocation.grow(num_items);
-  //cub::detail::device_double_buffer<KeyT> d_keys_double_buffer(NULL, NULL);
-  cub::detail::device_double_buffer<KeyT> d_keys_double_buffer(
-      (is_overwrite_okay || is_num_passes_odd) ? d_keys.Alternate() : keys_allocation.get(),
-      (is_overwrite_okay) ? d_keys.Current() : (is_num_passes_odd) ? keys_allocation.get() : d_keys.Alternate());
-*/

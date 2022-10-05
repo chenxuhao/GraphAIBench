@@ -405,7 +405,10 @@ public:
     decode_intervals_naive(cgrr, buf1, &num_items);
     decode_residuals_naive(cgrr, buf1, &num_items);
     degree = num_items;
-    vidType *adj = cta_sort(num_items, buf1, buf2);
+    vidType *adj;
+#ifdef USE_CTA_SORT
+    adj = cta_sort(num_items, buf1, buf2);
+#endif
     return adj;
   }
 };
