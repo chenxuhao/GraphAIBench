@@ -148,26 +148,7 @@ void Converter::weighted_edgelist2CSR() {
 }
 
 void Converter::generate_binary_graph(std::string outfilename, bool v, bool e, bool vl, bool el) {
-  if (v) {
-    std::ofstream outfile((outfilename+".vertex.bin").c_str(), std::ios::binary);
-    if (!outfile) {
-      std::cout << "File not available\n";
-      throw 1;
-    }
-    outfile.write(reinterpret_cast<const char*>(g->rowptr()), (nv+1)*sizeof(eidType));
-    outfile.close();
-  }
-
-  if (e) {
-    std::ofstream outfile1((outfilename+".edge.bin").c_str(), std::ios::binary);
-    if (!outfile1) {
-      std::cout << "File not available\n";
-      throw 1;
-    }
-    outfile1.write(reinterpret_cast<const char*>(g->colidx()), ne*sizeof(vidType));
-    outfile1.close();
-  }
-
+  g->write_to_file(outfilename, v, e);
   if (vl) {
     std::ofstream outfile((outfilename+".vlabel.bin").c_str(), std::ios::binary);
     if (!outfile) {
@@ -492,6 +473,7 @@ void Converter::readGraphFromGRFile(std::string filename, bool need_sort) {
   std::cout << "constructing CSR: nv " << nv << " ne " << ne << "\n";
   g = new Graph(nv, ne);
   auto rowptr = g->out_rowptr();
+  #pragma omp parallel for
   for (vidType vid = 0; vid < g->V(); ++vid) {
     g->fixEndEdge(vid, le64toh(outIdx[vid]));
     auto degree = rowptr[vid + 1] - rowptr[vid];
@@ -589,5 +571,77 @@ size_t Converter::read_masks(std::string mask_type, std::string filename, size_t
   std::cout << "Number of valid samples: " << sample_count << " ("
             << (float)sample_count / (float)nv * (float)100 << "\%)\n";
   return sample_count;
+}
+
+void Converter::splitGRFile(std::string filename, std::string outfilename) {
+  std::cout << "Reading " << filename << " graph into CPU memory\n";
+  std::ifstream ifs;
+  ifs.open(filename);
+  int masterFD = open(filename.c_str(), O_RDONLY);
+  if (masterFD == -1) {
+    std::cout << "Graph: unable to open " << filename << "\n";
+    exit(1);
+  }
+  struct stat buf;
+  int f = fstat(masterFD, &buf);
+  if (f == -1) {
+    std::cout << "Graph: unable to stat " << filename << "\n";
+    exit(1);
+  }
+  size_t masterLength = buf.st_size;
+  int _MAP_BASE = MAP_PRIVATE;
+  void* m = mmap(0, masterLength, PROT_READ, _MAP_BASE, masterFD, 0);
+  if (m == MAP_FAILED) {
+    m = 0;
+    std::cout << "Graph: mmap failed.\n";
+    exit(1);
+  }
+  Timer t;
+  t.Start();
+  uint64_t* fptr = (uint64_t*)m;
+  __attribute__((unused)) uint64_t version = le64toh(*fptr++);
+  assert(version == 1);
+  uint64_t sizeEdgeTy = le64toh(*fptr++);
+  nv = le64toh(*fptr++);
+  assert(nv < 2147483648); // assuming 31-bit (signed integer) vertex IDs
+  ne = le64toh(*fptr++);
+  uint64_t* outIdx = fptr;
+  fptr += nv;
+  uint32_t* fptr32 = (uint32_t*)fptr;
+  uint32_t* outs = fptr32;
+  fptr32 += ne;
+  if (ne % 2) fptr32 += 1;
+  if (sizeEdgeTy != 0) {
+    std::cout << "sizeEdgeType = " << sizeEdgeTy << "\n";
+    std::cout << "Graph: currently edge data not supported.\n";
+    //exit(1);
+  }
+  // write rowptr
+  eidType head = 0;
+  std::cout << "converting GR file: nv " << nv << " ne " << ne << "\n";
+  std::cout << "rowptr[ " << nv-1 << "] = " << outIdx[nv-1] << "\n";
+  /*
+  if (nv) {
+    std::ofstream outfile((outfilename+".vertex.bin").c_str(), std::ios::binary);
+    if (!outfile) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    outfile.write(reinterpret_cast<const char*>(&head), sizeof(eidType));
+    outfile.write(reinterpret_cast<const char*>(outIdx), nv*sizeof(eidType));
+    outfile.close();
+  }
+  */
+  /*
+  if (ne) {
+    std::ofstream outfile1((outfilename+".edge.bin").c_str(), std::ios::binary);
+    if (!outfile1) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    outfile1.write(reinterpret_cast<const char*>(outs), ne*sizeof(vidType));
+    outfile1.close();
+  }
+  //*/
 }
 

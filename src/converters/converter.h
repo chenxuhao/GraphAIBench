@@ -70,6 +70,7 @@ typedef std::set<Neighbor> WeightedNeighborSet;
 
 class Converter {
 public:
+  Converter() : nv(0), ne(0), has_edge_weights(false), g(NULL) {}
   Converter(std::string file_type, std::string file_name, bool is_bipartite);
   void read_edgelist(std::string infile_name);
   void read_sadj(std::string infile_name);
@@ -79,6 +80,7 @@ public:
   void readGraphFromGRFile(std::string filename, bool need_sort = false);
   void read_labels(std::string filename, size_t num_classes, bool is_single_class);
   size_t read_masks(std::string mask_type, std::string filename, size_t begin_, size_t end_, mask_t* masks);
+  void splitGRFile(std::string filename, std::string outfilename);
 
 private:
   uint64_t nv;

@@ -17,8 +17,13 @@ int main(int argc, char *argv[]) {
   //if (argc>7) write_feats = atoi(argv[7]);
   //if (argc>8) write_masks = atoi(argv[8]);
  
-  Converter converter(argv[1], argv[2], is_bipartite);
-  converter.generate_binary_graph(argv[3], 1, 1, write_vlabel, write_elabel);
+  //Converter converter(argv[1], argv[2], is_bipartite);
+  //converter.generate_binary_graph(argv[3], 1, 1, write_vlabel, write_elabel);
+
+  Converter converter;
+  std::cout << argv[1] << "\n";
+  //assert(argv[1] == "gr");
+  converter.splitGRFile(argv[2], argv[3]);
   return 0;
 }
 

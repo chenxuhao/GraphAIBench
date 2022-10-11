@@ -4,14 +4,8 @@
 
 using namespace std;
 
-// for out-of-core solution, enable mmap flags below
-constexpr bool map_edges = false;
-constexpr bool map_vertices = false;
-constexpr bool map_vlabels = false;
-constexpr bool map_elabels = false;
-constexpr bool map_features = false;
-
-class Graph {
+template <bool map_edges=false, bool map_vertices=false>
+class GraphT {
 protected:
   std::string name_;            // name of the graph
   std::string inputfile_path;   // file path of the graph
@@ -51,20 +45,20 @@ protected:
   std::vector<uint32_t> edges_compressed;      // compressed edgelist
 
 public:
-  Graph(std::string prefix, bool use_dag = false, bool directed = false,
+  GraphT(std::string prefix, bool use_dag = false, bool directed = false,
         bool use_vlabel = false, bool use_elabel = false, 
         bool need_reverse = false, bool bipartite = false);
-  Graph() : name_(""), 
+  GraphT() : name_(""), 
             is_directed_(0), is_bipartite_(0), is_compressed_(0), has_reverse(0),
             n_vertices(0), n_edges(0), nnz(0), 
             max_label_frequency_(0), max_label(0), feat_len(0), 
             num_vertex_classes(0), num_edge_classes(0), core_length_(0),
             edges(NULL), vertices(NULL), vlabels(NULL), elabels(NULL),
             features(NULL), src_list(NULL), dst_list(NULL) { }
-  Graph(vidType nv, eidType ne) : Graph() { allocateFrom(nv, ne); }
-  ~Graph();
-  Graph(const Graph &)=delete;
-  Graph& operator=(const Graph &)=delete;
+  GraphT(vidType nv, eidType ne) : GraphT() { allocateFrom(nv, ne); }
+  ~GraphT();
+  GraphT(const GraphT &)=delete;
+  GraphT& operator=(const GraphT &)=delete;
 
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix);
@@ -160,6 +154,8 @@ public:
   void buildCoreTable();
   void computeKCore();
   void sort_neighbors();
+  void sort_and_clean_neighbors();
+  void write_to_file(std::string outfilename, bool v=1, bool e=1, bool vl=0, bool el=0);
   bool is_freq_vertex(vidType v, int minsup);
   vidType get_max_label_frequency() const { return max_label_frequency_; }
   const nlf_map* getVertexNLF(const vidType id) const { return &nlf_[id]; }
@@ -204,4 +200,8 @@ public:
   bool binary_search(vidType key, eidType begin, eidType end) const;
 };
 
-typedef Graph BipartiteGraph;
+typedef GraphT<false,false> Graph;
+typedef GraphT<false,false> InMemGraph;
+typedef GraphT<true,false>  SemiOutOfCoreGraph;
+typedef GraphT<true,true>   OutOfCoreGraph;
+typedef GraphT<false,false> BipartiteGraph;
