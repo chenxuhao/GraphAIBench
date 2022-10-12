@@ -155,6 +155,7 @@ public:
   void computeKCore();
   void sort_neighbors();
   void sort_and_clean_neighbors();
+  void symmetrize();
   void write_to_file(std::string outfilename, bool v=1, bool e=1, bool vl=0, bool el=0);
   bool is_freq_vertex(vidType v, int minsup);
   vidType get_max_label_frequency() const { return max_label_frequency_; }

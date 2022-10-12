@@ -1,6 +1,6 @@
 include ../common.mk
 OBJS = graph.o VertexSet.o
-all: converter cleaner
+all: converter cleaner symmetrizer
 
 %.o: %.cc
 	g++ $(CXXFLAGS) $(INCLUDES) -fopenmp -I../include -c $<
@@ -11,6 +11,10 @@ converter: $(OBJS) converter.o main.o
 
 cleaner: $(OBJS) cleaner.o
 	g++ $(CXXFLAGS) $(INCLUDES) $(OBJS) cleaner.o -o $@ -lgomp
+	mv $@ $(BIN)
+
+symmetrizer: $(OBJS) symmetrizer.o
+	g++ $(CXXFLAGS) $(INCLUDES) $(OBJS) symmetrizer.o -o $@ -lgomp
 	mv $@ $(BIN)
 
 clean:

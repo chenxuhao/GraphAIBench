@@ -1,79 +1,64 @@
 // Copyright 2020 MIT
 // Author: Xuhao Chen <cxh@mit.edu>
 #include "graph.h"
+#include "sliding_queue.h"
 
-void first_fit(Graph &g, Worklist &inwl, int *colors) {
-  auto m = g.V();
-	auto start = inwl.start;
-	auto end = inwl.end;
-	#pragma omp parallel for
-	for (auto i = start; i < end; i++) {
-		auto u = inwl.getItem(i);
-		int forbiddenColors[MAXCOLOR];
-		for (int i = 0; i < MAXCOLOR; i++)
-      forbiddenColors[i] = m + 1;
+void first_fit(Graph &g, SlidingQueue<vidType> &wl, int *colors) {
+  #pragma omp parallel for
+  for (auto iter = wl.begin(); iter < wl.end(); iter++) {
+    auto u = *iter;
+    vidType forbiddenColors[MAX_COLOR];
+    for (int i = 0; i < MAX_COLOR; i++)
+      forbiddenColors[i] = g.V() + 1;
     for (auto v : g.N(u))
-			forbiddenColors[colors[v]] = u;
-		int vertex_color = 0;
-		while (vertex_color < MAXCOLOR && 
-           forbiddenColors[vertex_color] == u)
-			vertex_color++;
-		assert(vertex_color < MAXCOLOR);
-		colors[u] = vertex_color;
-	}
+      forbiddenColors[colors[v]] = u;
+    int vertex_color = 0;
+    while (vertex_color < MAX_COLOR && forbiddenColors[vertex_color] == u)
+      vertex_color++;
+    assert(vertex_color < MAX_COLOR);
+    colors[u] = vertex_color;
+  }
 }
 
-void conflict_resolve(Graph &g, Worklist &inwl, Worklist &outwl, int *colors) {
-	auto start = inwl.start;
-	auto end = inwl.end;
-	#pragma omp parallel for
-	for (auto id = start; id < end; id ++) {
-		auto src = inwl.getItem(id);
+void conflict_resolve(Graph &g, SlidingQueue<vidType> &inwl, int *colors) {
+  #pragma omp parallel
+  {
+  QueueBuffer<vidType> outwl(inwl);
+  #pragma omp for
+  for (auto iter = inwl.begin(); iter < inwl.end(); iter++) {
+    auto src = *iter;
     for (auto dst : g.N(src)) {
-			if (src < dst && colors[src] == colors[dst]) {
-				outwl.push(src);
-				break;
-			}
-		}
-	}
+      if (src < dst && colors[src] == colors[dst]) {
+        outwl.push_back(src);
+        break;
+      }
+    }
+  }
+  outwl.flush();
+  }
 }
 
-int VCSolver(Graph &g, int *colors) {
-	int num_threads = 1;
-	#pragma omp parallel
-	{
-	num_threads = omp_get_num_threads();
-	}
-	printf("Launching OpenMP VC solver (%d threads) ...\n", num_threads);
-	Worklist inwl, outwl, *inwlptr, *outwlptr, *tmp;
-	int iter = 0;
-  auto m = g.V();
-	inwl.ensureSpace(m);
-	outwl.ensureSpace(m);
-	inwlptr = &inwl;
-	outwlptr = &outwl;
-	int *range = (int *)malloc(m * sizeof(int));
-	for (int j = 0; j < m; j++) range[j] = j;
-	Timer t;
-	t.Start();
-	inwl.pushRange((unsigned *)range, (VertexId)m);
-	int wlsz = inwl.getSize();
-	while (wlsz) {
-		++ iter;
-		//printf("iteration=%d, wlsz=%d\n", iteration, wlsz);
-		first_fit(g, *inwlptr, colors);
-		conflict_resolve(g, *inwlptr, *outwlptr, colors);
-		wlsz = outwlptr->getSize();
-		tmp = inwlptr; inwlptr = outwlptr; outwlptr = tmp;
-		outwlptr->clear();
-	}
-	t.Stop();
-	int max_color = 0;
-	#pragma omp parallel for reduction(max : max_color)
-	for (int n = 0; n < m; n ++)
-		max_color = max(max_color, colors[n]);
-	int num_colors = max_color+1;
-	//printf("\titerations = %d.\n", iter);
-	printf("\truntime [omp_base] = %f ms, num_colors = %d.\n", t.Millisecs(), num_colors);
-	return num_colors;
+void ColorSolver(Graph &g, int *colors) {
+  int num_threads = 1;
+  #pragma omp parallel
+  {
+    num_threads = omp_get_num_threads();
+  }
+  std::cout << "OpenMP vertex coloring (" << num_threads << " threads) ...\n";
+  SlidingQueue<vidType> queue(g.E());
+  for (vidType j = 0; j < g.V(); j++) queue.push_back(j);
+  queue.slide_window();
+
+  Timer t;
+  t.Start();
+  int iter = 0;
+  while (!queue.empty()) {
+    ++ iter;
+    first_fit(g, queue, colors);
+    conflict_resolve(g, queue, colors);
+    queue.slide_window();
+  }
+  t.Stop();
+  std::cout << "runtime [omp_base] = " << t.Seconds() << " sec\n";
 }
+

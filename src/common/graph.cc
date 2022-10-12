@@ -25,12 +25,12 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
   if constexpr (map_vertices)
     map_file(prefix + ".vertex.bin", vertices, n_vertices+1);
   else read_file(prefix + ".vertex.bin", vertices, n_vertices+1);
-  std::cout << "vertex loaded\n";
+  //std::cout << "vertex loaded\n";
   // read column indices
   if constexpr (map_edges)
     map_file(prefix + ".edge.bin", edges, n_edges);
   else read_file(prefix + ".edge.bin", edges, n_edges);
-  std::cout << "edge loaded\n";
+  //std::cout << "edge loaded\n";
 
   if (is_directed_) {
     std::cout << "This is a directed graph\n";
@@ -389,9 +389,9 @@ template<> void GraphT<>::sort_and_clean_neighbors() {
   }
   eidType *new_vertices = custom_alloc_global<eidType>(n_vertices+1);
   parallel_prefix_sum<vidType,eidType>(degrees, new_vertices);
-  n_edges = new_vertices[n_vertices];
-  std::cout << "|E| after clean: " << n_edges << "\n";
-  vidType *new_edges = custom_alloc_global<vidType>(n_edges);
+  auto num_edges = new_vertices[n_vertices];
+  std::cout << "|E| after clean: " << num_edges << "\n";
+  vidType *new_edges = custom_alloc_global<vidType>(num_edges);
   #pragma omp parallel for
   for (vidType v = 0; v < n_vertices; v ++) {
     auto begin = new_vertices[v];
@@ -405,11 +405,62 @@ template<> void GraphT<>::sort_and_clean_neighbors() {
   }
   delete [] vertices;
   delete [] edges;
+  n_edges = num_edges;
   vertices = new_vertices;
   edges = new_edges;
 }
 
+template<> void GraphT<>::symmetrize() {
+  std::cout << "Symmetrizing the neighbor lists (used for pattern mining)\n";
+  std::vector<std::set<vidType>> neighbor_lists(n_vertices);
+  //#pragma omp parallel for
+  //for (vidType v = 0; v < n_vertices; v++) {
+    //neighbor_lists[v].insert(edges+edge_begin(v), edges+edge_end(v));
+    //for (auto u : N(v)) {
+    //  if (u == v) continue;
+    //  neighbor_lists[v].insert(u);
+    //}
+  //}
+  for (vidType v = 0; v < n_vertices; v++) {
+    neighbor_lists[v].insert(edges+edge_begin(v), edges+edge_end(v));
+  }
+  std::cout << "Inserting reverse edges\n";
+  for (vidType v = 0; v < n_vertices; v++) {
+    for (auto u : N(v)) {
+      if (u == v) continue;
+      if (neighbor_lists[u].find(v) == neighbor_lists[u].end()) {
+        neighbor_lists[u].insert(v);
+      }
+    }
+  }
+  std::cout << "Deleting old graph\n";
+  delete [] vertices;
+  delete [] edges;
+
+  std::cout << "Computing degrees\n";
+  std::vector<vidType> degrees(n_vertices, 0);
+  for (vidType v = 0; v < n_vertices; v++) {
+    degrees[v] = neighbor_lists[v].size();
+  }
+  std::cout << "Computing indices by prefix sum\n";
+  eidType *new_vertices = custom_alloc_global<eidType>(n_vertices+1);
+  parallel_prefix_sum<vidType,eidType>(degrees, new_vertices);
+  auto num_edges = new_vertices[n_vertices];
+  std::cout << "|E| after symmetrization: " << num_edges << "\n";
+  assert(num_edges <= 2*n_edges);
+  vidType *new_edges = custom_alloc_global<vidType>(num_edges);
+  #pragma omp parallel for
+  for (vidType v = 0; v < n_vertices; v ++) {
+    auto begin = new_vertices[v];
+    std::copy(neighbor_lists[v].begin(), neighbor_lists[v].end(), &new_edges[begin]);
+  }
+  vertices = new_vertices;
+  edges = new_edges;
+  n_edges = num_edges;
+}
+
 template<> void GraphT<>::write_to_file(std::string outfilename, bool v, bool e, bool vl, bool el) {
+  std::cout << "Writing graph to file\n";
   if (v) {
     std::ofstream outfile((outfilename+".vertex.bin").c_str(), std::ios::binary);
     if (!outfile) {
