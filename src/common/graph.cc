@@ -373,7 +373,8 @@ void GraphT<map_vertices,map_edges>::sort_neighbors() {
   }
 }
 
-template<> void GraphT<>::sort_and_clean_neighbors() {
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices,map_edges>::sort_and_clean_neighbors() {
   std::cout << "Sorting the neighbor lists and remove selfloops and redundent edges (used for pattern mining)\n";
   std::vector<vidType> degrees(n_vertices, 0);
   vidType num_selfloops = 0;
@@ -385,7 +386,7 @@ template<> void GraphT<>::sort_and_clean_neighbors() {
     eidType i = 0;
     for (auto u : N(v)) {
       if (u == v) {
-        num_selfloops ++;
+        num_selfloops += 1;
         continue;
       }
       if (i>0 && u == N(v, i-1)) continue;
@@ -1296,4 +1297,4 @@ template<> void GraphT<>::buildCoreTable() {
 
 template class GraphT<false, false>;
 template class GraphT<false, true>;
-//template class GraphT<true, true>;
+template class GraphT<true, true>;

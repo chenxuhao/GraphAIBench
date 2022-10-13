@@ -4,6 +4,7 @@
 
 int main(int argc, char *argv[]) {
   //SemiOutOfCoreGraph g(argv[1]);
+  //OutOfCoreGraph g(argv[1]);
   Graph g(argv[1]);
   g.print_meta_data();
   std::cout << "starting cleaning\n";

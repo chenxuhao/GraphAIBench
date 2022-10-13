@@ -620,7 +620,7 @@ void Converter::splitGRFile(std::string filename, std::string outfilename) {
   eidType head = 0;
   std::cout << "converting GR file: nv " << nv << " ne " << ne << "\n";
   std::cout << "rowptr[ " << nv-1 << "] = " << outIdx[nv-1] << "\n";
-  /*
+  ///*
   if (nv) {
     std::ofstream outfile((outfilename+".vertex.bin").c_str(), std::ios::binary);
     if (!outfile) {
@@ -631,8 +631,8 @@ void Converter::splitGRFile(std::string filename, std::string outfilename) {
     outfile.write(reinterpret_cast<const char*>(outIdx), nv*sizeof(eidType));
     outfile.close();
   }
-  */
-  /*
+  //*/
+  ///*
   if (ne) {
     std::ofstream outfile1((outfilename+".edge.bin").c_str(), std::ios::binary);
     if (!outfile1) {
