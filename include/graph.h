@@ -4,7 +4,7 @@
 
 using namespace std;
 
-template <bool map_edges=false, bool map_vertices=false>
+template <bool map_vertices=false, bool map_edges=false>
 class GraphT {
 protected:
   std::string name_;            // name of the graph
@@ -156,6 +156,7 @@ public:
   void sort_neighbors();
   void sort_and_clean_neighbors();
   void symmetrize();
+  void symmetrize_large();
   void write_to_file(std::string outfilename, bool v=1, bool e=1, bool vl=0, bool el=0);
   bool is_freq_vertex(vidType v, int minsup);
   vidType get_max_label_frequency() const { return max_label_frequency_; }
@@ -203,6 +204,6 @@ public:
 
 typedef GraphT<false,false> Graph;
 typedef GraphT<false,false> InMemGraph;
-typedef GraphT<true,false>  SemiOutOfCoreGraph;
+typedef GraphT<false,true>  SemiOutOfCoreGraph;
 typedef GraphT<true,true>   OutOfCoreGraph;
 typedef GraphT<false,false> BipartiteGraph;
