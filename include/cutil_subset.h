@@ -76,7 +76,7 @@ int getSPcores(cudaDeviceProp devProp) {
   return cores;
 }
 
-static size_t print_device_info(bool print_all, bool disable = false) {
+static size_t print_device_info(int print_num, bool disable = false) {
   int deviceCount = 0;
   CUDA_SAFE_CALL(cudaGetDeviceCount(&deviceCount));
   if (!disable) printf("Found %d devices\n", deviceCount);
@@ -91,7 +91,7 @@ static size_t print_device_info(bool print_all, bool disable = false) {
     if (device == 0) mem_size = prop.totalGlobalMem;
     if (disable) break;
     printf("  Device[%d]: %s\n", device, prop.name);
-    if (device == 0 || print_all) {
+    if (device == 0 || print_num > 0) {
       printf("  Compute capability: %d.%d\n", prop.major, prop.minor);
       printf("  Warp size: %d\n", prop.warpSize);
       printf("  Total # SM: %d\n", prop.multiProcessorCount);
@@ -122,4 +122,10 @@ DivideAndRoundUp(NumeratorT n, DenominatorT d) {
   return static_cast<NumeratorT>(n / d + (n % d != 0 ? 1 : 0));
 }
 
+inline void allocate_gpu_vertex_buffer(size_t buffer_size, size_t nbuffers, vidType *&buffer) {
+  size_t buffer_mem = buffer_size * sizeof(vidType);
+  size_t total_buffer_size = nbuffers * buffer_mem;
+  std::cout << "Allocated memory for buffers: " << float(total_buffer_size)/float(1024*1024) << " MB\n";
+  CUDA_SAFE_CALL(cudaMalloc((void **)&buffer, total_buffer_size));
+}
 

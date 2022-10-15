@@ -333,7 +333,7 @@ __forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_
     //if (is_smaller) {
     T key = vid % NUM_BUCKETS; // hash key
     auto len = bin_counts[key + binOffset];
-    count += linear_search(vid, bins, len, key+binStart, NUM_BUCKETS);
+    count += linear_search(vid, bins, len, key+binStart, vidType(NUM_BUCKETS));
     //}
     //unsigned active = __activemask();
     //unsigned mask = __ballot_sync(active, is_smaller);

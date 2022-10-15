@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstddef>
+#include <iostream>
 #include <cuda_runtime_api.h>
 
 /*! Computes a block size in number of threads for a CUDA kernel using a occupancy-promoting heuristic.
@@ -369,4 +370,14 @@ std::size_t maximum_residency(T t, size_t CTA_SIZE, size_t dynamic_smem_bytes)
     return 0;
 
   return maximum_residency(attributes, properties, CTA_SIZE, dynamic_smem_bytes);
+}
+
+template<typename T>
+inline __host__ void refine_kernel_config(size_t &nthreads, size_t &nblocks, T t) {
+  int max_blocks_per_SM = maximum_residency(t, nthreads, 0);
+  std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
+  cudaDeviceProp deviceProp;
+  CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
+  size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
+  nblocks = std::min(max_blocks, nblocks);
 }

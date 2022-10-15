@@ -1,5 +1,6 @@
 include ../common.mk
 OBJS = graph.o VertexSet.o
+INCLUDES += -I./gpu_kernels
 all: test_cgr_compressor tc_omp_compressed tc_gpu_compressed
 
 %.o: %.cc
