@@ -23,14 +23,22 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
   // read meta information
   read_meta_info(prefix, bipartite);
   // read row pointers
-  if constexpr (map_vertices)
+  if constexpr (map_vertices) {
+    std::cout << "mmap vertices\n";
     map_file(prefix + ".vertex.bin", vertices, n_vertices+1);
-  else read_file(prefix + ".vertex.bin", vertices, n_vertices+1);
+  } else {
+    std::cout << "In-memory vertices\n";
+    read_file(prefix + ".vertex.bin", vertices, n_vertices+1);
+  }
   if (n_vertices > 1500000000) std::cout << "Update: vertex loaded\n";
   // read column indices
-  if constexpr (map_edges)
+  if constexpr (map_edges) {
+    std::cout << "mmap edges\n";
     map_file(prefix + ".edge.bin", edges, n_edges);
-  else read_file(prefix + ".edge.bin", edges, n_edges);
+  } else {
+    std::cout << "In-memory edges\n";
+    read_file(prefix + ".edge.bin", edges, n_edges);
+  }
   if (n_vertices > 1500000000) std::cout << "Update: edge loaded\n";
 
   if (is_directed_) {
@@ -378,48 +386,97 @@ void GraphT<map_vertices,map_edges>::sort_and_clean_neighbors() {
   std::cout << "Sorting the neighbor lists and remove selfloops and redundent edges (used for pattern mining)\n";
   std::vector<vidType> degrees(n_vertices, 0);
   vidType num_selfloops = 0;
-  #pragma omp parallel for reduction(+:num_selfloops)
+  vidType num_redundants = 0;
+  using T = typename std::conditional_t<map_edges,VertexList,VertexSet>;
+  #pragma omp parallel for reduction(+:num_selfloops,num_redundants)
   for (vidType v = 0; v < n_vertices; v++) {
     auto begin = edge_begin(v);
     auto end = edge_end(v);
-    std::sort(edges+begin, edges+end);
+    T adj_list;
+    if constexpr (map_edges) {
+      adj_list.resize(end-begin);
+      std::copy(edges+begin, edges+end, adj_list.begin());
+      std::sort(adj_list.begin(), adj_list.end());
+    } else {
+      adj_list.duplicate(N(v));
+      std::sort(edges+begin, edges+end);
+    }
     eidType i = 0;
-    for (auto u : N(v)) {
+    vidType n_selfloops = 0;
+    vidType n_redundants = 0;
+    for (auto u : adj_list) {
       if (u == v) {
-        num_selfloops += 1;
+        n_selfloops += 1;
+        i++;
         continue;
       }
-      if (i>0 && u == N(v, i-1)) continue;
+      if (i>0 && u == adj_list[i-1]) {
+        i++;
+        n_redundants += 1;
+        continue;
+      }
+      assert(u < n_vertices);
       degrees[v] ++;
       i++;
     }
+    num_selfloops += n_selfloops;
+    num_redundants += n_redundants;
+    assert(get_degree(v) == (n_selfloops+n_redundants+degrees[v]));
   }
   std::cout << "Number of self loops: " << num_selfloops << "\n";
+  std::cout << "Number of redundant edges: " << num_redundants << "\n";
   eidType *new_vertices = custom_alloc_global<eidType>(n_vertices+1);
   parallel_prefix_sum<vidType,eidType>(degrees, new_vertices);
+  degrees.clear();
+  degrees.shrink_to_fit(); // release memory
   auto num_edges = new_vertices[n_vertices];
   std::cout << "|E| after clean: " << num_edges << "\n";
+  assert(n_edges == (num_edges+num_selfloops+num_redundants));
   vidType *new_edges = custom_alloc_global<vidType>(num_edges);
+  std::cout << "generating new graph\n";
   #pragma omp parallel for
   for (vidType v = 0; v < n_vertices; v ++) {
     auto begin = new_vertices[v];
+    T adj_list;
+    if constexpr (map_edges) {
+      adj_list.resize(get_degree(v));
+      std::copy(edges+edge_begin(v), edges+edge_end(v), adj_list.begin());
+      std::sort(adj_list.begin(), adj_list.end());
+    } else {
+      adj_list.duplicate(N(v));
+    }
     eidType i = 0;
-    for (auto u : N(v)) {
-      if (u == v) continue;
-      if (i>0 && u == N(v, i-1)) continue;
-      new_edges[begin+i] = u;
+    eidType j = 0;
+    for (auto u : adj_list) {
+      if (u == v) {
+        i++;
+        continue;
+      }
+      if (i>0 && u == adj_list[i-1]) {
+        i++;
+        continue;
+      }
+      new_edges[begin+j] = u;
+      j++;
       i++;
     }
   }
-  delete [] vertices;
-  delete [] edges;
+  std::cout << "deleting old graph\n";
+  if constexpr (map_vertices) {
+  } else {
+    delete [] vertices;
+  }
+  if constexpr (map_edges) {
+  } else {
+    delete [] edges;
+  }
   n_edges = num_edges;
   vertices = new_vertices;
   edges = new_edges;
 }
 
 template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices,map_edges>::symmetrize_large() {
+void GraphT<map_vertices,map_edges>::symmetrize() {
   std::vector<vidType> degrees(n_vertices, 0);
   std::cout << "Computing degrees\n";
   #pragma omp parallel for
@@ -427,16 +484,23 @@ void GraphT<map_vertices,map_edges>::symmetrize_large() {
     degrees[v] = get_degree(v);
   }
   std::cout << "Computing new degrees\n";
-  #pragma omp parallel for
+  eidType num_new_edges = 0;
+  #pragma omp parallel for reduction(+:num_new_edges)
   for (vidType v = 0; v < n_vertices; v++) {
+    eidType i = 0;
+    //std::sort(edges+edge_begin(v), edges+edge_end(v));
     for (auto u : N(v)) {
+      assert(u < n_vertices);
+      assert(u != v); // assuming self-loops are removed
+      assert(i==0 || u != N(v,i-1)); // assuming redundant edges are removed
       if (binary_search(v, edge_begin(u), edge_end(u)))
         continue;
       fetch_and_add(degrees[u], 1);
       //degrees[u] ++;
+      num_new_edges += 1;
     }
   }
-  std::cout << "Computing new row offsets by prefix sum\n";
+  std::cout << "Adding " << num_new_edges << " new edges\n";
   eidType *new_vertices = custom_alloc_global<eidType>(n_vertices+1);
   parallel_prefix_sum<vidType,eidType>(degrees, new_vertices);
   degrees.clear();
@@ -466,14 +530,20 @@ void GraphT<map_vertices,map_edges>::symmetrize_large() {
       new_edges[begin+offset] = v;
     }
   }
-  //delete [] vertices;
-  //delete [] edges;
+  if constexpr (map_vertices) {
+  } else {
+    delete [] vertices;
+  }
+  if constexpr (map_edges) {
+  } else {
+    delete [] edges;
+  }
   vertices = new_vertices;
   edges = new_edges;
   n_edges = num_edges;
   sort_neighbors();
 }
-
+/*
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices,map_edges>::symmetrize() {
   std::cout << "Symmetrizing the neighbor lists (used for pattern mining)\n";
@@ -509,15 +579,13 @@ void GraphT<map_vertices,map_edges>::symmetrize() {
     auto begin = new_vertices[v];
     std::copy(neighbor_lists[v].begin(), neighbor_lists[v].end(), &new_edges[begin]);
   }
-
-  //std::cout << "Deleting old graph\n";
-  //delete [] vertices;
-  //delete [] edges;
+  delete [] vertices;
+  delete [] edges;
   vertices = new_vertices;
   edges = new_edges;
   n_edges = num_edges;
 }
-
+*/
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices,map_edges>::write_to_file(std::string outfilename, bool v, bool e, bool vl, bool el) {
   std::cout << "Writing graph to file\n";

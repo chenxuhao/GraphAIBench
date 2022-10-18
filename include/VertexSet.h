@@ -45,6 +45,13 @@ public:
   VertexSet& operator=(const VertexSet&)=delete;
   VertexSet(VertexSet&&)=default;
   VertexSet& operator=(VertexSet&&)=default;
+
+  void duplicate(const VertexSet &other) {
+    ptr = other.ptr;
+    set_size = other.set_size;
+    vid = other.vid;
+  }
+
   ~VertexSet() {
     if(pooled) {
       buffers_avail.push_back(ptr);

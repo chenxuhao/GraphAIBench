@@ -122,10 +122,11 @@ DivideAndRoundUp(NumeratorT n, DenominatorT d) {
   return static_cast<NumeratorT>(n / d + (n % d != 0 ? 1 : 0));
 }
 
-inline void allocate_gpu_vertex_buffer(size_t buffer_size, size_t nbuffers, vidType *&buffer) {
-  size_t buffer_mem = buffer_size * sizeof(vidType);
-  size_t total_buffer_size = nbuffers * buffer_mem;
+template <typename T = vidType>
+void allocate_gpu_buffer(size_t n, T*& ptr) {
+  //std::cout << "allocating GPU memory: size = " << n << "\n";
+  size_t total_buffer_size = n * sizeof(T);
   std::cout << "Allocated memory for buffers: " << float(total_buffer_size)/float(1024*1024) << " MB\n";
-  CUDA_SAFE_CALL(cudaMalloc((void **)&buffer, total_buffer_size));
+  CUDA_SAFE_CALL(cudaMalloc((void**)&ptr, total_buffer_size));
 }
 

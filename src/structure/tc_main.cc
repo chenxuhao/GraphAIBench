@@ -4,8 +4,8 @@ void triangle_count_compressed(Graph &g, uint64_t &total);
 
 int main(int argc,char *argv[]) {
   if (argc < 2) {
-    std::cout << "incorrect arguments." << std::endl;
-    std::cout << "<input_path>" << std::endl;
+    std::cout << "Usage: " << argv[0] << " <graph> \n";
+    std::cout << "Example: " << argv[0] << " ../../inputs/mico/graph\n";
     abort();
   }
   Graph g;

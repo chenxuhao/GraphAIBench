@@ -603,7 +603,7 @@ void Converter::splitGRFile(std::string filename, std::string outfilename) {
   assert(version == 1);
   uint64_t sizeEdgeTy = le64toh(*fptr++);
   nv = le64toh(*fptr++);
-  assert(nv < 2147483648); // assuming 31-bit (signed integer) vertex IDs
+  //assert(nv < 2147483648); // assuming 31-bit (signed integer) vertex IDs
   ne = le64toh(*fptr++);
   uint64_t* outIdx = fptr;
   fptr += nv;

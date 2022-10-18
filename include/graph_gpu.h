@@ -405,9 +405,27 @@ public:
     decode_intervals_naive(cgrr, buf1, &num_items);
     decode_residuals_naive(cgrr, buf1, &num_items);
     degree = num_items;
-    vidType *adj;
-#ifdef USE_CTA_SORT
+    vidType *adj = buf1;
+#ifdef NEED_SORT
     adj = cta_sort(num_items, buf1, buf2);
+#endif
+    return adj;
+  }
+
+  inline __device__ vidType* warp_decompress(vidType v, vidType *buf1, vidType *buf2, vidType &degree) {
+    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    CgrReaderGPU cgrr;
+    cgrr.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
+    __shared__ vidType num_items[WARPS_PER_BLOCK];
+    if (thread_lane == 0) num_items[warp_lane] = 0;
+    __syncwarp();
+    decode_intervals_warp_naive(cgrr, buf1, &num_items[warp_lane]);
+    decode_residuals_warp_naive(cgrr, buf1, &num_items[warp_lane]);
+    degree = num_items[warp_lane];
+    vidType *adj = buf1;
+#ifdef NEED_SORT
+    adj = warp_sort(num_items[warp_lane], buf1, buf2);
 #endif
     return adj;
   }
