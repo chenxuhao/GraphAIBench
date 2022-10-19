@@ -3,6 +3,12 @@
 #include "graph.h"
 
 int main(int argc, char *argv[]) {
+  int num_threads = 1;
+  #pragma omp parallel
+  {
+    num_threads = omp_get_num_threads();
+  }
+  std::cout << "OpenMP cleaner (" << num_threads << " threads)\n";
   //SemiOutOfCoreGraph g(argv[1]);
   OutOfCoreGraph g(argv[1]);
   //Graph g(argv[1]);
