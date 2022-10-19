@@ -343,3 +343,53 @@ __forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_
   return count;
 }
 
+// set intersection using warp-based HINDEX
+template <typename T = vidType>
+__forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_b, T* bins, T* bin_counts, T upper_bound) {
+  unsigned thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
+  unsigned warp_lane   = threadIdx.x / WARP_SIZE;                // warp index within the CTA
+  unsigned thread_id   = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned warp_id     = thread_id   / WARP_SIZE;                // global warp index
+ 
+  int binSize = NUM_BUCKETS * BUCKET_SIZE;
+  int binStart = warp_id * binSize;
+  int binOffset = warp_lane * NUM_BUCKETS;
+
+  auto lookup = a;
+  auto search = b;
+  auto lookup_size = size_a;
+  auto search_size = size_b;
+  if (size_a > size_b) {
+    lookup = b;
+    search = a;
+    lookup_size = size_b;
+    search_size = size_a;
+  }
+
+  // hash the shorter set
+  for (auto i = thread_lane; i < lookup_size; i += WARP_SIZE) {
+    auto vid = lookup[i];
+    T key = vid % NUM_BUCKETS; // hash
+    T index = atomicAdd(&bin_counts[key + binOffset], 1);
+    bins[index * NUM_BUCKETS + key + binStart] = vid; // put into hash bin
+  }
+  __syncwarp();
+
+  T count = 0;
+  // probe the larger set
+  for (auto i = thread_lane; i < search_size; i += WARP_SIZE) {
+    auto vid = search[i];
+    int is_smaller = vid <= upper_bound ? 1 : 0;
+    if (is_smaller) {
+      T key = vid % NUM_BUCKETS; // hash key
+      auto len = bin_counts[key + binOffset];
+      count += linear_search(vid, bins, len, key+binStart, vidType(NUM_BUCKETS));
+    }
+    unsigned active = __activemask();
+    unsigned mask = __ballot_sync(active, is_smaller);
+    if (mask != FULL_MASK) break;
+  }
+  __syncwarp();
+  return count;
+}
+

@@ -303,7 +303,8 @@ __device__ void decode_intervals_naive(CgrReaderGPU &decoder, vidType *adj_out, 
 // sequentially decode intervals
 __device__ void decode_intervals_warp_naive(CgrReaderGPU &decoder, vidType *adj_out, vidType *num_neighbors) {
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-  __shared__ vidType offset;
+  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+  __shared__ vidType offset[WARPS_PER_BLOCK];
   auto v = decoder.node;
   auto adj_in = decoder.graph;
   auto segment_cnt = decoder.decode_segment_cnt();
@@ -323,12 +324,16 @@ __device__ void decode_intervals_warp_naive(CgrReaderGPU &decoder, vidType *adj_
           adj_out[index++] = left+k;
       }
     }
-    if (__syncthreads_or(i >= segment_cnt)) {
+    int not_done = (i < segment_cnt) ? 1 : 0;
+    unsigned active = __activemask();
+    unsigned mask = __ballot_sync(active, not_done);
+    if (mask != FULL_MASK) {
+    //if (__syncthreads_or(i >= segment_cnt)) {
       if ((i+1) == segment_cnt) {// last segment
-        offset = cgrr.global_offset;
+        offset[warp_lane] = cgrr.global_offset;
       }
       __syncwarp();
-      decoder.global_offset = offset;
+      decoder.global_offset = offset[warp_lane];
       break;
     } else {
       interval_offset += INTERVAL_SEGMENT_LEN * WARP_SIZE;

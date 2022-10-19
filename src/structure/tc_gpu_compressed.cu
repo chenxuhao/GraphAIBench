@@ -26,7 +26,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
 #ifdef TC_BS_CTA_VERTEX_COMPRESSED
   //refine_kernel_config(nthreads, nblocks, cta_vertex_compressed);
 #else
-  //refine_kernel_config(nthreads, nblocks, hindex_warp_vertex_compressed);
+  refine_kernel_config(nthreads, nblocks, hindex_warp_vertex_compressed);
 #endif
   std::cout << "CUDA kernel (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
@@ -57,7 +57,9 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   cta_vertex_compressed<<<nblocks, nthreads>>>(gg, buffer, g.get_max_degree(), d_total);
 #else
 #ifdef TC_HINDEX_WARP_VERTEX_COMPRESSED
+  std::cout << "Use HINDEX\n";
   hindex_warp_vertex_compressed<<<nblocks, nthreads>>>(gg, bins, buffer, g.get_max_degree(), d_total);
+  //hindex_warp_vertex<<<nblocks, nthreads>>>(gg, bins, d_total);
 #endif
 #endif
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
