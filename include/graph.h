@@ -154,7 +154,7 @@ public:
   void buildCoreTable();
   void computeKCore();
   void sort_neighbors(); // sort the neighbor lists
-  void sort_and_clean_neighbors(); // sort the neighbor lists and remove selfloops and redundant edges
+  void sort_and_clean_neighbors(std::string outfile = ""); // sort the neighbor lists and remove selfloops and redundant edges
   void symmetrize(); // symmetrize a directed graph
   void write_to_file(std::string outfilename, bool v=1, bool e=1, bool vl=0, bool el=0);
   bool is_freq_vertex(vidType v, int minsup);

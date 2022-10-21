@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
   //Graph g(argv[1]);
   g.print_meta_data();
   std::cout << "starting cleaning\n";
-  g.sort_and_clean_neighbors();
-  g.write_to_file(argv[2]);
+  g.sort_and_clean_neighbors(argv[2]);
+  //g.write_to_file(argv[2]);
   return 0;
 } 
