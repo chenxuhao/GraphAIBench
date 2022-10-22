@@ -1,6 +1,7 @@
 #include "cgr_compressor.hpp"
 
 void cgr_compressor::write_cgr(const std::string &prefix) {
+  std::cout << "writing the compressed data to disk\n";
   FILE *of_graph = fopen((prefix + ".edge.bin").c_str(), "w");
   if (of_graph == 0) {
     std::cout << "graph file cannot create!" << std::endl;
@@ -25,6 +26,7 @@ void cgr_compressor::write_cgr(const std::string &prefix) {
 }
 
 void cgr_compressor::write_bit_array(FILE* &of) {
+  std::cout << "writing the bit array\n";
   std::vector<unsigned char> buf;
   unsigned char cur = 0;
   int bit_count = 0;
@@ -258,6 +260,7 @@ size_type cgr_compressor::zeta_size(size_type x) {
 }
 
 void cgr_compressor::compress() {
+  std::cout << "Start compressing\n";
   max_num_res_per_node = g->get_max_degree();
   pre_encoding();
   this->_cgr.clear();

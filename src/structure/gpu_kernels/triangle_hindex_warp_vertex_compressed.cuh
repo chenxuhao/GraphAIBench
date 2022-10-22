@@ -34,6 +34,8 @@ __global__ void hindex_warp_vertex_compressed(GraphGPU g, vidType *bins, vidType
       } else {
         adj_u = g.warp_decompress(u, buf2, buf3, deg_u);
       }
+      if (thread_lane == 0 && deg_u != g.get_degree(u))
+	      printf("v %d u %d deg_u %d original deg_u %d\n", v, u, deg_u, g.get_degree(u));
       assert(deg_u == g.get_degree(u));
       init_bin_counts(thread_lane, bin_offset, bin_counts); // ensure bit counts are empty
       count += intersect_warp_hindex(adj_v, deg_v, adj_u, deg_u, bins, bin_counts);

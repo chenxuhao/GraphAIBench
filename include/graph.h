@@ -169,7 +169,7 @@ public:
   }
 
   // edge orientation: convert the graph from undirected to directed
-  void orientation();
+  void orientation(std::string outfile = "");
   vidType intersect_num(vidType v, vidType u);
   vidType intersect_num(vidType v, vidType u, vlabel_t label);
   vidType intersect_num(VertexSet& vs, vidType u, vlabel_t label);

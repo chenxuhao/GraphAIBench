@@ -3,8 +3,8 @@
 #include "graph.h"
 
 int main(int argc, char *argv[]) {
-  //OutOfCoreGraph g(argv[1]);
-  Graph g(argv[1]);
+  OutOfCoreGraph g(argv[1]);
+  //Graph g(argv[1]);
   g.print_meta_data();
   g.orientation();
   g.write_to_file(argv[2]);

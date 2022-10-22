@@ -6,7 +6,9 @@ int main(int argc,char *argv[]) {
     printf("<input_path> <output_path>\n");
     abort();
   }
-  Graph g(argv[1]);
+  //Graph g(argv[1]);
+  OutOfCoreGraph g(argv[1]);
+  g.print_meta_data();
 
   auto compressor = cgr_compressor(&g, 3, 4, INTERVAL_SEGMENT_LEN, RESIDUAL_SEGMENT_LEN);
   compressor.compress();

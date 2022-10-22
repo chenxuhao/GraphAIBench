@@ -3,11 +3,12 @@
 
 using size_type = int64_t;
 using bits = std::vector<bool>;
+typedef OutOfCoreGraph GraphTy;
 
 class cgr_compressor {
   const size_type PRE_ENCODE_NUM = 1024 * 1024 * 16;
 
-  Graph *g;
+  GraphTy *g;
   int _zeta_k;
   int _min_itv_len; // minimum length of an interval
   int _max_itv_len; // maximum length of an interval
@@ -38,7 +39,7 @@ class cgr_compressor {
   std::vector<bits> zeta_code;
 
 public:
-  explicit cgr_compressor(Graph *graph, int zeta_k = 3, int min_itv_len = 4, 
+  explicit cgr_compressor(GraphTy *graph, int zeta_k = 3, int min_itv_len = 4, 
                           int itv_seg_len = 0, int res_seg_len = 4 * 32)
           : g(graph), _zeta_k(zeta_k), _min_itv_len(min_itv_len), _max_itv_len(min_itv_len),
             _itv_seg_len(itv_seg_len), _res_seg_len(res_seg_len),
