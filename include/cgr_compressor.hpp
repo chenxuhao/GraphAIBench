@@ -44,13 +44,13 @@ public:
           : g(graph), _zeta_k(zeta_k), _min_itv_len(min_itv_len), _max_itv_len(min_itv_len),
             _itv_seg_len(itv_seg_len), _res_seg_len(res_seg_len),
             max_num_itv_per_node(0), max_num_res_per_node(0) {}
-  void compress();
+  void compress(bool use_interval = true, bool add_degree = false);
   void write_cgr(const std::string &dir_path);
   void write_bit_array(FILE* &of);
 
 protected:
   void print_bits(bits in);
-  void encode_node(const size_type v);
+  void encode_node(const size_type v, bool use_interval, bool add_degree);
   void intervalize(const size_type v);
   void encode_intervals(const size_type v);
   void encode_residuals(const size_type v);

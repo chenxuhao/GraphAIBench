@@ -49,24 +49,22 @@ void cgr_compressor::write_bit_array(FILE* &of) {
   fwrite(buf.data(), sizeof(unsigned char), buf.size(), of);
 }
 
-void cgr_compressor::encode_node(const size_type v) {
+void cgr_compressor::encode_node(const size_type v, bool use_interval, bool add_degree) {
   auto &adj = this->_cgr[v];
   adj.node = v;
   adj.outd = g->get_degree(v);
-#if USE_INTERVAL
   adj.itv_left.clear();
   adj.itv_len.clear();
-#endif
   adj.res.clear();
   adj.bit_arr.clear();
-  if (this->_res_seg_len == 0) {
+  if (add_degree || this->_res_seg_len == 0) {
     append_gamma(adj.bit_arr, adj.outd);
     if (adj.outd == 0) return;
   }
-#if USE_INTERVAL
-  intervalize(v);
-  encode_intervals(v);
-#endif
+  if (use_interval) {
+    intervalize(v);
+    encode_intervals(v);
+  }
   encode_residuals(v);
 }
 
@@ -93,9 +91,9 @@ void cgr_compressor::intervalize(const size_type v) {
   }
   auto num_intervals = adj.itv_left.size();
   auto num_residuals = adj.res.size();
-  if (max_num_itv_per_node < num_intervals)
+  if (size_t(max_num_itv_per_node) < num_intervals)
     max_num_itv_per_node = num_intervals;
-  if (max_num_res_per_node < num_residuals)
+  if (size_t(max_num_res_per_node) < num_residuals)
     max_num_res_per_node = num_residuals;
 }
 
@@ -163,11 +161,7 @@ void cgr_compressor::print_bits(bits in) {
 
 void cgr_compressor::encode_residuals(const size_type v) {
   auto &bit_arr = this->_cgr[v].bit_arr;
-#if USE_INTERVAL
   auto &res = this->_cgr[v].res;
-#else
-  auto res = g->N(v);
-#endif
 
   typedef std::pair<size_type, bits> segment;
   std::vector<segment> segs;
@@ -259,15 +253,16 @@ size_type cgr_compressor::zeta_size(size_type x) {
   return (h + 1) * (this->_zeta_k + 1);
 }
 
-void cgr_compressor::compress() {
-  std::cout << "Start compressing\n";
+void cgr_compressor::compress(bool use_interval, bool add_degree) {
+  std::cout << "Start compressing: " << (use_interval?"interval enabled, ":"interval disabled, ")
+    << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
   max_num_res_per_node = g->get_max_degree();
   pre_encoding();
   this->_cgr.clear();
   this->_cgr.resize(g->V());
   #pragma omp parallel for
   for (vidType i = 0; i < g->V(); i++) {
-    encode_node(i);
+    encode_node(i, use_interval, add_degree);
   }
   std::cout << "max_num_itv_per_node = " << max_num_itv_per_node 
             << " max_num_res_per_node = " << max_num_res_per_node

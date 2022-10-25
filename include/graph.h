@@ -92,20 +92,21 @@ public:
   eidType edge_end(vidType v) const { return vertices[v+1]; }
   vidType* adj_ptr(vidType v) const { return &edges[vertices[v]]; }
   vidType N(vidType v, vidType n) const { return edges[vertices[v]+n];} // get the n-th neighbor of v
-  VertexSet N(vidType v) const;              // get the neighbor list of vertex v
-  eidType get_eid(vidType v, vidType n) const { return vertices[v]+n;} // get the edge id of the n-th edge of v
-  eidType* rowptr() { return vertices; } // get row pointers array
-  vidType* colidx() { return edges; }    // get column indices array
+  VertexSet N(vidType v) const;                                         // get the neighbor list of vertex v
+  VertexSet N_compressed(vidType v, bool need_order=true);        // get the compressed neighbor list of vertex v
+  eidType get_eid(vidType v, vidType n) const { return vertices[v]+n;}  // get the edge id of the n-th edge of v
+  eidType* rowptr() { return vertices; }             // get row pointers array
+  vidType* colidx() { return edges; }                // get column indices array
   const eidType* rowptr() const { return vertices; } // get row pointers array
   const vidType* colidx() const { return edges; }    // get column indices array
-  eidType* out_rowptr() { return vertices; } // get row pointers array
-  vidType* out_colidx() { return edges; }    // get column indices array
-  eidType* in_rowptr() { return reverse_vertices; } // get incoming row pointers array
-  vidType* in_colidx() { return reverse_edges; }    // get incoming column indices array
-  bool is_connected(vidType v, vidType u) const; // is vertex v and u connected by an edge
-  bool is_connected(std::vector<vidType> sg) const; // is the subgraph sg a connected one
+  eidType* out_rowptr() { return vertices; }         // get row pointers array
+  vidType* out_colidx() { return edges; }            // get column indices array
+  eidType* in_rowptr() { return reverse_vertices; }  // get incoming row pointers array
+  vidType* in_colidx() { return reverse_edges; }     // get incoming column indices array
+  bool is_connected(vidType v, vidType u) const;     // is vertex v and u connected by an edge
+  bool is_connected(std::vector<vidType> sg) const;  // is the subgraph sg a connected one
   VertexSet out_neigh(vidType v, vidType off = 0) const; // get the outgoing neighbor list of vertex v
-  VertexSet in_neigh(vidType v) const;              // get the ingoing neighbor list of vertex v
+  VertexSet in_neigh(vidType v) const;               // get the ingoing neighbor list of vertex v
   void build_reverse_graph();
   const eidType* rowptr_compressed() const { return vertices_compressed; } // get row pointers array
   const uint32_t* colidx_compressed() const { return &edges_compressed[0]; }    // get column indices array
@@ -187,7 +188,9 @@ public:
   vidType difference_set_edgeinduced(vidType v, vidType u, vlabel_t label, VertexSet& result);
   vidType difference_set_edgeinduced(VertexSet& vs, vidType u, vlabel_t label, VertexSet& result);
 
+  vidType intersect_num_compressed(vidType v, vidType u);
   vidType intersect_num_compressed(vidType v, vidType u, vidType up);
+  vidType intersect_num_compressed(VertexSet& vs, vidType u);
   vidType intersect_num_compressed(VertexSet& vs, vidType u, vidType up);
 
   // print graph information

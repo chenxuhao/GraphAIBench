@@ -309,3 +309,132 @@ inline vidType set_difference(const VertexSet &a, const VertexSet &b, VertexSet 
   return count;
 }
 
+inline vidType intersection_num(VertexSet& vs, VertexList u_begins, VertexList u_ends) {
+  int v_size = vs.size();
+  int u_size = u_begins.size();
+  vidType num = 0;
+  int idx_l = 0, idx_r = 0;
+  while (idx_l < v_size && idx_r < u_size) {
+    auto v = vs[idx_l];
+    auto u_begin = u_begins[idx_r];
+    if (v < u_begin) {
+      idx_l++;
+      continue;
+    }
+    auto u_end = u_ends[idx_r];
+    if (v >= u_end) {
+      if (v == u_end) idx_l++;
+      idx_r++;
+      continue;
+    }
+    if (v >= u_begin && v < u_end) {
+      num++;
+      idx_l++;
+    }
+  }
+  return num;
+}
+
+inline vidType intersection_num(VertexSet& vs, VertexList u_begins, VertexList u_ends, vidType up) {
+  int v_size = vs.size();
+  int u_size = u_begins.size();
+  vidType num = 0;
+  int idx_l = 0, idx_r = 0;
+  while (idx_l < v_size && idx_r < u_size) {
+    auto v = vs[idx_l];
+    if (v >= up) break;
+    auto u_begin = u_begins[idx_r];
+    if (u_begin >= up) break;
+    if (v < u_begin) {
+      idx_l++;
+      continue;
+    }
+    auto u_end = u_ends[idx_r];
+    if (v >= u_end) {
+      if (v == u_end) idx_l++;
+      idx_r++;
+      continue;
+    }
+    if (v >= u_begin && v < u_end) {
+      num++;
+      idx_l++;
+    }
+  }
+  return num;
+}
+/*
+inline vidType intersection_num(VertexSet& vs, VertexList u_begins, VertexList u_ends, vidType up) {
+  for (auto v : vs) {
+    if (v >= up) break;
+    for (int i = 0; i < u_size; i++) {
+      auto u_begin = u_begins[i];
+      if (u_begin >= up) break;
+      if (v < u_begin) continue;
+      auto u_end = u_ends[i];
+      if (v < u_end) {
+        num++;
+        break;
+      }
+    }
+  }
+}
+*/
+inline vidType intersection_num(VertexList v_begins, VertexList v_ends, VertexList u_begins, VertexList u_ends) {
+  vidType num = 0;
+  int v_size = v_begins.size();
+  int u_size = u_begins.size();
+
+  // compare v_itv and u_itv
+  int idx_l = 0, idx_r = 0;
+  while (idx_l < v_size && idx_r < u_size) {
+    auto v_begin = v_begins[idx_l];
+    auto v_end = v_ends[idx_l];
+    auto u_begin = u_begins[idx_r];
+    auto u_end = u_ends[idx_r];
+    assert(v_end > v_begin);
+    assert(u_end > u_begin);
+    if (v_begin >= u_end) {
+      idx_r++;
+      continue;
+    }
+    if (u_begin >= v_end) {
+      idx_l++;
+      continue;
+    }
+    if (v_end >= u_end) idx_r++;
+    if (v_end <= u_end) idx_l++;
+    num += std::min(v_end, u_end) - std::max(v_begin, u_begin);
+  }
+  return num;
+}
+
+inline vidType intersection_num(VertexList v_begins, VertexList v_ends, VertexList u_begins, VertexList u_ends, vidType up) {
+  vidType num = 0;
+  int v_size = v_begins.size();
+  int u_size = u_begins.size();
+
+  // compare v_itv and u_itv
+  int idx_l = 0, idx_r = 0;
+  while (idx_l < v_size && idx_r < u_size) {
+    auto v_begin = v_begins[idx_l];
+    auto v_end = v_ends[idx_l];
+    auto u_begin = u_begins[idx_r];
+    auto u_end = u_ends[idx_r];
+    assert(v_end > v_begin);
+    assert(u_end > u_begin);
+    if (v_begin >= up || u_begin >= up) break;
+    if (v_begin >= u_end) {
+      idx_r++;
+      continue;
+    }
+    if (u_begin >= v_end) {
+      idx_l++;
+      continue;
+    }
+    if (v_end >= u_end) idx_r++;
+    if (v_end <= u_end) idx_l++;
+    num += std::min(up, std::min(v_end, u_end)) - std::max(v_begin, u_begin);
+  }
+  return num;
+}
+
