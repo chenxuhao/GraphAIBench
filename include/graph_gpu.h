@@ -163,11 +163,15 @@ public:
       cptr = d_in_colidx;
     }
     if (use_uva) {
-      std::copy(h_rowptr, h_rowptr+nv+1, rptr);
-      std::copy(h_colidx, h_colidx+ne, cptr);
+      if (h_rowptr != NULL)
+        std::copy(h_rowptr, h_rowptr+nv+1, rptr);
+      if (h_colidx != NULL)
+        std::copy(h_colidx, h_colidx+ne, cptr);
     } else {
-      CUDA_SAFE_CALL(cudaMemcpy(rptr, h_rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
-      CUDA_SAFE_CALL(cudaMemcpy(cptr, h_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+      if (h_rowptr != NULL)
+        CUDA_SAFE_CALL(cudaMemcpy(rptr, h_rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+      if (h_colidx != NULL)
+        CUDA_SAFE_CALL(cudaMemcpy(cptr, h_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
       if (h_vlabels != NULL)
         CUDA_SAFE_CALL(cudaMemcpy(d_vlabels, h_vlabels, nv * sizeof(vlabel_t), cudaMemcpyHostToDevice));
       if (h_elabels != NULL)
@@ -369,17 +373,13 @@ public:
   }
   inline __device__ vidType cta_intersect_compressed(vidType v, vidType *buf1, vidType *buf2, vidType u_degree, vidType *adj_u) {
     vidType count = 0;
-    //if (threadIdx.x == 0) printf("\t v %d ;   u_deg %d\n", v, u_degree);
     vidType *adj_v, v_degree = 0;
-    //bool is_odd = false;
     adj_v = cta_decompress(v, buf1, buf2, v_degree);
-    //if (threadIdx.x == 0) printf("\t v %d, v_deg %d ;   u_deg %d\n", v, v_degree, u_degree);
     count = intersect_num_cta(adj_v, v_degree, adj_u, u_degree);
     return count;
   }
   inline __device__ vidType cta_intersect_compressed(vidType v, vidType u, vidType *buf1, vidType *buf2, vidType *buf3) {
     vidType count = 0;
-    //bool is_odd = false;
     vidType *adj_v, *adj_u, v_degree = 0, u_degree = 0;
     adj_v = cta_decompress(v, buf1, buf2, v_degree);
     if (adj_v == buf2)
@@ -392,16 +392,11 @@ public:
  
   // using a CTA to decompress the adj list of a vertex
   inline __device__ vidType* cta_decompress(vidType v, vidType *buf1, vidType *buf2, vidType &degree) {
-    //int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
     CgrReaderGPU cgrr;
     cgrr.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
-    //if (threadIdx.x == 0) printf("v %d global_offset %ld\n", v, d_rowptr_compressed[v]);
-    //__shared__ SMem smem;
     __shared__ vidType num_items;
     if (threadIdx.x == 0) num_items = 0;
     __syncthreads();
-    //decode_intervals(cgrr, &smem, buf1, &num_items);
-    //decode_residuals(cgrr, &smem, buf1, &num_items);
     decode_intervals_naive(cgrr, buf1, &num_items);
     decode_residuals_naive(cgrr, buf1, &num_items);
     degree = num_items;
@@ -420,7 +415,9 @@ public:
     __shared__ vidType num_items[WARPS_PER_BLOCK];
     if (thread_lane == 0) num_items[warp_lane] = 0;
     __syncwarp();
+#ifdef USE_INTERVAL
     decode_intervals_warp_naive(cgrr, buf1, &num_items[warp_lane]);
+#endif
     decode_residuals_warp_naive(cgrr, buf1, &num_items[warp_lane]);
     degree = num_items[warp_lane];
     vidType *adj = buf1;

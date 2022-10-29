@@ -1,16 +1,17 @@
 #pragma once
 #include "common.h"
+using OFFSET_TYPE = uint64_t;
 
 class CgrReader {
   public:
     vidType node;
     vidType *graph;
-    eidType global_offset;
+    OFFSET_TYPE global_offset;
 
-    CgrReader(vidType v, vidType *g, eidType off) :
+    CgrReader(vidType v, vidType *g, OFFSET_TYPE off) :
       node(v), graph(g), global_offset(off) { }
 
-    void init(vidType v, vidType *graph, eidType global_offset) {
+    void init(vidType v, vidType *graph, OFFSET_TYPE global_offset) {
       this->node = v;
       this->graph = graph;
       this->global_offset = global_offset;
@@ -19,7 +20,7 @@ class CgrReader {
       return (x & 1) ? node - (x >> 1) - 1 : node + (x >> 1);
     }
     vidType cur() {
-      eidType chunk = global_offset / 32;
+      OFFSET_TYPE chunk = global_offset / 32;
       auto buf_hi = graph[chunk];
       auto buf_lo = graph[chunk + 1];
       vidType offset = global_offset % 32;
@@ -37,9 +38,14 @@ class CgrReader {
       return x + 1;
     }
     vidType decode_int(vidType len) {
+      assert(len <= 32);
       vidType x = cur() >> (32 - len);
       global_offset += len;
       return x;
+    }
+    vidType get_h() {
+      auto tmp = cur();
+      return __builtin_clz(tmp)+1;
     }
     vidType decode_gamma() {
       vidType h = decode_unary();
@@ -96,7 +102,12 @@ struct ResidualSegmentHelper{
     vidType x = cgrr.decode_residual_code();
     return (x & 1) ? cgrr.node - (x >> 1) - 1 : cgrr.node + (x >> 1);
   }
-
+  vidType get_h() {
+    return cgrr.get_h();
+  }
+  vidType get_raw_residual_value() {
+    return cgrr.cur();
+  }
 };
 
 struct IntervalSegmentHelper {

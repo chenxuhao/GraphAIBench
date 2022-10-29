@@ -9,7 +9,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   std::cout << "OpenMP Triangle Counting on Compressed Graph (" << num_threads << " threads)\n";
   timers[SETOPS] = 0.0;
   timers[DECOMPRESS] = 0.0;
-  bool need_order = true;
+  //bool need_order = true;
   Timer t;
   t.Start();
   uint64_t counter = 0;
@@ -17,7 +17,7 @@ void triangle_count_compressed(Graph &g, uint64_t &total) {
   for (vidType u = 0; u < g.V(); u ++) {
     //VertexSet adj_u(u); // u's adjacency list
     //g.decode_vertex(u, adj_u, USE_INTERVAL);
-    auto adj_u = g.N_compressed(u, need_order);
+    auto adj_u = g.N_compressed(u, USE_INTERVAL);
     for (auto v : adj_u) {
       //if (v > u) break;
       //auto num = (uint64_t)g.intersect_num_compressed(adj_u, v, v);

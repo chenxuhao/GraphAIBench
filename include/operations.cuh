@@ -293,7 +293,7 @@ __forceinline__ __device__ T intersect_num_hybrid(T* a, T size_a, T* b, T size_b
 
 // set intersection using warp-based HINDEX
 template <typename T = vidType>
-__forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_b, T* bins, T* bin_counts) {
+__forceinline__ __device__ T intersect_warp_hindex(const T *a, T size_a, const T *b, T size_b, T* bins, T* bin_counts) {
   unsigned thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
   unsigned warp_lane   = threadIdx.x / WARP_SIZE;                // warp index within the CTA
   unsigned thread_id   = blockIdx.x * blockDim.x + threadIdx.x;
@@ -321,6 +321,8 @@ __forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_
     auto vid = lookup[i];
     T key = vid % NUM_BUCKETS; // hash
     T index = atomicAdd(&bin_counts[key + binOffset], 1);
+    if (index >= BUCKET_SIZE) printf("hash bin overflow!\n");
+    assert(index < BUCKET_SIZE);
     bins[index * NUM_BUCKETS + key + binStart] = vid; // put into hash bin
   }
   __syncwarp();
@@ -345,7 +347,7 @@ __forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_
 
 // set intersection using warp-based HINDEX
 template <typename T = vidType>
-__forceinline__ __device__ T intersect_warp_hindex(T *a, T size_a, T *b, T size_b, T* bins, T* bin_counts, T upper_bound) {
+__forceinline__ __device__ T intersect_warp_hindex(const T *a, T size_a, const T *b, T size_b, T* bins, T* bin_counts, T upper_bound) {
   unsigned thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
   unsigned warp_lane   = threadIdx.x / WARP_SIZE;                // warp index within the CTA
   unsigned thread_id   = blockIdx.x * blockDim.x + threadIdx.x;

@@ -262,13 +262,11 @@ struct BaseHelperGPU {
 
 // sequentially decode intervals
 __device__ void decode_intervals_naive(CgrReaderGPU &decoder, vidType *adj_out, vidType *num_neighbors) {
-  //vidType thread_id = threadIdx.x;
   __shared__ vidType offset;
   auto v = decoder.node;
   auto adj_in = decoder.graph;
   auto segment_cnt = decoder.decode_segment_cnt();
   auto interval_offset = decoder.global_offset + threadIdx.x*INTERVAL_SEGMENT_LEN;
-  //if (threadIdx.x == 0 && segment_cnt>1) printf("v %d, interval segment cnt: %d\n", v, segment_cnt);
   auto end = ((segment_cnt+BLOCK_SIZE-1)/BLOCK_SIZE) * BLOCK_SIZE;
   for (vidType i = threadIdx.x; i < end; i+=BLOCK_SIZE) {
     CgrReaderGPU cgrr(v, adj_in, interval_offset);
@@ -276,7 +274,6 @@ __device__ void decode_intervals_naive(CgrReaderGPU &decoder, vidType *adj_out, 
       IntervalSegmentHelperGPU isHelper(v, cgrr);
       isHelper.decode_interval_cnt();
       auto num_intervals = isHelper.interval_cnt;
-      //if (threadIdx.x == 0) printf("v %d, interval[%d] size: %d\n", v, i, num_intervals);
       for (vidType j = 0; j < num_intervals; j++) {
         auto left = isHelper.get_interval_left();
         auto len = isHelper.get_interval_len();
@@ -288,7 +285,6 @@ __device__ void decode_intervals_naive(CgrReaderGPU &decoder, vidType *adj_out, 
     if (__syncthreads_or(i >= segment_cnt)) {
       if ((i+1) == segment_cnt) {// last segment
         offset = cgrr.global_offset;
-        //printf("v %d, offset after interval: %d\n", v, offset);
       }
       __syncthreads();
       decoder.global_offset = offset;
@@ -304,7 +300,9 @@ __device__ void decode_intervals_naive(CgrReaderGPU &decoder, vidType *adj_out, 
 __device__ void decode_intervals_warp_naive(CgrReaderGPU &decoder, vidType *adj_out, vidType *num_neighbors) {
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-  __shared__ vidType offset[WARPS_PER_BLOCK];
+  __shared__ eidType offset[WARPS_PER_BLOCK];
+  if (thread_lane == 0) offset[warp_lane] = 0;
+  __syncwarp();
   auto v = decoder.node;
   auto adj_in = decoder.graph;
   auto segment_cnt = decoder.decode_segment_cnt();
@@ -324,15 +322,15 @@ __device__ void decode_intervals_warp_naive(CgrReaderGPU &decoder, vidType *adj_
           adj_out[index++] = left+k;
       }
     }
-    int not_done = (i < segment_cnt) ? 1 : 0;
+    if ((i+1) == segment_cnt) {// last segment
+      offset[warp_lane] = cgrr.global_offset;
+    }
+    __syncwarp();
+
+    int not_done = (i < segment_cnt-1) ? 1 : 0;
     unsigned active = __activemask();
     unsigned mask = __ballot_sync(active, not_done);
     if (mask != FULL_MASK) {
-    //if (__syncthreads_or(i >= segment_cnt)) {
-      if ((i+1) == segment_cnt) {// last segment
-        offset[warp_lane] = cgrr.global_offset;
-      }
-      __syncwarp();
       decoder.global_offset = offset[warp_lane];
       break;
     } else {
@@ -370,19 +368,15 @@ __device__ void decode_residuals_warp_naive(CgrReaderGPU &decoder, vidType *adj_
   auto adj_in = decoder.graph;
   auto segment_cnt = decoder.decode_segment_cnt();
   auto residual_offset = decoder.global_offset + thread_lane*RESIDUAL_SEGMENT_LEN;
-  //if (thread_lane == 0 && segment_cnt>1) printf("v %d, redidual segment cnt: %d\n", v, segment_cnt);
   for (vidType i = thread_lane; i < segment_cnt; i+=WARP_SIZE) {
     CgrReaderGPU cgrr(v, adj_in, residual_offset);
     ResidualSegmentHelperGPU rsHelper(v, cgrr);
     rsHelper.decode_residual_cnt();
     auto num_res = rsHelper.residual_cnt;
     auto index = atomicAdd(num_neighbors, num_res);
-    //if (thread_lane == 0) printf("v %d, redidual[%d] size: %d\n", v, i, num_res);
-    //if (index+num_res > max_degree) printf("v %d, redidual[%d] size: %d, index=%d\n", v, i, num_res, index);
     for (vidType j = 0; j < num_res; j++) {
       auto residual = rsHelper.get_residual();
-      //if (thread_lane == 0) printf("v %d, redidual[%d][%d]: %d\n", v, i, j, residual);
-      adj_out[index++] = residual;
+      adj_out[index+j] = residual;
     }
     residual_offset += RESIDUAL_SEGMENT_LEN * WARP_SIZE;
   }

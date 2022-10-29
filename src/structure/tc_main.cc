@@ -13,9 +13,9 @@ int main(int argc,char *argv[]) {
   g.print_meta_data();
 
   uint64_t total = 0;
-  g.decompress();
-  triangle_count(g, total);
-  std::cout << "total_num_triangles = " << total << "\n";
+  //g.decompress();
+  //triangle_count(g, total);
+  //std::cout << "total_num_triangles = " << total << "\n";
 
   total = 0;
   triangle_count_compressed(g, total);

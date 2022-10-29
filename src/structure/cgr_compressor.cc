@@ -10,12 +10,26 @@ void cgr_compressor::write_cgr(const std::string &prefix) {
   write_bit_array(of_graph);
   fclose(of_graph);
 
+  std::cout << "Computing the row pointers\n";
+  Timer t;
+  t.Start();
   std::vector<eidType> rowptr(g->V()+1);
+#if 0
+  std::vector<vidType> degrees(g->V());
+  #pragma omp parallel for
+  for (vidType i = 0; i < g->V(); i++)
+    degrees[i] = _cgr[i].bit_arr.size();
+  parallel_prefix_sum<vidType,eidType>(degrees, rowptr.data());
+#else
   rowptr[0] = 0;
-  for (vidType i = 0; i < g->V(); i++) {
+  for (vidType i = 0; i < g->V(); i++)
     rowptr[i+1] = _cgr[i].bit_arr.size() + rowptr[i];
-    //std::cout << "rowptr[" << i+1 << "]=" << rowptr[i+1] << "\n";
-  }
+#endif
+  t.Stop();
+  std::cout << "Computing row pointers time: " << t.Seconds() << "\n";
+
+  std::cout << "Writing the row pointers to disk\n";
+  t.Start();
   std::ofstream outfile((prefix + ".vertex.bin").c_str(), std::ios::binary);
   if (!outfile) {
     std::cout << "File not available\n";
@@ -23,13 +37,18 @@ void cgr_compressor::write_cgr(const std::string &prefix) {
   }
   outfile.write(reinterpret_cast<const char*>(rowptr.data()), (g->V()+1)*sizeof(eidType));
   outfile.close();
+  t.Stop();
+  std::cout << "Writing row pointers time: " << t.Seconds() << "\n";
 }
 
 void cgr_compressor::write_bit_array(FILE* &of) {
   std::cout << "writing the bit array\n";
+  Timer t;
+  t.Start();
   std::vector<unsigned char> buf;
   unsigned char cur = 0;
   int bit_count = 0;
+#if 1
   for (vidType i = 0; i < g->V(); i++) {
     for (auto bit : this->_cgr[i].bit_arr) {
       cur <<= 1;
@@ -46,7 +65,11 @@ void cgr_compressor::write_bit_array(FILE* &of) {
     while (bit_count < 8) cur <<= 1, bit_count++;
     buf.emplace_back(cur);
   }
+#else
+#endif
   fwrite(buf.data(), sizeof(unsigned char), buf.size(), of);
+  t.Stop();
+  std::cout << "Writing bit array time: " << t.Seconds() << "\n";
 }
 
 void cgr_compressor::encode_node(const size_type v, bool use_interval, bool add_degree) {
@@ -64,6 +87,8 @@ void cgr_compressor::encode_node(const size_type v, bool use_interval, bool add_
   if (use_interval) {
     intervalize(v);
     encode_intervals(v);
+  } else {
+    adj.res.assign(g->N(v).begin(), g->N(v).end());
   }
   encode_residuals(v);
 }
@@ -168,11 +193,13 @@ void cgr_compressor::encode_residuals(const size_type v) {
 
   bits cur_seg;
   size_type res_cnt = 0;
+  int segment_id = 0;
   for (size_t i = 0; i < res.size(); i++) {
     size_type cur;
     if (res_cnt == 0) {
       cur = int_2_nat(res[i] - v);
     } else {
+      assert(i>=1);
       cur = res[i] - res[i - 1] - 1;
     }
     // check if cur seg is overflowed
@@ -181,9 +208,33 @@ void cgr_compressor::encode_residuals(const size_type v) {
       res_cnt = 0;
       cur = int_2_nat(res[i] - v);
       cur_seg.clear();
+      segment_id ++;
     }
     res_cnt++;
+    //auto cur_seg_start = cur_seg.size();
     append_zeta(cur_seg, cur);
+    //auto cur_seg_end = cur_seg.size();
+    /*
+    if (v == 446 && segment_id == 2) {
+      std::cout << "v " << v << " neighbor[" << i << "]=" << res[i] << "\n"; 
+      std::cout << "v " << v << " neighbor[" << i << "] encoded as: " << cur;
+      if (res_cnt == 1) std::cout << " the first in the segment; ";
+      //std::cout << " supposed to be " << int_2_nat(res[i] - v);
+      auto len = get_significent_bit(cur+1);
+      int h = len / this->_zeta_k;
+      std::cout << " len: " << len << " h: " << h << "\n";
+
+      std::cout << "[" << cur_seg_end-cur_seg_start << "-bit]";
+      for (auto j = cur_seg_start; j < cur_seg_end; j++) {
+        if (cur_seg[j]) {
+          std::cout << 1;
+        } else {
+          std::cout << 0;
+        }
+      }
+      std::cout << "\n";
+    }
+    //*/
   }
 
   // handle last partial segment
@@ -192,11 +243,13 @@ void cgr_compressor::encode_residuals(const size_type v) {
   } else {
     segs.back().first += res_cnt;
     for (size_t i = res.size() - res_cnt; i < res.size(); i++) {
+      assert(i>=1);
       append_zeta(segs.back().second, res[i] - res[i - 1] - 1);
     }
   }
 
   if (_res_seg_len != 0) {
+    //if (v == 446) std::cout << "v " << v << " number of residual segments: " << segs.size() << "\n";
     append_gamma(bit_arr, segs.size() - 1);
     for (size_t i = 0; i < segs.size(); i++) {
       size_type align = i + 1 == segs.size() ? 0 : _res_seg_len;
@@ -254,12 +307,19 @@ size_type cgr_compressor::zeta_size(size_type x) {
 }
 
 void cgr_compressor::compress(bool use_interval, bool add_degree) {
-  std::cout << "Start compressing: " << (use_interval?"interval enabled, ":"interval disabled, ")
+  std::cout << "Start compressing: zeta_k = " << this->_zeta_k << ", "
+    << (use_interval?"interval enabled, ":"interval disabled, ")
     << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
-  max_num_res_per_node = g->get_max_degree();
+  Timer t;
+  t.Start();
+  max_num_res_per_node = 0;
   pre_encoding();
+  t.Stop();
+  std::cout << "Pre-encoding time: " << t.Seconds() << "\n";
+
   this->_cgr.clear();
   this->_cgr.resize(g->V());
+  t.Start();
   #pragma omp parallel for
   for (vidType i = 0; i < g->V(); i++) {
     encode_node(i, use_interval, add_degree);
@@ -267,6 +327,8 @@ void cgr_compressor::compress(bool use_interval, bool add_degree) {
   std::cout << "max_num_itv_per_node = " << max_num_itv_per_node 
             << " max_num_res_per_node = " << max_num_res_per_node
             << " max_itv_len = " << _max_itv_len << "\n";
+  t.Stop();
+  std::cout << "Encoding time: " << t.Seconds() << "\n";
 }
 
 void cgr_compressor::pre_encoding() {
@@ -303,6 +365,14 @@ void cgr_compressor::encode_zeta(bits &bit_array, size_type x) {
     assert(x >= 0);
     int len = this->get_significent_bit(x);
     int h = len / this->_zeta_k;
+
+    // NOTE: Encoding should not be longer than 32-bit
+    // so when _zeta_k = 3, vid should not exceed 31-bit,
+    // otherwise, the significent bit > 30, and h >= 10
+    // h+1 >= 11, ((h+1)*_zeta_k) >= 33
+    // For gsh-2015 and bigger graphs, use _zeta_k=2 or _zeta_k=1
+    assert((h+1)*this->_zeta_k <= 32);
+
     this->encode(bit_array, 1, h + 1);
     this->encode(bit_array, x, (h + 1) * this->_zeta_k);
   }
