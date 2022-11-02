@@ -94,13 +94,15 @@ extern int max_iters;    // maximum number of iterations
 #define MIN_ITV_LEN 4
 #define INTERVAL_SEGMENT_LEN 256
 #define RESIDUAL_SEGMENT_LEN 256
+#define MAX_NUM_ITV_PER_NODE 32
+#define MAX_NUM_ITV_PER_SECTION 8
+
 static const uint32_t SIZE_NONE = 0xffffffff;
 enum OPS {
   DECOMPRESS,
   SETOPS,
 };
 extern std::map<OPS,double> timers;
-
 
 enum Status {
   Idle,

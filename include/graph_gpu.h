@@ -1,5 +1,6 @@
 #pragma once
 #include "graph.h"
+#include "scan.h"
 #include "operations.cuh"
 #include "cutil_subset.h"
 #include "cuda_profiler_api.h"
@@ -54,6 +55,7 @@ public:
   inline __device__ __host__ vidType size() { return num_vertices; }
   inline __device__ __host__ eidType E() { return num_edges; }
   inline __device__ __host__ eidType sizeEdges() { return num_edges; }
+  inline __device__ __host__ vidType get_max_degree() { return max_degree; }
   inline __device__ __host__ bool valid_vertex(vidType vertex) { return (vertex < num_vertices); }
   inline __device__ __host__ bool valid_edge(eidType edge) { return (edge < num_edges); }
   inline __device__ __host__ vidType get_src(eidType eid) const { return d_src_list[eid]; }
@@ -252,25 +254,13 @@ public:
     CUDA_SAFE_CALL(cudaMemcpy(h_colidx, d_colidx, ne * sizeof(vidType), cudaMemcpyDeviceToHost));
   }
   // this is for single-GPU only
-  size_t init_edgelist(Graph &hg, bool sym_break = false, bool ascend = false) {
-    auto nnz = num_edges;
-    if (sym_break) nnz = nnz/2;
+  size_t init_edgelist(Graph &hg, bool sym_break = false, bool ascend = false, bool zero_copy = false) {
+    auto nnz = sym_break ? num_edges/2 : num_edges;
     size_t mem_el = size_t(nnz)*sizeof(vidType);
     auto mem_gpu = get_gpu_mem_size();
-    //size_t mem_graph_el = size_t(num_vertices+1)*sizeof(eidType) + size_t(2)*size_t(nnz)*sizeof(vidType);
-    if (mem_el > mem_gpu) {
-      std::cout << "Allocating edgelist (size = " << nnz << ") using CUDA unified memory\n";
-      CUDA_SAFE_CALL(cudaMallocManaged(&d_src_list, nnz * sizeof(vidType)));
-      if (!sym_break) d_dst_list = d_colidx;
-      else CUDA_SAFE_CALL(cudaMallocManaged(&d_dst_list, nnz * sizeof(vidType)));
-      init_edgelist_um(hg, sym_break);
-      //CUDA_SAFE_CALL(cudaDeviceSynchronize());
-      //Timer t;
-      //t.Start();
-      //CUDA_SAFE_CALL(cudaMemPrefetchAsync(d_src_list, nnz*sizeof(vidType), 0, NULL));
-      //CUDA_SAFE_CALL(cudaMemPrefetchAsync(d_dst_list, nnz*sizeof(vidType), 0, NULL));
-      //CUDA_SAFE_CALL(cudaDeviceSynchronize());
-      //t.Stop();
+    if (zero_copy || mem_el > mem_gpu) {
+      //init_edgelist_um(hg, sym_break);
+      init_edgelist_zero_copy(hg, sym_break);
     } else {
       hg.init_edgelist(sym_break, ascend);
       copy_edgelist_to_device(nnz, hg.get_src_ptr(), hg.get_dst_ptr(), sym_break);
@@ -326,6 +316,10 @@ public:
   void init_edgelist_um(Graph &g, bool sym_break = false) {
     Timer t;
     t.Start();
+    auto nnz = sym_break ? g.E()/2 : g.E();
+    CUDA_SAFE_CALL(cudaMallocManaged(&d_src_list, nnz * sizeof(vidType)));
+    if (!sym_break) d_dst_list = d_colidx;
+    else CUDA_SAFE_CALL(cudaMallocManaged(&d_dst_list, nnz * sizeof(vidType)));
     size_t i = 0;
     for (vidType v = 0; v < g.V(); v ++) {
       for (auto u : g.N(v)) {
@@ -336,6 +330,54 @@ public:
         i ++;
       }
     }
+    t.Stop();
+    std::cout << "Time generating the edgelist on CUDA unified memory: " << t.Seconds() << " sec\n";
+  }
+  void init_edgelist_zero_copy(Graph &g, bool sym_break = false) {
+    std::cout << "Initializing edgelist using zero-copy\n";
+    Timer t;
+    t.Start();
+    size_t NUM_BYTES = (sym_break ? g.E()/2 : g.E()) * sizeof(vidType);
+    vidType *h_src_list, *h_dst_list;
+    cudaHostAlloc((void**)&h_src_list, NUM_BYTES, cudaHostAllocMapped);
+    cudaHostAlloc((void**)&h_dst_list, NUM_BYTES, cudaHostAllocMapped);
+    size_t i = 0;
+    g.decompress();
+    if (sym_break) {
+      VertexList degrees(g.V(), 0);
+      #pragma omp parallel for
+      for (vidType v = 0; v < g.V(); v ++) {
+        for (auto u : g.N(v)) {
+          if (v < u) break;
+          degrees[v] ++;
+        }
+      }
+      eidType *offsets = custom_alloc_global<eidType>(g.V()+1);
+      parallel_prefix_sum<vidType,eidType>(degrees, offsets);
+      #pragma omp parallel for
+      for (vidType v = 0; v < g.V(); v ++) {
+        auto idx = offsets[v];
+        for (auto u : g.N(v)) {
+          if (v < u) break;
+          h_src_list[idx] = v;
+          h_dst_list[idx] = u;
+          idx ++;
+        }
+      }
+    } else {
+      std::cout << "Initializing edgelist\n";
+      #pragma omp parallel for
+      for (vidType v = 0; v < g.V(); v ++) {
+        auto idx = g.edge_begin(v);
+        for (auto u : g.N(v)) {
+          h_src_list[idx] = v;
+          h_dst_list[idx] = u;
+          idx ++;
+        }
+      }
+    }
+    cudaHostGetDevicePointer((void**)&d_src_list, (void*)h_src_list, 0);
+    cudaHostGetDevicePointer((void**)&d_dst_list, (void*)h_dst_list, 0);
     t.Stop();
     std::cout << "Time generating the edgelist on CUDA unified memory: " << t.Seconds() << " sec\n";
   }
@@ -397,8 +439,8 @@ public:
     __shared__ vidType num_items;
     if (threadIdx.x == 0) num_items = 0;
     __syncthreads();
-    decode_intervals_naive(cgrr, buf1, &num_items);
-    decode_residuals_naive(cgrr, buf1, &num_items);
+    decode_intervals_cta(cgrr, buf1, &num_items);
+    decode_residuals_cta(cgrr, buf1, &num_items);
     degree = num_items;
     vidType *adj = buf1;
 #ifdef NEED_SORT
@@ -416,9 +458,9 @@ public:
     if (thread_lane == 0) num_items[warp_lane] = 0;
     __syncwarp();
 #ifdef USE_INTERVAL
-    decode_intervals_warp_naive(cgrr, buf1, &num_items[warp_lane]);
+    decode_intervals_warp(cgrr, buf1, &num_items[warp_lane]);
 #endif
-    decode_residuals_warp_naive(cgrr, buf1, &num_items[warp_lane]);
+    decode_residuals_warp(cgrr, buf1, &num_items[warp_lane]);
     degree = num_items[warp_lane];
     vidType *adj = buf1;
 #ifdef NEED_SORT
@@ -426,5 +468,47 @@ public:
 #endif
     return adj;
   }
+
+  inline __device__ vidType intersect_num_warp_compressed(vidType v, vidType u, vidType *v_residuals, vidType *u_residuals) {
+    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    vidType num = 0;
+    __shared__ vidType num_itv_v[WARPS_PER_BLOCK], num_res_v[WARPS_PER_BLOCK];
+    __shared__ vidType num_itv_u[WARPS_PER_BLOCK], num_res_u[WARPS_PER_BLOCK];
+    if (thread_lane == 0) {
+      num_itv_v[warp_lane] = 0;
+      num_itv_u[warp_lane] = 0;
+      num_res_v[warp_lane] = 0;
+      num_res_u[warp_lane] = 0;
+    }
+    __syncwarp();
+    CgrReaderGPU u_decoder, v_decoder;
+    v_decoder.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
+    u_decoder.init(u, d_colidx_compressed, d_rowptr_compressed[u]);
+    #if USE_INTERVAL
+    __shared__ vidType v_begins[WARPS_PER_BLOCK][32], v_ends[WARPS_PER_BLOCK][32];
+    __shared__ vidType u_begins[WARPS_PER_BLOCK][32], u_ends[WARPS_PER_BLOCK][32];
+    decode_intervals_warp(v_decoder, v_begins[warp_lane], v_ends[warp_lane], &num_itv_v[warp_lane]);
+    decode_intervals_warp(u_decoder, u_begins[warp_lane], u_ends[warp_lane], &num_itv_u[warp_lane]);
+    assert(num_itv_v[warp_lane] < 32);
+    assert(num_itv_u[warp_lane] < 32);
+    //if (thread_lane == 0) printf("v %u has %u intervals, u %u has %u intervals\n", v, num_itv_v[warp_lane], u, num_itv_u[warp_lane]);
+    #endif
+    decode_residuals_warp(v_decoder, v_residuals, &num_res_v[warp_lane]);
+    decode_residuals_warp(u_decoder, u_residuals, &num_res_u[warp_lane]);
+
+    #if USE_INTERVAL
+    // compare v_itv and u_itv
+    num += intersect_num_itv_itv(num_itv_v[warp_lane], v_begins[warp_lane], v_ends[warp_lane], num_itv_u[warp_lane], u_begins[warp_lane], u_ends[warp_lane]);
+    // compare v_itv and u_res
+    num += intersect_num_itv_res(num_itv_v[warp_lane], v_begins[warp_lane], v_ends[warp_lane], num_res_u[warp_lane], u_residuals);
+    // compare v_res and u_itv
+    num += intersect_num_itv_res(num_itv_u[warp_lane], u_begins[warp_lane], u_ends[warp_lane], num_res_v[warp_lane], v_residuals);
+    #endif
+    // compare v_res and u_res
+    num += intersect_num(v_residuals, num_res_v[warp_lane], u_residuals, num_res_u[warp_lane]);
+    return num;
+  }
+
 };
 

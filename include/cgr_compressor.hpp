@@ -16,6 +16,10 @@ class cgr_compressor {
   int _res_seg_len; // number of residuals in a segment
   int max_num_itv_per_node; // max number of intervals in a node's adjlist
   int max_num_res_per_node; // max number of residuals in a node's adjlist
+  size_t max_num_itv_section_per_node; // max number of interval sections in a node's adjlist
+  size_t max_num_res_section_per_node; // max number of residual sections in a node's adjlist
+  int max_num_itv_per_section; // max number of intervals in a section
+  int max_num_res_per_section; // max number of residuals in a section
 
   class cgr_adjlist {
     public:

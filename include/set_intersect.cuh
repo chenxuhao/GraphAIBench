@@ -415,6 +415,74 @@ __forceinline__ __device__ T intersect_num(T* a, T size_a, T *b, T size_b) {
     return intersect_num_bs_cache(a, size_a, b, size_b);
 }
 
+template <typename T = vidType>
+__forceinline__ __device__ T intersect_num_itv_itv(T num_itv_a, T* a_begins, T* a_ends, T num_itv_b, T* b_begins, T* b_ends) {
+  int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
+  if (num_itv_a == 0 || num_itv_b == 0) return 0;
+  //if (thread_lane == 0) printf("num_itv_a=%u, num_itv_b=%d\n", num_itv_a, num_itv_b);
+  T count = 0;
+  T *v_begins, *v_ends, v_size;
+  T *u_begins, *u_ends, u_size;
+  if (num_itv_a > num_itv_b) {
+    v_begins = a_begins;
+    v_ends = a_ends;
+    v_size = num_itv_a;
+    u_begins = b_begins;
+    u_ends = b_ends;
+    u_size = num_itv_b;
+  } else {
+    v_begins = b_begins;
+    v_ends = b_ends;
+    v_size = num_itv_b;
+    u_begins = a_begins;
+    u_ends = a_ends;
+    u_size = num_itv_a;
+  }
+  for (auto i = thread_lane; i < v_size; i += WARP_SIZE) {
+    auto v_begin = v_begins[i];
+    auto v_end = v_ends[i];
+    //if (thread_lane == 0 && v_end <= v_begin) printf("v_begin=%u, v_end=%d\n", v_begin, v_end);
+    assert(v_end > v_begin);
+    for (T j = 0; j < u_size; j++) {
+      auto u_begin = u_begins[j];
+      auto u_end = u_ends[j];
+      assert(u_end > u_begin);
+      if (v_begin >= u_end) continue;
+      if (u_begin >= v_end) break;
+      auto num = min(v_end, u_end) - max(v_begin, u_begin);
+      count += num;
+    }
+  }
+  return count;
+}
+
+template <typename T = vidType>
+__forceinline__ __device__ T intersect_num_itv_res(T num_itv, T* begins, T* ends, T size_b, T *b) {
+  if (num_itv == 0 || size_b == 0) return 0;
+  int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
+  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+  T count = 0;
+  //__shared__ T idx[WARPS_PER_BLOCK];
+  //if (thread_lane == 0) idx[warp_lane] = 0;
+  //__syncwarp();
+  for (auto i = thread_lane; i < size_b; i += WARP_SIZE) {
+    auto vertex = b[i];
+    auto j = 0;//idx[warp_lane];
+    for (; j < num_itv; j++) {
+      if (vertex >= begins[j] && vertex < ends[j]) {
+        count++;
+        break;
+      }
+    }
+    //unsigned active = __activemask();
+    //unsigned mask = __ballot_sync(active, (vertex < ends[num_itv-1]));
+    //if (mask != FULL_MASK) break;
+    //if (thread_lane == WARP_SIZE-1) idx[warp_lane] = j;
+    //__syncwarp(active);
+  }
+  return count;
+}
+
 // warp-wise intersection with upper bound using binary search
 template <typename T = vidType>
 __forceinline__ __device__ T intersect_num_bs(T *a, T size_a, T *b, T size_b, T upper_bound) {

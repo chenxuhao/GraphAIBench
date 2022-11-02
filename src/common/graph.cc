@@ -410,15 +410,30 @@ void GraphT<map_vertices, map_edges>::decompress() {
   t.Start();
   vertices = new eidType[n_vertices+1];
   edges = new vidType[n_edges];
-  vertices[0] = 0;
+#if 0
+  VertexList degrees(n_vertices);
+  #pragma omp parallel for
+  for (vidType v = 0; v < n_vertices; v++) {
+    VertexSet adj(v);
+    degrees[v] = decode_vertex(v, adj.data());
+  }
+  parallel_prefix_sum<vidType,eidType>(degrees, vertices);
+  #pragma omp parallel for
+  for (vidType v = 0; v < n_vertices; v++) {
+    auto offset = vertices[v];
+    auto deg = decode_vertex(v, &edges[offset]);
+    std::sort(edges+offset, edges+offset+deg);
+  }
+#else 
   eidType offset = 0;
-  //auto ptr = &edges_compressed[0];
+  vertices[0] = 0;
   for (vidType v = 0; v < n_vertices; v++) {
     auto num = decode_vertex(v, &edges[offset]);
     offset += num;
     vertices[v+1] = offset;
     std::sort(edges+vertices[v], edges+offset);
   }
+#endif
   t.Stop();
   std::cout << "Graph decompressed time: " << t.Seconds() << "\n";
 }

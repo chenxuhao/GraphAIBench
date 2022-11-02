@@ -291,6 +291,12 @@ __forceinline__ __device__ T intersect_num_hybrid(T* a, T size_a, T* b, T size_b
   return count;
 }
 
+__forceinline__ __device__ void init_bin_counts(int id, int offset, vidType *bin_counts) {
+  for (auto i = id + offset; i < offset + NUM_BUCKETS; i += WARP_SIZE)
+    bin_counts[i] = 0;
+  __syncwarp();
+}
+
 // set intersection using warp-based HINDEX
 template <typename T = vidType>
 __forceinline__ __device__ T intersect_warp_hindex(const T *a, T size_a, const T *b, T size_b, T* bins, T* bin_counts) {
@@ -302,6 +308,7 @@ __forceinline__ __device__ T intersect_warp_hindex(const T *a, T size_a, const T
   int binSize = NUM_BUCKETS * BUCKET_SIZE;
   int binStart = warp_id * binSize;
   int binOffset = warp_lane * NUM_BUCKETS;
+  init_bin_counts(thread_lane, binOffset, bin_counts); // ensure bit counts are empty
 
   auto lookup = a;
   auto search = b;
@@ -356,6 +363,7 @@ __forceinline__ __device__ T intersect_warp_hindex(const T *a, T size_a, const T
   int binSize = NUM_BUCKETS * BUCKET_SIZE;
   int binStart = warp_id * binSize;
   int binOffset = warp_lane * NUM_BUCKETS;
+  init_bin_counts(thread_lane, binOffset, bin_counts); // ensure bit counts are empty
 
   auto lookup = a;
   auto search = b;

@@ -146,6 +146,7 @@ void cgr_compressor::encode_intervals(const size_type v) {
         gamma_size(itv_cnt + 1) + cur_seg.size() + gamma_size(cur_left) + gamma_size(cur_len) >
         size_t(_itv_seg_len)) {
       segs.emplace_back(segment(itv_cnt, cur_seg));
+      if (max_num_itv_per_section < itv_cnt) max_num_itv_per_section = itv_cnt;
       itv_cnt = 0;
       cur_left = int_2_nat(itv_left[i] - v);
       cur_seg.clear();
@@ -158,14 +159,17 @@ void cgr_compressor::encode_intervals(const size_type v) {
   // handle last paritial segment
   if (segs.empty()) {
     segs.emplace_back(segment(itv_cnt, cur_seg));
+    if (max_num_itv_per_section < itv_cnt) max_num_itv_per_section = itv_cnt;
   } else {
     segs.back().first += itv_cnt;
     for (size_t i = itv_left.size() - itv_cnt; i < itv_left.size(); i++) {
       append_gamma(segs.back().second, itv_left[i] - itv_left[i - 1] - itv_len[i - 1] - 1);
       append_gamma(segs.back().second, itv_len[i] - this->_min_itv_len);
     }
+    if (max_num_itv_per_section < itv_cnt) max_num_itv_per_section = itv_cnt;
   }
 
+  if (max_num_itv_section_per_node < segs.size()) max_num_itv_section_per_node = segs.size();
   if (this->_itv_seg_len != 0) append_gamma(bit_arr, segs.size() - 1);
   for (size_t i = 0; i < segs.size(); i++) {
     size_type align = i + 1 == segs.size() ? 0 : this->_itv_seg_len;
@@ -205,36 +209,15 @@ void cgr_compressor::encode_residuals(const size_type v) {
     // check if cur seg is overflowed
     if (_res_seg_len && gamma_size(res_cnt + 1) + cur_seg.size() + zeta_size(cur) > size_t(_res_seg_len)) {
       segs.emplace_back(segment(res_cnt, cur_seg));
+      if (max_num_res_per_section < res_cnt)
+        max_num_res_per_section = res_cnt;
       res_cnt = 0;
       cur = int_2_nat(res[i] - v);
       cur_seg.clear();
       segment_id ++;
     }
     res_cnt++;
-    //auto cur_seg_start = cur_seg.size();
     append_zeta(cur_seg, cur);
-    //auto cur_seg_end = cur_seg.size();
-    /*
-    if (v == 446 && segment_id == 2) {
-      std::cout << "v " << v << " neighbor[" << i << "]=" << res[i] << "\n"; 
-      std::cout << "v " << v << " neighbor[" << i << "] encoded as: " << cur;
-      if (res_cnt == 1) std::cout << " the first in the segment; ";
-      //std::cout << " supposed to be " << int_2_nat(res[i] - v);
-      auto len = get_significent_bit(cur+1);
-      int h = len / this->_zeta_k;
-      std::cout << " len: " << len << " h: " << h << "\n";
-
-      std::cout << "[" << cur_seg_end-cur_seg_start << "-bit]";
-      for (auto j = cur_seg_start; j < cur_seg_end; j++) {
-        if (cur_seg[j]) {
-          std::cout << 1;
-        } else {
-          std::cout << 0;
-        }
-      }
-      std::cout << "\n";
-    }
-    //*/
   }
 
   // handle last partial segment
@@ -248,6 +231,7 @@ void cgr_compressor::encode_residuals(const size_type v) {
     }
   }
 
+  if (max_num_res_section_per_node < segs.size()) max_num_res_section_per_node = segs.size();
   if (_res_seg_len != 0) {
     //if (v == 446) std::cout << "v " << v << " number of residual segments: " << segs.size() << "\n";
     append_gamma(bit_arr, segs.size() - 1);
@@ -312,7 +296,12 @@ void cgr_compressor::compress(bool use_interval, bool add_degree) {
     << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
   Timer t;
   t.Start();
+  max_num_itv_per_node = 0;
   max_num_res_per_node = 0;
+  max_num_itv_section_per_node = 0;
+  max_num_res_section_per_node = 0;
+  max_num_itv_per_section = 0;
+  max_num_res_per_section = 0;
   pre_encoding();
   t.Stop();
   std::cout << "Pre-encoding time: " << t.Seconds() << "\n";
@@ -324,9 +313,13 @@ void cgr_compressor::compress(bool use_interval, bool add_degree) {
   for (vidType i = 0; i < g->V(); i++) {
     encode_node(i, use_interval, add_degree);
   }
-  std::cout << "max_num_itv_per_node = " << max_num_itv_per_node 
-            << " max_num_res_per_node = " << max_num_res_per_node
-            << " max_itv_len = " << _max_itv_len << "\n";
+  std::cout << "max_num_itv_per_node = " << max_num_itv_per_node << "\n"
+            << "max_num_res_per_node = " << max_num_res_per_node << "\n"
+            << "max_num_itv_section_per_node = " << max_num_itv_section_per_node << "\n"
+            << "max_num_res_section_per_node = " << max_num_res_section_per_node << "\n"
+            << "max_num_itv_per_section = " << max_num_itv_per_section << "\n"
+            << "max_num_res_per_section = " << max_num_res_per_section << "\n"
+            << "max_itv_len = " << _max_itv_len << "\n";
   t.Stop();
   std::cout << "Encoding time: " << t.Seconds() << "\n";
 }

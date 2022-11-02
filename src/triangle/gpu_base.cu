@@ -35,19 +35,18 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
 
 #ifdef VERTEX_PAR
   std::cout << "Vertex parallel\n";
+  auto num = (nv-1)/WARPS_PER_BLOCK+1;
+  if (num < nblocks) nblocks = num;
   int max_blocks_per_SM = maximum_residency(warp_vertex, nthreads, 0);
 #else
   auto nnz = gg.init_edgelist(g);
   std::cout << "Edge parallel: edgelist size = " << nnz << "\n";
 #ifdef CTA_CENTRIC
-  int max_blocks_per_SM = maximum_residency(cta_edge, nthreads, 0);
+  refine_kernel_config(nthreads, nblocks, cta_edge);
 #else
-  int max_blocks_per_SM = maximum_residency(warp_edge, nthreads, 0);
+  refine_kernel_config(nthreads, nblocks, warp_edge);
 #endif
 #endif
-  std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
-  //size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
-  //nblocks = std::min(max_blocks, nblocks);
   std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
  
   AccType h_total = 0, *d_total;
