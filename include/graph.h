@@ -81,6 +81,7 @@ public:
   bool is_directed() const { return is_directed_; }
   bool is_bipartite() const { return is_bipartite_; }
   bool is_compressed() const { return is_compressed_; }
+  bool is_compressed_only() const { return (vertices == NULL) && is_compressed_; }
   bool has_reverse_graph() const { return has_reverse; }
   vidType get_max_degree() const { return max_degree; }
   size_t get_compressed_colidx_length() const { return edges_compressed.size(); }
@@ -170,8 +171,9 @@ public:
     return &reverse_index_[start];
   }
 
-  // edge orientation: convert the graph from undirected to directed
-  void orientation(std::string outfile = "");
+  void compute_max_degree();
+  void orientation(std::string outfile = ""); // edge orientation: convert the graph from undirected to directed
+  void degree_histogram(int bin_width = 100, std::string outfile = ""); // compute the degree distribution
   vidType intersect_num(vidType v, vidType u);
   vidType intersect_num(vidType v, vidType u, vlabel_t label);
   vidType intersect_num(VertexSet& vs, vidType u, vlabel_t label);
@@ -200,7 +202,6 @@ public:
   void print_neighbors(vidType v) const;
 
  protected:
-  void compute_max_degree();
   void read_meta_info(std::string prefix, bool bipartite = false);
   bool binary_search(vidType key, eidType begin, eidType end) const;
 };

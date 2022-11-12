@@ -7,6 +7,7 @@ int main(int argc, char *argv[]) {
   //Graph g(argv[1]);
   g.print_meta_data();
   g.orientation();
+  g.compute_max_degree();
   g.write_to_file(argv[2]);
   return 0;
 } 

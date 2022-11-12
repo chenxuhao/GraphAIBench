@@ -310,18 +310,18 @@ __device__ void decode_intervals_cta(CgrReaderGPU &decoder, vidType *adj_out, vi
   __syncthreads();
 }
 
-#define USE_WARP_SCAN 0
-// sequentially decode intervals
-__device__ void decode_intervals_warp(CgrReaderGPU &decoder, vidType *adj_out, vidType *num_neighbors) {
+// sequentially decode intervals and insert vertices into an unordered vertex set; 
+// return the total number of vertices
+__device__ vidType decode_intervals_warp(CgrReaderGPU &decoder, vidType *adj_out) {
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-#if USE_WARP_SCAN
-  __shared__ vidType lens[BLOCK_SIZE][MAX_NUM_ITV_PER_SECTION];
-  __shared__ vidType lefts[BLOCK_SIZE][MAX_NUM_ITV_PER_SECTION];
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
-#endif
   __shared__ eidType offset[WARPS_PER_BLOCK];
+  __shared__ vidType degree[WARPS_PER_BLOCK];
+  __shared__ vidType start_idx[WARPS_PER_BLOCK];
   if (thread_lane == 0) offset[warp_lane] = 0;
+  if (thread_lane == 0) degree[warp_lane] = 0;
+  if (thread_lane == 0) start_idx[warp_lane] = 0;
   __syncwarp();
   auto v = decoder.node;
   auto adj_in = decoder.graph;
@@ -330,47 +330,26 @@ __device__ void decode_intervals_warp(CgrReaderGPU &decoder, vidType *adj_out, v
   auto end = ((segment_cnt+WARP_SIZE-1)/WARP_SIZE) * WARP_SIZE;
   for (vidType i = thread_lane; i < end; i+=WARP_SIZE) {
     CgrReaderGPU cgrr(v, adj_in, interval_offset);
-#if USE_WARP_SCAN
     IntervalSegmentHelperGPU isHelper(v, cgrr);
     vidType num_intervals = 0;
-    vidType total_len = 0;
+    vidType num_items = 0;
     if (i < segment_cnt) {
       isHelper.decode_interval_cnt();
       num_intervals = isHelper.interval_cnt;
       for (vidType j = 0; j < num_intervals; j++) {
-        lefts[threadIdx.x][j] = isHelper.get_interval_left();
-        lens[threadIdx.x][j] = isHelper.get_interval_len();
-        total_len += lens[threadIdx.x][j];
-      }
-    }
-    vidType index = 0;
-    WarpScan(temp_storage[warp_lane]).ExclusiveSum(total_len, index);
-    if (i < segment_cnt) {
-      for (vidType j = 0; j < num_intervals; j++) {
-        for (vidType k = 0; k < lens[threadIdx.x][j]; k++)
-          adj_out[*num_neighbors+index++] = lefts[threadIdx.x][j]+k;
-      }
-    }
-    atomicAdd(num_neighbors, total_len);
-#else
-    if (i < segment_cnt) {
-      IntervalSegmentHelperGPU isHelper(v, cgrr);
-      isHelper.decode_interval_cnt();
-      auto num_intervals = isHelper.interval_cnt;
-      for (vidType j = 0; j < num_intervals; j++) {
         auto left = isHelper.get_interval_left();
         auto len = isHelper.get_interval_len();
-        auto index = atomicAdd(num_neighbors, len);
+        atomicAdd(&start_idx[warp_lane], len);
         for (vidType k = 0; k < len; k++)
-          adj_out[index++] = left+k;
+          adj_out[start_idx[warp_lane]+k] = left+k;
+        num_items += len;
       }
     }
-#endif
+    atomicAdd(&degree[warp_lane], num_items);
     if ((i+1) == segment_cnt) {// last segment
       offset[warp_lane] = cgrr.global_offset;
     }
     __syncwarp();
-
     int not_done = (i < segment_cnt-1) ? 1 : 0;
     unsigned active = __activemask();
     unsigned mask = __ballot_sync(active, not_done);
@@ -382,14 +361,78 @@ __device__ void decode_intervals_warp(CgrReaderGPU &decoder, vidType *adj_out, v
     }
   }
   __syncwarp();
+  return degree[warp_lane];
 }
 
 // sequentially decode intervals
-__device__ void decode_intervals_warp(CgrReaderGPU &decoder, vidType *begins, vidType *ends, vidType *num_itvs) {
+__device__ vidType decode_intervals_warp(CgrReaderGPU &decoder, vidType *adj_out, vidType &total_num_itvs) {
+  int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+  __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
+  __shared__ eidType offset[WARPS_PER_BLOCK];
+  __shared__ vidType degree[WARPS_PER_BLOCK];
+  __shared__ vidType start_idx[WARPS_PER_BLOCK];
+  if (thread_lane == 0) offset[warp_lane] = 0;
+  if (thread_lane == 0) degree[warp_lane] = 0;
+  if (thread_lane == 0) start_idx[warp_lane] = 0;
+  __syncwarp();
+  auto v = decoder.node;
+  auto adj_in = decoder.graph;
+  auto segment_cnt = decoder.decode_segment_cnt();
+  //if (segment_cnt > 0 && thread_lane == 0) printf("vertex %u has %u interval segments: \n", v, segment_cnt);
+  auto interval_offset = decoder.global_offset + thread_lane*INTERVAL_SEGMENT_LEN;
+  auto end = ((segment_cnt+WARP_SIZE-1)/WARP_SIZE) * WARP_SIZE;
+  for (vidType i = thread_lane; i < end; i+=WARP_SIZE) {
+    CgrReaderGPU cgrr(v, adj_in, interval_offset);
+    IntervalSegmentHelperGPU isHelper(v, cgrr);
+    vidType num_intervals = 0;
+    vidType num_items = 0;
+    if (i < segment_cnt) {
+      isHelper.decode_interval_cnt();
+      num_intervals = isHelper.interval_cnt;
+      //printf("\t vertex %u segment %u has %u intervals: \n", v, i, num_intervals);
+    }
+    vidType index = 0, total = 0;
+    WarpScan(temp_storage[warp_lane]).ExclusiveSum(2*num_intervals, index, total);
+    if (i < segment_cnt) {
+      for (vidType j = 0; j < num_intervals; j++) {
+        auto left = isHelper.get_interval_left();
+        auto len = isHelper.get_interval_len();
+        adj_out[start_idx[warp_lane]+index++] = left;
+        adj_out[start_idx[warp_lane]+index++] = len;
+        num_items += len;
+        //printf("\t\t vertex %u interval[%u]: left=%u, len=%u\n", v, j, lefts[threadIdx.x][j], lens[threadIdx.x][j]);
+      }
+    }
+    if (thread_lane == 0) start_idx[warp_lane] += total;
+    atomicAdd(&degree[warp_lane], num_items);
+    if ((i+1) == segment_cnt) {// last segment
+      offset[warp_lane] = cgrr.global_offset;
+    }
+    __syncwarp();
+    int not_done = (i < segment_cnt-1) ? 1 : 0;
+    unsigned active = __activemask();
+    unsigned mask = __ballot_sync(active, not_done);
+    if (mask != FULL_MASK) {
+      decoder.global_offset = offset[warp_lane];
+      break;
+    } else {
+      interval_offset += INTERVAL_SEGMENT_LEN * WARP_SIZE;
+    }
+  }
+  __syncwarp();
+  total_num_itvs = start_idx[warp_lane] / 2;
+  return degree[warp_lane];
+}
+
+// sequentially decode intervals
+__device__ vidType decode_intervals_warp(CgrReaderGPU &decoder, vidType *begins, vidType *ends) {
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   __shared__ eidType offset[WARPS_PER_BLOCK];
+  __shared__ vidType start_idx[WARPS_PER_BLOCK];
   if (thread_lane == 0) offset[warp_lane] = 0;
+  if (thread_lane == 0) start_idx[warp_lane] = 0;
   __syncwarp();
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
 
@@ -406,17 +449,17 @@ __device__ void decode_intervals_warp(CgrReaderGPU &decoder, vidType *begins, vi
       isHelper.decode_interval_cnt();
       num_intervals = isHelper.interval_cnt;
     }
-    vidType index = 0;
-    WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_intervals, index);
+    vidType index = 0, total = 0;
+    WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_intervals, index, total);
     if (i < segment_cnt) {
       for (vidType j = 0; j < num_intervals; j++) {
         auto left = isHelper.get_interval_left();
         auto len = isHelper.get_interval_len();
-        begins[*num_itvs+index+j] = left;
-        ends[*num_itvs+index+j] = left+len;
+        begins[start_idx[warp_lane]+index+j] = left;
+        ends[start_idx[warp_lane]+index+j] = left+len;
       }
     }
-    atomicAdd(num_itvs, num_intervals);
+    if (thread_lane == 0) start_idx[warp_lane] += total;
     if ((i+1) == segment_cnt) // last segment
       offset[warp_lane] = cgrr.global_offset;
     __syncwarp();
@@ -431,6 +474,7 @@ __device__ void decode_intervals_warp(CgrReaderGPU &decoder, vidType *begins, vi
     }
   }
   __syncwarp();
+  return start_idx[warp_lane];
 }
 
 // one thread takes one segment
@@ -455,10 +499,13 @@ __device__ void decode_residuals_cta(CgrReaderGPU &decoder, vidType *adj_out, vi
 }
 
 // one thread takes one segment
-__device__ void decode_residuals_warp(CgrReaderGPU &decoder, vidType *adj_out, vidType *start_idx) {
+__device__ vidType decode_residuals_warp(CgrReaderGPU &decoder, vidType *adj_out) {
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
+   __shared__ vidType degree[WARPS_PER_BLOCK];
+  if (thread_lane == 0) degree[warp_lane] = 0;
+  vidType start_idx = 0;
  
   auto v = decoder.node;
   auto adj_in = decoder.graph;
@@ -468,21 +515,23 @@ __device__ void decode_residuals_warp(CgrReaderGPU &decoder, vidType *adj_out, v
   for (vidType i = thread_lane; i < end; i+=WARP_SIZE) {
     CgrReaderGPU cgrr(v, adj_in, residual_offset);
     ResidualSegmentHelperGPU rsHelper(v, cgrr);
-    vidType num_res = 0, index = 0;
+    vidType num_res = 0, index = 0, sum = 0;
     if (i < segment_cnt) {
       rsHelper.decode_residual_cnt();
       num_res = rsHelper.residual_cnt;
     }
-    //auto index = atomicAdd(num_neighbors, num_res);
-    WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_res, index);
+    WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_res, index, sum);
     for (vidType j = 0; j < num_res; j++) {
       auto residual = rsHelper.get_residual();
-      adj_out[*start_idx+index+j] = residual;
+      adj_out[start_idx+index+j] = residual;
     }
-    if (thread_lane == WARP_SIZE-1) *start_idx += index+num_res;
+    if (thread_lane == 0) degree[warp_lane] += sum;
+    __syncwarp();
+    start_idx += sum;
     __syncwarp();
     residual_offset += RESIDUAL_SEGMENT_LEN * WARP_SIZE;
   }
+  return degree[warp_lane];
 }
 
 __device__ void handle_one_interval_segment(vidType v, vidType *adj_in, volatile eidType &global_offset, 
@@ -519,7 +568,7 @@ __device__ void handle_one_interval_segment(vidType v, vidType *adj_in, volatile
   global_offset = cgrr.global_offset;
 }
 
-__device__ void decode_intervals(CgrReaderGPU &cgrr, SMem *smem, vidType *adj, vidType *out_len) {
+__device__ void decode_intervals(CgrReaderGPU &cgrr, SMem *smem, vidType *adj_out, vidType *out_len) {
   vidType thread_id = threadIdx.x;
   vidType lane_id = thread_id % 32;
   vidType warp_id = thread_id / 32;
@@ -545,7 +594,7 @@ __device__ void decode_intervals(CgrReaderGPU &cgrr, SMem *smem, vidType *adj, v
     __syncthreads();
     vidType v = smem->segment_node[0];
     volatile eidType offset = smem->segment_offset[0] + INTERVAL_SEGMENT_LEN * thread_id;
-    handle_one_interval_segment(v, cgrr.graph, offset, smem, adj, out_len);
+    handle_one_interval_segment(v, cgrr.graph, offset, smem, adj_out, out_len);
     if (thread_id == BLOCK_SIZE - 1) smem->segment_offset[thread_id] = offset;
     __syncthreads();
     if (last_segment != SIZE_NONE) {
@@ -597,7 +646,7 @@ __device__ void decode_intervals(CgrReaderGPU &cgrr, SMem *smem, vidType *adj, v
       cgrr.global_offset += INTERVAL_SEGMENT_LEN;
     }
     __syncthreads();
-    handle_one_interval_segment(smem->segment_node[thread_id], cgrr.graph, smem->segment_offset[thread_id], smem, adj, out_len);
+    handle_one_interval_segment(smem->segment_node[thread_id], cgrr.graph, smem->segment_offset[thread_id], smem, adj_out, out_len);
     cta_progress += BLOCK_SIZE;
     __syncthreads();
     if (last_segment != SIZE_NONE) {

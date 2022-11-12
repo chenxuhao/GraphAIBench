@@ -3,6 +3,14 @@
 #include "platform_atomics.h"
 std::map<OPS,double> timers;
 
+#pragma omp declare reduction(vec_int_plus : std::vector<int> : \
+    std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<int>())) \
+    initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
+
+#pragma omp declare reduction(vec_uint_plus : std::vector<uint32_t> : \
+    std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<uint32_t>())) \
+    initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
+
 template<bool map_vertices, bool map_edges>
 GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool directed, 
              bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
@@ -406,6 +414,7 @@ void GraphT<map_vertices, map_edges>::decode_vertex(vidType v, VertexSet& adj, b
 
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices, map_edges>::decompress() {
+  std::cout << "Decompressing the graph ...\n";
   Timer t;
   t.Start();
   vertices = new eidType[n_vertices+1];
@@ -860,6 +869,27 @@ void GraphT<map_vertices, map_edges>::compute_max_degree() {
   t.Stop();
   std::cout << "maximum degree: " << max_degree << "\n";
   std::cout << "Time computing the maximum degree: " << t.Seconds() << " sec\n";
+}
+
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::degree_histogram(int bin_width, std::string outfile_prefix) {
+  std::cout << "Degree distribution\n";
+  Timer t;
+  t.Start();
+  assert(bin_width > 0 && bin_width < int(max_degree));
+  int num_bins = (max_degree-1)/bin_width + 1;
+  std::vector<int> counts(num_bins, 0);
+  #pragma omp parallel for reduction(vec_int_plus:counts)
+  for (vidType v = 0; v < n_vertices; v++) {
+    auto deg = this->get_degree(v);
+    auto bin_id = deg/bin_width;
+    counts[bin_id] ++;
+  }
+  for (int i = 0; i < std::min(11,num_bins); i++) {
+    auto bin_id = num_bins - 1 - i;
+    std::cout << "Number of vertices in range[" << bin_id*bin_width << "," 
+      << (bin_id+1)*bin_width << "]: " << counts[bin_id] << "\n";
+  }
 }
 
 template<bool map_vertices, bool map_edges>
@@ -1391,9 +1421,6 @@ template<> vidType GraphT<>::difference_set(VertexSet& vs, vidType u, vlabel_t l
   return num;
 }
 
-#pragma omp declare reduction(vec_plus : std::vector<vidType> : \
-    std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<vidType>())) \
-    initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 template<> void GraphT<>::computeLabelsFrequency() {
   labels_frequency_.resize(num_vertex_classes+1);
   std::fill(labels_frequency_.begin(), labels_frequency_.end(), 0);
@@ -1402,7 +1429,7 @@ template<> void GraphT<>::computeLabelsFrequency() {
   for (vidType i = 0; i < size(); ++i) {
     max_label = max_label > vlabels[i] ? max_label : vlabels[i];
   }
-  #pragma omp parallel for reduction(vec_plus:labels_frequency_)
+  #pragma omp parallel for reduction(vec_uint_plus:labels_frequency_)
   for (vidType v = 0; v < size(); ++v) {
     int label = int(this->get_vlabel(v));
     assert(label <= num_vertex_classes);

@@ -1,6 +1,6 @@
 #include "graph.h"
 
-void triangle_count_compressed(Graph &g, uint64_t &total) {
+void triangle_count_compressed(Graph &g, uint64_t &total, vidType num_cached) {
   int num_threads = 1;
   #pragma omp parallel
   {

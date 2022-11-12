@@ -457,6 +457,65 @@ __forceinline__ __device__ T intersect_num_itv_itv(T num_itv_a, T* a_begins, T* 
 }
 
 template <typename T = vidType>
+__forceinline__ __device__ T intersect_num_itv_itv(T num_itv_a, T* a, T num_itv_b, T* b) {
+  int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
+  if (num_itv_a == 0 || num_itv_b == 0) return 0;
+  T count = 0;
+  T *v, v_size;
+  T *u, u_size;
+  if (num_itv_a > num_itv_b) {
+    v = a;
+    v_size = num_itv_a;
+    u = b;
+    u_size = num_itv_b;
+  } else {
+    v = b;
+    v_size = num_itv_b;
+    u = a;
+    u_size = num_itv_a;
+  }
+  for (auto i = thread_lane; i < v_size; i += WARP_SIZE) {
+    auto v_begin = v[i*2];
+    auto v_end = v[i*2+1]+v_begin;
+    assert(v_end > v_begin);
+    for (T j = 0; j < u_size; j++) {
+      auto u_begin = u[j*2];
+      auto u_end = u[j*2+1]+u_begin;
+      assert(u_end > u_begin);
+      if (v_begin >= u_end) continue;
+      if (u_begin >= v_end) break;
+      auto num = min(v_end, u_end) - max(v_begin, u_begin);
+      count += num;
+    }
+  }
+  return count;
+}
+
+template <typename T = vidType>
+__forceinline__ __device__ T intersect_num_itv_res(T num_itv, T* adj, T size_b, T *b) {
+  if (num_itv == 0 || size_b == 0) return 0;
+  int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
+  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+  T count = 0;
+  for (auto i = thread_lane; i < size_b; i += WARP_SIZE) {
+    auto vertex = b[i];
+    auto j = 0;//idx[warp_lane];
+    for (; j < num_itv; j++) {
+      auto begin = adj[j*2];
+      auto end = adj[j*2+1] + begin;
+      if (vertex < end) {
+        if (vertex >= begin) {
+          count++;
+        }
+        break;
+      }
+    }
+    if (vertex > adj[(num_itv-1)*2]+adj[(num_itv-1)*2+1]) break;
+  }
+  return count;
+}
+
+template <typename T = vidType>
 __forceinline__ __device__ T intersect_num_itv_res(T num_itv, T* begins, T* ends, T size_b, T *b) {
   if (num_itv == 0 || size_b == 0) return 0;
   int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp

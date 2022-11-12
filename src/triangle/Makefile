@@ -21,6 +21,10 @@ tc_gpu_base: $(OBJS) gpu_base.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
+tc_gpu_hindex: $(OBJS) gpu_hindex.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_hindex.o -o $@ $(LIBS)
+	mv $@ $(BIN)
+
 tc_multigpu_base: $(OBJS) multigpu_base.o scheduler.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_base.o scheduler.o -o $@ $(LIBS)
 	mv $@ $(BIN)

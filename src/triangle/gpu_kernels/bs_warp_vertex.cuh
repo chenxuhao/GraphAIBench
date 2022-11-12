@@ -1,5 +1,5 @@
 // vertex paralle: each warp takes one vertex
-__global__ void warp_vertex(vidType begin, vidType end, GraphGPU g, AccType *total) {
+__global__ void triangle_bs_warp_vertex(vidType begin, vidType end, GraphGPU g, AccType *total) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   int thread_id   = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
   int warp_id     = thread_id   / WARP_SIZE;               // global warp index

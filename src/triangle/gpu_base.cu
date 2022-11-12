@@ -5,15 +5,22 @@
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
 
+#define USE_ZERO_COPY 0
+
 #ifdef VERTEX_PAR
-const std::string name = "gpu_vp";
+#ifdef CTA_CENTRIC
+const std::string name = "gpu_cta_vp";
+#include "bs_cta_vertex.cuh"
+#else
+const std::string name = "gpu_warp_vp";
 #include "bs_warp_vertex.cuh"
+#endif
 #else
 #ifdef CTA_CENTRIC
-const std::string name = "gpu_cta";
+const std::string name = "gpu_cta_ep";
 #include "bs_cta_edge.cuh"
 #else
-const std::string name = "gpu_base";
+const std::string name = "gpu_warp_ep";
 #include "bs_warp_edge.cuh"
 #endif
 #endif
@@ -21,34 +28,34 @@ const std::string name = "gpu_base";
 void TCSolver(Graph &g, uint64_t &total, int, int) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
-  auto ne = g.num_edges();
-  auto md = g.get_max_degree();
-  size_t mem_graph = size_t(nv+1)*sizeof(eidType) + size_t(2)*size_t(ne)*sizeof(vidType);
-  std::cout << "GPU_total_mem = " << memsize << " graph_mem = " << mem_graph << "\n";
 
   GraphGPU gg(g);
   size_t nthreads = BLOCK_SIZE;
-  size_t nblocks = (ne-1)/WARPS_PER_BLOCK+1;
-  if (nblocks > 65536) nblocks = 65536;
-  cudaDeviceProp deviceProp;
-  CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-
 #ifdef VERTEX_PAR
-  std::cout << "Vertex parallel\n";
-  auto num = (nv-1)/WARPS_PER_BLOCK+1;
-  if (num < nblocks) nblocks = num;
-  int max_blocks_per_SM = maximum_residency(warp_vertex, nthreads, 0);
+  size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
 #else
-  auto nnz = gg.init_edgelist(g);
-  std::cout << "Edge parallel: edgelist size = " << nnz << "\n";
+  auto nnz = gg.init_edgelist(g, 0, 0, USE_ZERO_COPY); // streaming edgelist using zero-copy
+  size_t nblocks = (nnz-1)/WARPS_PER_BLOCK+1;
+#endif
+  if (nblocks > 65536) nblocks = 65536;
+
+  std::cout << "Using BinarySearch ";
+#ifdef VERTEX_PAR
+  std::cout << "Vertex-parallel ";
+  std::cout << "Warp-centric\n";
+  refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex);
+#else
+  std::cout << "Edge-parallel ";
+  if (nblocks > 65536) nblocks = 65536;
 #ifdef CTA_CENTRIC
-  refine_kernel_config(nthreads, nblocks, cta_edge);
+  std::cout << "CTA-centric\n";
+  refine_kernel_config(nthreads, nblocks, triangle_bs_cta_edge);
 #else
-  refine_kernel_config(nthreads, nblocks, warp_edge);
+  std::cout << "Warp-centric\n";
+  refine_kernel_config(nthreads, nblocks, triangle_bs_warp_edge);
 #endif
 #endif
   std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
- 
   AccType h_total = 0, *d_total;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
@@ -58,12 +65,16 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
   Timer t;
   t.Start();
 #ifdef VERTEX_PAR
-  warp_vertex<<<nblocks, nthreads>>>(0, nv, gg, d_total);
+#ifdef CTA_CENTRIC
+  triangle_bs_cta_vertex<<<nblocks, nthreads>>>(0, g.V(), gg, d_total);
+#else
+  triangle_bs_warp_vertex<<<nblocks, nthreads>>>(0, g.V(), gg, d_total);
+#endif
 #else
 #ifdef CTA_CENTRIC
-  cta_edge<<<nblocks, nthreads>>>(ne, gg, d_total);
+  triangle_bs_cta_edge<<<nblocks, nthreads>>>(gg, d_total);
 #else
-  warp_edge<<<nblocks, nthreads>>>(ne, gg, d_total);
+  triangle_bs_warp_edge<<<nblocks, nthreads>>>(gg, d_total);
 #endif
 #endif
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
@@ -71,7 +82,7 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
   cudaProfilerStop();
 
   std::cout << "runtime [" << name << "] = " << t.Seconds() << " sec\n";
-  std::cout << "throughput = " << double(ne) / t.Seconds() / 1e9 << " billion Traversed Edges Per Second (TEPS)\n";
+  std::cout << "throughput = " << double(g.E()) / t.Seconds() / 1e9 << " billion Traversed Edges Per Second (TEPS)\n";
   CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
   total = h_total;
   CUDA_SAFE_CALL(cudaFree(d_total));

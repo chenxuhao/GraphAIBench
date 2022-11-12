@@ -1,9 +1,9 @@
 // CTA-centric edge parallel: each thread block takes one edge
-__global__ void cta_edge(eidType ne, GraphGPU g, AccType *total) {
+__global__ void triangle_bs_cta_edge(GraphGPU g, AccType *total) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   AccType count = 0;
   __shared__ vidType v, u;
-  for (eidType eid = blockIdx.x; eid < ne; eid += gridDim.x) {
+  for (eidType eid = blockIdx.x; eid < g.E(); eid += gridDim.x) {
     if (threadIdx.x == 0) {
       v = g.get_src(eid);
       u = g.get_dst(eid);

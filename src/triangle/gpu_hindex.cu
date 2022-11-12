@@ -8,7 +8,7 @@
 #include "cuda_launch_config.hpp"
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
-#include "hindex.cuh"
+#include "hindex_warp_edge.cuh"
 
 void TCSolver(Graph &g, uint64_t &total, int, int) {
   size_t memsize = print_device_info(0);
