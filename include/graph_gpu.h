@@ -142,13 +142,17 @@ public:
     std::cout << "Done\n";
   }
 #ifdef USE_NVSHMEM
-  void allocate_nvshmem(vidType nv, eidType ne, vidType max_degree, bool has_vlabel = false, 
-                        bool has_elabel = false, bool has_reverse = false) {
+  void allocate_nvshmem(vidType nv, eidType ne, vidType max_degree, int id,
+                        bool has_vlabel = false, 
+                        bool has_elabel = false, 
+                        bool has_reverse = false) {
     //std::cout << "Allocating NVSHMEM symmetric memory for the graph\n";
-    //std::cout << "Allocating NVSHMEM memory for rowptr\n";
+    std::cout << "Allocating NVSHMEM memory for rowptr: " << nv+1 << " \n";
     d_rowptr = (eidType*)nvshmem_malloc((nv+1) * sizeof(eidType));
-    //std::cout << "Allocating NVSHMEM memory for colidx\n";
+    std::cout << "Allocated rowptr pointer " << d_rowptr << "\n";
+    std::cout << "Allocating NVSHMEM memory for colidx: " << ne << "\n";
     d_colidx = (vidType*)nvshmem_malloc(ne * sizeof(vidType));
+    std::cout << "Allocated colidx pointer " << d_colidx << "\n";
     //std::cout << "Allocating NVSHMEM memory for buffer\n";
     //d_adj_buffer = (vidType*)nvshmem_malloc(max_degree * sizeof(vidType));
     //std::cout << "Zerolizing NVSHMEM memory buffer\n";
@@ -235,11 +239,17 @@ public:
   void init_nvshmem(const Graph &hg, int id) {
     auto nv = hg.V();
     auto ne = hg.E();
-    //std::cout << "Copying subgraph[" << id << "]: nv = " << nv << " ne = " << ne << "\n";
+    std::cout << "Copying subgraph[" << id << "]: nv = " << nv << " ne = " << ne << "\n";
+    assert(hg.rowptr());
+    assert(hg.colidx());
     Timer t;
     t.Start();
-    CUDA_SAFE_CALL(cudaSetDevice(id));
+    //CUDA_SAFE_CALL(cudaSetDevice(id));
+    std::cout << "Copying subgraph[" << id << "]'s rowptr\n";
+    std::cout << "d_rowptr pointer " << d_rowptr << "\n";
     CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, hg.rowptr(), (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    std::cout << "Copying subgraph[" << id << "]'s colidx\n";
+    std::cout << "d_colidx pointer " << d_colidx << "\n";
     CUDA_SAFE_CALL(cudaMemcpy(d_colidx, hg.colidx(), ne * sizeof(vidType), cudaMemcpyHostToDevice));
     t.Stop();
     std::cout << "Time on copying the subgraph to GPU_" << id << ": " << t.Seconds() << " sec\n";

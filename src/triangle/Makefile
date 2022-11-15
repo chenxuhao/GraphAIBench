@@ -34,7 +34,7 @@ tc_multigpu_induced: $(OBJS) multigpu_induced.o graph_partition.o
 	mv $@ $(BIN)
 
 tc_multigpu_nvshmem: $(OBJS) multigpu_nvshmem.o graph_partition.o
-	$(NVCC) $(CUDA_ARCH) $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(LIBS) $(MPI_LIBS)
+	$(NVCC) $(CUDA_ARCH) -O3 -w -DUSE_NVSHMEM -DUSE_MPI $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(LIBS) $(MPI_LIBS)
 	mv $@ $(BIN)
 
 tc_dist_cpu: $(OBJS) dist_cpu.o

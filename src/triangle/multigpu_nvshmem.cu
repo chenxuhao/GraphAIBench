@@ -1,90 +1,53 @@
 // Copyright (c) 2020 MIT
 // Author: Xuhao Chen
-#include <cub/cub.cuh>
+#include "dist.h"
+#include "utils.h"
 #include "graph_gpu.h"
 #include "graph_partition.h"
 #include "operations.cuh"
 #include "cuda_launch_config.hpp"
-#include <mpi.h>
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
 #include "bs_warp_vertex_nvshmem.cuh"
 
-#define USE_MPI
-
-#define MPI_CALL(call)                                                                \
-    {                                                                                 \
-        int mpi_status = call;                                                        \
-        if (MPI_SUCCESS != mpi_status) {                                              \
-            char mpi_error_string[MPI_MAX_ERROR_STRING];                              \
-            int mpi_error_string_length = 0;                                          \
-            MPI_Error_string(mpi_status, mpi_error_string, &mpi_error_string_length); \
-            if (NULL != mpi_error_string)                                             \
-                fprintf(stderr,                                                       \
-                        "ERROR: MPI call \"%s\" in line %d of file %s failed "        \
-                        "with %s "                                                    \
-                        "(%d).\n",                                                    \
-                        #call, __LINE__, __FILE__, mpi_error_string, mpi_status);     \
-            else                                                                      \
-                fprintf(stderr,                                                       \
-                        "ERROR: MPI call \"%s\" in line %d of file %s failed "        \
-                        "with %d.\n",                                                 \
-                        #call, __LINE__, __FILE__, mpi_status);                       \
-            exit( mpi_status );                                                       \
-        }                                                                             \
-    }
-
-long long unsigned parse_nvshmem_symmetric_size(char *value) {
-  long long unsigned units, size;
-  assert(value != NULL);
-  if (strchr(value, 'G') != NULL) {
-    units=1e9;
-  } else if (strchr(value, 'M') != NULL) {
-    units=1e6;
-  } else if (strchr(value, 'K') != NULL) {
-    units=1e3;
-  } else {
-    units=1;
-  }
-  assert(atof(value) >= 0);
-  size = (long long unsigned) atof(value) * units;
-  return size;
-}
-
-void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
+void TCSolver(Graph &g, uint64_t &total, int n_partitions, int chunk_size) {
+#ifdef USE_MPI
+  int rank = 0, size = 1;
+  initialize_mpi(rank, size);
+  if (rank == 0) print_device_info(0);
+#endif
+  auto nv = g.V();
+  auto md = g.get_max_degree();
+  auto infile = g.get_inputfile_prefix()+"-part"+std::to_string(rank);
   int ndevices = 0;
   CUDA_SAFE_CALL(cudaGetDeviceCount(&ndevices));
-  //size_t memsize = print_device_info(0);
-  auto nv = g.num_vertices();
-  auto ne = g.num_edges();
-  auto md = g.get_max_degree();
-  size_t mem_graph = size_t(nv+1)*sizeof(eidType) + size_t(2)*size_t(ne)*sizeof(vidType);
-  //std::cout << "GPU_total_mem = " << memsize << " graph_mem = " << mem_graph << "\n";
-
-  if (ndevices < n_gpus) {
+  if (ndevices < n_partitions) {
     std::cout << "Only " << ndevices << " GPUs available\n";
-  } else ndevices = n_gpus;
+    exit(1);
+  } else ndevices = n_partitions;
+  int subgraph_size = (nv-1) / n_partitions + 1;
+  if (rank == 0) std::cout << "subgraph size: " << subgraph_size << "\n";
 
+  eidType max_subg_ne = 0;
+#ifdef USE_MPI
+  g.deallocate();
+  Graph subg(infile);
+  eidType subg_ne = subg.E();
+  MPI_Allreduce(&subg_ne, &max_subg_ne, 1, MPI_INT64_T, MPI_MAX, MPI_COMM_WORLD);
+  if (rank == 0) std::cout << "Maximum edge count in the subgraphs: " << max_subg_ne << "\n";
+#else
   PartitionedGraph pg(&g, ndevices);
   pg.edgecut_partition1D();
   auto num_subgraphs = pg.get_num_subgraphs();
-  int subgraph_size = (nv-1) / num_subgraphs + 1;
-
-  eidType max_subg_ne = 0;
+  assert(num_subgraphs == n_partitions);
   for (int i = 0; i < ndevices; i++) {
     auto subg_ne = pg.get_subgraph(i)->E();
     if (subg_ne > max_subg_ne) 
       max_subg_ne = subg_ne;
   }
+#endif
 
 #ifdef USE_MPI
-  int rank = 0, size = 1;
-  //MPI_CALL(MPI_Init(&argc, &argv));
-  MPI_Init(NULL, NULL);
-  MPI_CALL(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
-  MPI_CALL(MPI_Comm_size(MPI_COMM_WORLD, &size));
-  //std::cout << "rank = " << rank << " size = " << size << "\n";
-
   int local_rank = -1;
   int local_size = 1;
   {
@@ -111,13 +74,9 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   mpi_comm = MPI_COMM_WORLD;
   attr.mpi_comm = &mpi_comm;
   long long unsigned required_symmetric_heap_size = (nv+1) * sizeof(eidType) + max_subg_ne * sizeof(vidType);
-  if (rank == 0) {
-    g.print_meta_data();
-    std::cout << "max_subg_ne = " << max_subg_ne << "\n";
-  }
   char * value = getenv("NVSHMEM_SYMMETRIC_SIZE");
   if (value) {
-    long long unsigned int size_env = parse_nvshmem_symmetric_size(value);
+    long long unsigned int size_env = utils::parse_nvshmem_symmetric_size(value);
     if (size_env < required_symmetric_heap_size) {
       fprintf(stderr, "ERROR: Required > Current NVSHMEM_SYMMETRIC_SIZE=%s\n", value);
       MPI_CALL(MPI_Finalize());
@@ -141,16 +100,22 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
 
   int npes = nvshmem_n_pes();
   int mype = nvshmem_my_pe();
+#ifdef USE_MPI
+  assert(mype == rank);
+#else
+  auto &subg = *pg.get_subgraph(mype);
+#endif
   nvshmem_barrier_all();
   //std::cout << "npes = " << npes << ", mype = " << mype << "\n";
 
   Timer t;
   t.Start();
   GraphGPU d_graph(nv, max_subg_ne, 0, 0, 0, 0, ndevices, 1);
-  d_graph.allocate_nvshmem(nv, max_subg_ne, md);
-  d_graph.init_nvshmem(*pg.get_subgraph(mype), mype);
+  d_graph.allocate_nvshmem(nv, max_subg_ne, md, mype);
+  std::cout << "PE[" << mype << "] subgraph[" << mype << "] has " << subg.V() << " vertices and " << subg.E() << " edges\n";
+  d_graph.init_nvshmem(subg, mype);
   t.Stop();
-  std::cout << "Total time allocating nvshmem and copying subgraphs to GPUs: " << t.Seconds() <<  " sec\n";
+  std::cout << "PE[" << mype << "] Total time allocating nvshmem and copying subgraphs to GPUs: " << t.Seconds() <<  " sec\n";
  
   size_t nthreads = BLOCK_SIZE;
   size_t nblocks = 65536;
@@ -160,12 +125,12 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   //std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   nblocks = std::min(6*max_blocks, nblocks); 
-  //std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
+  std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   size_t nwarps = WARPS_PER_BLOCK;
   size_t per_block_buffer_size = nwarps * size_t(md) * sizeof(vidType);
   size_t buffer_size = nblocks * per_block_buffer_size;
-  //std::cout << "frontier list size: " << float(list_size)/float(1024*1024) << " MB\n";
+  std::cout << "frontier list size: " << float(buffer_size)/float(1024*1024) << " MB\n";
   vidType *buffers; // each warp has (k-3) vertex sets; each set has size of max_degree
   CUDA_SAFE_CALL(cudaMalloc((void **)&buffers, buffer_size));
   nvshmem_barrier_all();
@@ -178,6 +143,7 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   vidType begin = mype * subgraph_size;
   vidType end = (mype+1) * subgraph_size;
   if (end > nv) end = nv;
+  std::cout << "PE[" << mype << "] Start kernel: begin " << begin << " end " << end << " \n";
   warp_vertex_nvshmem<<<nblocks, nthreads>>>(begin, end, d_graph, buffers, mype, ndevices, md, d_count);
   CUDA_SAFE_CALL(cudaMemcpy(&h_count, d_count, sizeof(AccType), cudaMemcpyDeviceToHost));
   t.Stop();

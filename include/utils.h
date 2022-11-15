@@ -7,6 +7,23 @@ bool search(const std::vector<T> &vlist, T key){
   return std::find(vlist.begin(), vlist.end(), key) != vlist.end();
 }
 
+inline long long unsigned parse_nvshmem_symmetric_size(char *value) {
+  long long unsigned units, size;
+  assert(value != NULL);
+  if (strchr(value, 'G') != NULL) {
+    units=1e9;
+  } else if (strchr(value, 'M') != NULL) {
+    units=1e6;
+  } else if (strchr(value, 'K') != NULL) {
+    units=1e3;
+  } else {
+    units=1;
+  }
+  assert(atof(value) >= 0);
+  size = (long long unsigned) atof(value) * units;
+  return size;
+}
+
 inline void split(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters = " ") {
   std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
   std::string::size_type pos     = str.find_first_of(delimiters, lastPos);

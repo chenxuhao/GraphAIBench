@@ -21,11 +21,12 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
     edges(NULL), vertices(NULL), vlabels(NULL), elabels(NULL), 
     features(NULL), src_list(NULL), dst_list(NULL) {
   // parse file name
+  inputfile_prefix = prefix;
   size_t i = prefix.rfind('/', prefix.length());
   if (i != string::npos) inputfile_path = prefix.substr(0, i);
   i = inputfile_path.rfind('/', inputfile_path.length());
   if (i != string::npos) name_ = inputfile_path.substr(i+1);
-  std::cout << "input file path: " << inputfile_path << ", graph name: " << name_ << "\n";
+  std::cout << "input file prefix: " << inputfile_prefix << ", graph name: " << name_ << "\n";
   VertexSet::release_buffers();
 
   // read meta information
@@ -140,15 +141,41 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
 
 template<bool map_vertices, bool map_edges>
 GraphT<map_vertices, map_edges>::~GraphT() {
-  if (dst_list != NULL && dst_list != edges) delete [] dst_list;
-  if constexpr (map_edges) munmap(edges, n_edges*sizeof(vidType));
-  else custom_free(edges, n_edges);
-  if constexpr (map_vertices) munmap(vertices, (n_vertices+1)*sizeof(eidType));
-  else custom_free(vertices, n_vertices+1);
-  if (vlabels != NULL) delete [] vlabels;
-  if (elabels != NULL) delete [] elabels;
-  if (features != NULL) delete [] features;
-  if (src_list != NULL) delete [] src_list;
+  deallocate();
+}
+ 
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::deallocate() {
+  if (dst_list != NULL && dst_list != edges) {
+    delete [] dst_list;
+    dst_list = NULL;
+  }
+  if (src_list != NULL) {
+    delete [] src_list;
+    src_list = NULL;
+  }
+  if (edges != NULL) {
+    if constexpr (map_edges) munmap(edges, n_edges*sizeof(vidType));
+    else custom_free(edges, n_edges);
+    edges = NULL;
+  }
+  if (vertices != NULL) {
+    if constexpr (map_vertices) munmap(vertices, (n_vertices+1)*sizeof(eidType));
+    else custom_free(vertices, n_vertices+1);
+    vertices = NULL;
+  }
+  if (vlabels != NULL) {
+    delete [] vlabels;
+    vlabels = NULL;
+  }
+  if (elabels != NULL) {
+    delete [] elabels;
+    elabels = NULL;
+  }
+  if (features != NULL) {
+    delete [] features;
+    features = NULL;
+  }
 }
 
 template<bool map_vertices, bool map_edges>

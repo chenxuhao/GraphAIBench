@@ -29,6 +29,7 @@ public:
   PartitionedGraph() : num_vertex_chunks(0), num_2D_partitions(0) {}
   PartitionedGraph(Graph *graph, int nc) : g(graph), num_vertex_chunks(nc) { assert(nc>1); }
   PartitionedGraph(Graph *graph, int nc, std::vector<int> cluster_ids);
+  PartitionedGraph(int nc) : num_vertex_chunks(nc) {}
 
   Graph* get_subgraph(int i) { return subgraphs[i]; }
   int get_num_subgraphs() { return num_subgraphs; }
@@ -55,5 +56,8 @@ public:
   void fetch_partitions(std::string path, std::vector<int> clusters, Graph *& subg);
 
   void print_subgraphs();
+  void write_to_file(std::string outfile);
+  void read_from_file(std::string infile);
+  void read_from_file(std::string infile, int sg_id);
 };
 

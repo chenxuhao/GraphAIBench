@@ -8,7 +8,8 @@ template <bool map_vertices=false, bool map_edges=false>
 class GraphT {
 protected:
   std::string name_;            // name of the graph
-  std::string inputfile_path;   // file path of the graph
+  std::string inputfile_path;   // input file path of the graph
+  std::string inputfile_prefix; // input file prefix of the graph
   bool is_directed_;            // is it a directed graph?
   bool is_bipartite_;           // is it a bipartite graph?
   bool is_compressed_;          // is it a compressed graph?
@@ -60,6 +61,7 @@ public:
   GraphT(const GraphT &)=delete;
   GraphT& operator=(const GraphT &)=delete;
 
+  void deallocate();
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix);
   void decompress();
@@ -78,6 +80,7 @@ public:
   eidType num_edges() const { return n_edges; }
   std::string get_name() const { return name_; }
   std::string get_inputfile_path() const { return inputfile_path; }
+  std::string get_inputfile_prefix() const { return inputfile_prefix; }
   bool is_directed() const { return is_directed_; }
   bool is_bipartite() const { return is_bipartite_; }
   bool is_compressed() const { return is_compressed_; }

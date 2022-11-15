@@ -11,9 +11,9 @@ int main(int argc, char *argv[]) {
   std::cout << "Test graph partitioning.\n";
   int n_devices = 2;
   if (argc > 2) n_devices = atoi(argv[2]);
-  Graph g(argv[1], 1);
+
+  Graph g(argv[1]);
   g.print_meta_data();
-  auto nv = g.V();
 
   // partition the graph
   PartitionedGraph pg(&g, n_devices);
@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   pg.edgecut_partition1D();
 #endif
   //pg.print_subgraphs();
-
+/*
   Timer t;
   t.Start();
   uint64_t counter = 0;
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < pg.get_num_subgraphs(); i++) {
     auto sg = pg.get_subgraph(i);
     auto num_subgraphs = pg.get_num_subgraphs();
-    int subgraph_size = (nv-1) / num_subgraphs + 1;
+    int subgraph_size = (g.V()-1) / num_subgraphs + 1;
     vidType begin_vid = i * subgraph_size;
     vidType end_vid = (i+1) * subgraph_size;
     auto offset = sg->edge_begin(i * subgraph_size);
@@ -77,6 +77,8 @@ int main(int argc, char *argv[]) {
   t.Stop();
   std::cout << "total_num_triangles = " << counter << "\n";
   std::cout << "runtime [tc_omp_base] = " << t.Seconds() << " sec\n";
+*/
+  if (argc > 3) pg.write_to_file(argv[3]);
   return 0;
 }
 

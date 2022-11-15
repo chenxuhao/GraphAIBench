@@ -53,14 +53,15 @@ LIBS += -L$(PAPI_HOME)/lib -lpapi
 endif
 
 ifeq ($(USE_TBB), 1)
-LIBS += -L/h2/xchen/work/gardenia_code/tbb2020/lib/intel64/gcc4.8/ -ltbb
+LIBS += -L$(TBB_HOME)/lib/intel64/gcc4.8/ -ltbb
 endif
 
 VPATH += ../common
 OBJS=main.o VertexSet.o graph.o
 
 ifneq ($(NVSHMEM),)
-NVFLAGS += -DUSE_NVSHMEM -dc
+CXXFLAGS += -DUSE_MPI
+NVFLAGS += -DUSE_NVSHMEM -DUSE_MPI -dc
 endif
 
 # CUDA vertex parallel

@@ -15,10 +15,29 @@ void PartitionedGraph::print_subgraphs() {
   }
 }
 
+void PartitionedGraph::write_to_file(std::string outfile) {
+  for (int i = 0; i < num_subgraphs; ++i) {
+    std::cout << "Writing subgraph[" << i << "]\n";
+    subgraphs[i]->write_to_file(outfile+"-part"+std::to_string(i));
+  }
+}
+
+void PartitionedGraph::read_from_file(std::string infile) {
+  for (int i = 0; i < num_subgraphs; ++i) {
+    std::cout << "Reading subgraph[" << i << "]\n";
+    subgraphs[i] = new Graph(infile+"-part"+std::to_string(i));
+  }
+}
+
+void PartitionedGraph::read_from_file(std::string infile, int sg_id) {
+  std::cout << "Reading subgraph[" << sg_id << "]\n";
+  subgraphs[sg_id] = new Graph(infile+"-part"+std::to_string(sg_id));
+}
+
 // naive 1D partitioning, i.e., edge-cut
 void PartitionedGraph::edgecut_partition1D() {
   num_subgraphs = num_vertex_chunks;
-  //std::cout << "partitioning into " << num_subgraphs<< " subgraph\n";
+  std::cout << "Naive 1D partitioning (edge-cut) into " << num_subgraphs<< " subgraph\n";
   auto nv = g->V();
   int subgraph_size = (nv-1) / num_subgraphs + 1;
   subgraphs.resize(num_subgraphs);
@@ -28,6 +47,7 @@ void PartitionedGraph::edgecut_partition1D() {
   //std::vector<eidType> ne_of_subgraphs(num_subgraphs, 0); // number of edges in subgraphs
 
   for (int sg_id = 0; sg_id < num_subgraphs; sg_id++) {
+    std::cout << "Generating subgraph[" << sg_id << "]\n";
     vidType begin_vid = sg_id * subgraph_size;
     vidType end_vid = (sg_id+1) * subgraph_size - 1;
     if (end_vid > nv-1) end_vid = nv-1;
@@ -41,6 +61,8 @@ void PartitionedGraph::edgecut_partition1D() {
     subgraphs[sg_id]->allocateFrom(nv, ne_subg);
     std::copy(g->rowptr(), g->rowptr()+nv+1, subgraphs[sg_id]->rowptr());
     std::copy(g->colidx()+e_begin, g->colidx()+e_end, subgraphs[sg_id]->colidx());
+    subgraphs[sg_id]->compute_max_degree();
+    subgraphs[sg_id]->print_meta_data();
   }
 }
 
