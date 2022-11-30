@@ -1,4 +1,5 @@
 #include <mpi.h>
+#include <stdio.h>
 
 #define MPI_CALL(call)                                                                \
     {                                                                                 \

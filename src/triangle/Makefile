@@ -3,6 +3,9 @@ include ../common.mk
 INCLUDES+=-I./gpu_kernels -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
 all: tc_omp_base tc_gpu_base tc_multigpu_base
 
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
+
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
 
