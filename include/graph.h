@@ -63,7 +63,8 @@ public:
 
   void deallocate();
   void print_compressed_colidx();
-  void load_compressed_graph(std::string prefix);
+  void load_compressed_graph(std::string prefix, bool zeta_coding = true);
+  void load_row_pointers(std::string prefix);
   void decompress();
   void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex(vidType v, vidType* ptr);

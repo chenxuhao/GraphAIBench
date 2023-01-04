@@ -4,3 +4,6 @@
 [submodule "external/PAM"]
 	path = external/PAM
 	url = https://github.com/ldhulipala/PAM
+[submodule "SIMDCAI"]
+	path = external/SIMDCAI
+	url = https://github.com/lemire/SIMDCompressionAndIntersection.git

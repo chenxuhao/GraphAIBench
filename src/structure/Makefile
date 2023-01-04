@@ -1,6 +1,7 @@
 include ../common.mk
 OBJS = graph.o VertexSet.o
-INCLUDES += -I./gpu_kernels
+SIMDCAI = ../../external/SIMDCAI
+INCLUDES += -I./gpu_kernels -I$(SIMDCAI)/include
 all: compressor tc_omp_compressed tc_gpu_compressed verify_compression
 
 %.o: %.cc
@@ -13,6 +14,10 @@ compressor: test_cgr_compressor.o cgr_compressor.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) test_cgr_compressor.o cgr_compressor.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
+vbyte_compressor: vbyte_compressor.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -L$(SIMDCAI) vbyte_compressor.o $(OBJS) -o $@ -lgomp -lSIMDCompressionAndIntersection
+	mv $@ $(BIN)
+
 bfs_gcgt: bfs_main.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) bfs_main.o -o $@ $(LIBS)
 	mv $@ $(BIN)
@@ -23,6 +28,10 @@ tc_omp_compressed: tc_omp_compressed.o tc_main.o $(OBJS)
 
 tc_gpu_compressed: tc_gpu_compressed.o tc_main.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_gpu_compressed.o tc_main.o $(OBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
+tc_omp_vbyte: tc_omp_vbyte.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -L$(SIMDCAI) tc_omp_vbyte.o $(OBJS) -o $@ -lgomp -lSIMDCompressionAndIntersection
 	mv $@ $(BIN)
 
 verify_compression: verify_compression.o $(OBJS)

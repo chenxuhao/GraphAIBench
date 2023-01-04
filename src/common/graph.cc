@@ -31,15 +31,10 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
 
   // read meta information
   read_meta_info(prefix, bipartite);
+
   // read row pointers
-  if constexpr (map_vertices) {
-    std::cout << "mmap vertices\n";
-    map_file(prefix + ".vertex.bin", vertices, n_vertices+1);
-  } else {
-    std::cout << "In-memory vertices\n";
-    read_file(prefix + ".vertex.bin", vertices, n_vertices+1);
-    //if (n_vertices > 1500000000) std::cout << "Update: vertex loaded\n";
-  }
+  load_row_pointers(prefix);
+
   // read column indices
   if constexpr (map_edges) {
     std::cout << "mmap edges\n";
@@ -200,7 +195,19 @@ void GraphT<map_vertices, map_edges>::read_meta_info(std::string prefix, bool bi
   std::cout << "Reading graph: |V| " << nv << " |E| " << n_edges << "\n";
 }
 
-template<> void GraphT<>::load_compressed_graph(std::string prefix) {
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::load_row_pointers(std::string prefix) {
+  if constexpr (map_vertices) {
+    std::cout << "mmap vertices\n";
+    map_file(prefix + ".vertex.bin", vertices, n_vertices+1);
+  } else {
+    std::cout << "In-memory vertices\n";
+    read_file(prefix + ".vertex.bin", vertices, n_vertices+1);
+    //if (n_vertices > 1500000000) std::cout << "Update: vertex loaded\n";
+  }
+}
+
+template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_coding) {
   // read meta information
   read_meta_info(prefix);
   assert(max_degree > 0 && max_degree < n_vertices);
@@ -224,6 +231,14 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix) {
   std::streamsize num_bytes = ifs.tellg();
   ifs.seekg(0, std::ios::beg);
   edges_compressed.clear();
+  is_compressed_ = true;
+
+  if (!zeta_coding) {
+    edges_compressed.resize((num_bytes-1)/vid_size+1);
+    ifs.read((char*)edges_compressed.data(), num_bytes);
+    ifs.close();
+    return;
+  }
   auto res_bytes = num_bytes % vid_size;
 #if 0
   std::vector<uint8_t> buffer(num_bytes);
@@ -282,8 +297,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix) {
   */
 #endif
   ifs.close();
-  std::cout << "Edgelists file loaded!\n";
-  is_compressed_ = true;
+  //std::cout << "Edgelists file loaded!\n";
 }
 
 template<> void GraphT<>::print_compressed_colidx() {
