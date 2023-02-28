@@ -2,12 +2,6 @@ include ../common.mk
 #OBJS += verifier.o
 all: $(OBJS) sample_omp_base
 
-%.o: %.cc
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
-
-%.o: %.cu
-	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
-
 sample_gpu_base: gpu_base.o $(OBJS)
 	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
 	mv $@ $(BIN)

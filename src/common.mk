@@ -1,5 +1,4 @@
 DEBUG ?= 0
-USE_DRAMSIM3 ?= 1
 BIN = ../../bin/
 CC := gcc
 CXX := g++
@@ -9,6 +8,9 @@ MPICC := mpicc
 MPICXX := mpicxx
 NVCC := nvcc
 #NVCC := $(CUDA_HOME)/bin/nvcc
+CLANG := $(CILK_HOME)/bin/clang
+CLANGXX := $(CILK_HOME)/bin/clang++
+
 GENCODE_SM30 := -gencode arch=compute_30,code=sm_30
 GENCODE_SM35 := -gencode arch=compute_35,code=sm_35
 GENCODE_SM37 := -gencode arch=compute_37,code=sm_37
@@ -18,7 +20,8 @@ GENCODE_SM60 := -gencode arch=compute_60,code=sm_60
 GENCODE_SM70 := -gencode arch=compute_70,code=sm_70
 GENCODE_SM75 := -gencode arch=compute_75,code=sm_75
 GENCODE_SM80 := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
-CUDA_ARCH := $(GENCODE_SM70)
+GENCODE_SM86 := -gencode arch=compute_86,code=sm_86
+CUDA_ARCH := $(GENCODE_SM86)
 CXXFLAGS  := -Wall -fopenmp -std=c++17 -march=native
 ICPCFLAGS := -O3 -Wall -qopenmp
 NVFLAGS := $(CUDA_ARCH)
@@ -27,6 +30,7 @@ NVFLAGS += -DUSE_GPU
 NVLDFLAGS = -L$(CUDA_HOME)/lib64 -L$(CUDA_HOME)/lib64/stubs -lcuda -lcudart
 MPI_LIBS = -L$(MPI_HOME)/lib -lmpi
 NVSHMEM_LIBS = -L$(NVSHMEM_HOME)/lib -lnvshmem -lnvToolsExt -lnvidia-ml -ldl -lrt
+CILKFLAGS=-O3 -fopenmp=libiomp5 -fopencilk
 
 ifeq ($(VTUNE), 1)
 	CXXFLAGS += -g
@@ -93,9 +97,9 @@ endif
 
 # GPU vertex/edge parallel 
 ifeq ($(VERTEX_PAR),)
-NVFLAGS += -DEDGE_PAR
+  NVFLAGS += -DEDGE_PAR
 else
-NVFLAGS += -DVERTEX_PAR
+  NVFLAGS += -DVERTEX_PAR
 endif
 
 # CUDA unified memory
@@ -107,4 +111,16 @@ endif
 ifneq ($(FISSION),)
 NVFLAGS += -DFISSION
 endif
+
+%.o: %.cc
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
+
+%.o: %.cu
+	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
+
+%.o: %.cxx
+	$(CLANGXX) $(CILKFLAGS) $(INCLUDES) $(CILK_INC) -c $<
 

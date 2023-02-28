@@ -4,12 +4,6 @@ SIMDCAI = ../../external/SIMDCAI
 INCLUDES += -I./gpu_kernels -I$(SIMDCAI)/include
 all: compressor tc_omp_compressed tc_gpu_compressed verify_compression
 
-%.o: %.cc
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
-
-%.o: %.cu
-	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
-
 compressor: test_cgr_compressor.o cgr_compressor.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) test_cgr_compressor.o cgr_compressor.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)

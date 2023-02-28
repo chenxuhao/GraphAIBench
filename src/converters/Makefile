@@ -2,9 +2,6 @@ include ../common.mk
 OBJS = graph.o VertexSet.o
 all: converter cleaner symmetrizer orienter
 
-%.o: %.cc
-	g++ $(CXXFLAGS) $(INCLUDES) -fopenmp -I../include -c $<
-
 converter: $(OBJS) converter.o main.o
 	g++ $(CXXFLAGS) $(INCLUDES) $(OBJS) converter.o main.o -o $@ -lgomp
 	mv $@ $(BIN)

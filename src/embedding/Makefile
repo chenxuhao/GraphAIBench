@@ -8,15 +8,6 @@ endif
 
 all: $(OBJS) cf_omp_base cf_gpu_base cf_gpu_warp
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
-
-%.o: %.cc
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
-
-%.o: %.cu
-	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
-
 cf_gpu_base: gpu_base.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) gpu_base.o $(OBJS) -o $@ $(LIBS) 
 	mv $@ $(BIN)

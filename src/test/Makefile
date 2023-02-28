@@ -4,15 +4,6 @@ NVFLAGS += -dc
 INCLUDES += -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
 all: test_graph_partition test_nvlink test_cta_sort
 
-%.o: %.cc
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<
-
-%.o: %.cu
-	$(NVCC) $(NVFLAGS) $(INCLUDES) -c $<
-
-%.o: %.cpp
-	$(MPICXX) $(CXXFLAGS) $(INCLUDES) -c $<
-
 test_graph_partition: $(OBJS) test_graph_partition.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) test_graph_partition.o -o $@ -lgomp
 	mv $@ $(BIN)
