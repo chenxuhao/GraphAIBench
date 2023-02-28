@@ -118,3 +118,6 @@ public:
     return 0;
   }
 };
+
+typedef Worklist2<vidType, vidType> WLGPU;
+

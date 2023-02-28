@@ -5,9 +5,6 @@
 #include "utils.cuh"
 #include "worklist.cuh"
 #include "cuda_launch_config.hpp"
-typedef Worklist2<vidType, vidType> WLGPU;
-
-typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
 
 __device__ __forceinline__ void process_edge(GraphGPU g, int depth, eidType edge, vidType *depths, WLGPU &out_queue) {
   auto dst = g.getEdgeDst(edge);
@@ -108,7 +105,7 @@ __global__ void bfs_step(GraphGPU g, int depth, vidType *depths, WLGPU in_queue,
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   vidType vertex;
   const int SCRATCHSIZE = BLOCK_SIZE;
-  __shared__ BlockScan::TempStorage temp_storage;
+  __shared__ BlockScanInt::TempStorage temp_storage;
   __shared__ eidType gather_offsets[SCRATCHSIZE];
   gather_offsets[threadIdx.x] = 0;
   eidType neighbor_offset = 0;
@@ -121,7 +118,7 @@ __global__ void bfs_step(GraphGPU g, int depth, vidType *depths, WLGPU in_queue,
       neighbor_size = g.get_degree(vertex); // NOTE: assuming max_degree < 2^31
     }
   }
-  BlockScan(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
+  BlockScanInt(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
   int done = 0;
   int neighbors_done = 0;
   while (total_edges > 0) {

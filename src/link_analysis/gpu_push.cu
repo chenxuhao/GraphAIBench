@@ -103,7 +103,7 @@ __global__ void push_lb(GraphGPU g, score_t *scores, score_t *sums, int *process
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	int tx = threadIdx.x;
 	int src = tid;
-	__shared__ BlockScan::TempStorage temp_storage;
+	__shared__ BlockScanInt::TempStorage temp_storage;
 	__shared__ int gather_offsets[BLOCK_SIZE];
 	__shared__ int src_idx[BLOCK_SIZE];
 	__shared__ score_t values[BLOCK_SIZE];
@@ -121,7 +121,7 @@ __global__ void push_lb(GraphGPU g, score_t *scores, score_t *sums, int *process
 		neighbor_size = g.get_degree(tid);
 		values[tx] = scores[src] / (score_t)neighbor_size;
 	}
-	BlockScan(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
+	BlockScanInt(temp_storage).ExclusiveSum(neighbor_size, scratch_offset, total_edges);
 	
 	int done = 0;
 	int neighbors_done = 0;

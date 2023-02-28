@@ -261,6 +261,7 @@ struct BaseHelperGPU {
 };
 
 typedef cub::BlockScan<vidType, BLOCK_SIZE> BlockScan;
+typedef cub::BlockScan<int, BLOCK_SIZE> BlockScanInt;
 typedef cub::WarpScan<vidType> WarpScan;
 struct SMem {
   typename BlockScan::TempStorage block_temp_storage;

@@ -24,5 +24,5 @@ export MKL_DIR=/opt/apps/sysnet/intel/20.0/mkl
 
 export GCC_HOME=/usr/lib/gcc/x86_64-linux-gnu/8
 export CILK_HOME=/home/cxh/OpenCilk/build
-export CILK_CLANG=$(CILK_HOME)/lib/clang/14.0.6
+export CILK_CLANG=/home/cxh/OpenCilk/build/lib/clang/14.0.6
 

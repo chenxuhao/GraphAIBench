@@ -1,9 +1,7 @@
 #pragma once
-#include <cub/cub.cuh>
 #include "graph_gpu.h"
 
 typedef cub::BlockReduce<score_t, BLOCK_SIZE> BlockReduce;
-typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
 
 __global__ void initialize(int m, score_t *sums) {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;

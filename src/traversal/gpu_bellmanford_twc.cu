@@ -4,10 +4,6 @@
 #include "utils.cuh"
 #include "worklist.cuh"
 #include "cuda_launch_config.hpp"
-#include <cub/cub.cuh>
-
-typedef cub::BlockScan<int, BLOCK_SIZE> BlockScan;
-typedef Worklist2<vidType, vidType> WLGPU;
 
 __global__ void insert(vidType source, WLGPU queue) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -116,7 +112,7 @@ __global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU inwl, WLGPU outwl
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   vidType vertex;
   const int SCRATCHSIZE = BLOCK_SIZE;
-  __shared__ BlockScan::TempStorage temp_storage;
+  __shared__ BlockScanInt::TempStorage temp_storage;
   __shared__ eidType gather_offsets[SCRATCHSIZE];
   __shared__ vidType src[SCRATCHSIZE];
   gather_offsets[threadIdx.x] = 0;
@@ -130,7 +126,7 @@ __global__ void bellman_ford(GraphGPU g, elabel_t *dist, WLGPU inwl, WLGPU outwl
       neighborsize = g.get_degree(vertex);
     }
   }
-  BlockScan(temp_storage).ExclusiveSum(neighborsize, scratch_offset, total_edges);
+  BlockScanInt(temp_storage).ExclusiveSum(neighborsize, scratch_offset, total_edges);
   int done = 0;
   int neighborsdone = 0;
   while (total_edges > 0) {
