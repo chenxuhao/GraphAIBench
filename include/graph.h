@@ -48,7 +48,7 @@ protected:
 public:
   GraphT(std::string prefix, bool use_dag = false, bool directed = false,
         bool use_vlabel = false, bool use_elabel = false, 
-        bool need_reverse = false, bool bipartite = false);
+        bool need_reverse = false, bool bipartite = false, bool partitioned = false);
   GraphT() : name_(""), 
             is_directed_(0), is_bipartite_(0), is_compressed_(0), has_reverse(0),
             n_vertices(0), n_edges(0), nnz(0), 
@@ -61,6 +61,7 @@ public:
   GraphT(const GraphT &)=delete;
   GraphT& operator=(const GraphT &)=delete;
 
+  void load_graph_data(std::string prefix, bool use_dag, bool use_vlabel, bool use_elabel, bool need_reverse);
   void deallocate();
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix, bool zeta_coding = true);

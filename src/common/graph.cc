@@ -13,7 +13,7 @@ std::map<OPS,double> timers;
 
 template<bool map_vertices, bool map_edges>
 GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool directed, 
-             bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite) :
+             bool use_vlabel, bool use_elabel, bool need_reverse, bool bipartite, bool partitioned) :
     is_directed_(directed), is_bipartite_(bipartite), is_compressed_(false), 
     max_degree(0), n_vertices(0), n_edges(0), 
     nnz(0), max_label_frequency_(0), max_label(0),
@@ -32,6 +32,15 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
   // read meta information
   read_meta_info(prefix, bipartite);
 
+  // load graph data
+  if (partitioned) std::cout << "This graph is partitioned, not loading the full graph\n";
+  else
+    load_graph_data(prefix, use_dag, use_vlabel, use_elabel, need_reverse);
+}
+
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::load_graph_data(std::string prefix, 
+    bool use_dag, bool use_vlabel, bool use_elabel, bool need_reverse) {
   // read row pointers
   load_row_pointers(prefix);
 
@@ -89,6 +98,7 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
     auto max_vlabel = unsigned(*(std::max_element(vlabels, vlabels+n_vertices)));
     std::cout << "maximum vertex label: " << max_vlabel << "\n";
   }
+  // read edge labels
   if (use_elabel) {
     std::string elabel_filename = prefix + ".elabel.bin";
     ifstream f_elabel(elabel_filename.c_str());
@@ -125,9 +135,10 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
     auto max_elabel = unsigned(*(std::max_element(elabels, elabels+n_edges)));
     std::cout << "maximum edge label: " << max_elabel << "\n";
   }
-  // orientation: convert the undirected graph into directed. Only for k-cliques. This may change max_degree.
+  // Orientation: convert the undirected graph into directed. 
+  // An optimization used for k-cliques. This would likely decrease max_degree.
   if (use_dag) {
-    assert(!directed); // must be undirected before orientation
+    assert(!is_directed_); // must be undirected before orientation
     this->orientation();
   }
   VertexSet::MAX_DEGREE = std::max(max_degree, VertexSet::MAX_DEGREE);
@@ -1549,17 +1560,17 @@ void GraphT<map_vertices,map_edges>::print_meta_data() const {
       std::cout << ", Max Label Frequency: " << max_label_frequency_;
     std::cout << "\n";
   } else {
-    std::cout  << "This graph does not have vertex labels\n";
+    //std::cout  << "This graph does not have vertex labels\n";
   }
   if (num_edge_classes > 0) {
     std::cout << "edge-|\u03A3|: " << num_edge_classes << "\n";
   } else {
-    std::cout  << "This graph does not have edge labels\n";
+    //std::cout  << "This graph does not have edge labels\n";
   }
   if (feat_len > 0) {
     std::cout << "Vertex feature vector length: " << feat_len << "\n";
   } else {
-    std::cout  << "This graph has no input vertex features\n";
+    //std::cout  << "This graph has no input vertex features\n";
   }
 }
 
