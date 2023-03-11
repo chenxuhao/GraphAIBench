@@ -3,7 +3,7 @@
 int main(int argc,char *argv[]) {
   if (argc < 3) {
     printf("incorrect arguments.\n");
-    printf("<input_path> <output_path> [use_interval] [add_degree]\n");
+    printf("<input_path> <output_path> [zeta_k] [use_interval] [add_degree]\n");
     abort();
   }
   //Graph g(argv[1]);
