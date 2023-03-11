@@ -28,7 +28,13 @@ GraphT<map_vertices, map_edges>::GraphT(std::string prefix, bool use_dag, bool d
   if (i != string::npos) name_ = inputfile_path.substr(i+1);
   std::cout << "input file prefix: " << inputfile_prefix << ", graph name: " << name_ << "\n";
   VertexSet::release_buffers();
+  load_graph(prefix, bipartite, partitioned, use_dag, use_vlabel, use_elabel, need_reverse);
+}
 
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::load_graph(std::string prefix,
+    bool use_dag, bool use_vlabel, bool use_elabel, 
+    bool need_reverse, bool bipartite, bool partitioned) {
   // read meta information
   read_meta_info(prefix, bipartite);
 

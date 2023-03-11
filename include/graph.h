@@ -61,7 +61,13 @@ public:
   GraphT(const GraphT &)=delete;
   GraphT& operator=(const GraphT &)=delete;
 
-  void load_graph_data(std::string prefix, bool use_dag, bool use_vlabel, bool use_elabel, bool need_reverse);
+  void load_graph(std::string prefix, 
+                  bool use_dag = false, bool use_vlabel = false, 
+                  bool use_elabel = false, bool need_reverse = false, 
+                  bool bipartite = false, bool partitioned = false);
+  void load_graph_data(std::string prefix, 
+                       bool use_dag = false, bool use_vlabel = false, 
+                       bool use_elabel = false, bool need_reverse = false);
   void deallocate();
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix, bool zeta_coding = true);
