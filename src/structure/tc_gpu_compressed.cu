@@ -1,27 +1,54 @@
 // Copyright (c) 2022 MIT
 // Author: Xuhao Chen
 #include "graph.h"
-void triangle_count_compressed(Graph &g, uint64_t &total, vidType num_cached = 0);
+void triangle_count(Graph &g, uint64_t &total);
+void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached = 0);
+void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme);
+
+void printusage(std::string bin) {
+  std::cout << "Try " << bin << " -s name-of-scheme[streamvbyte] ../../inputs/mico/dag-streamvbyte (graph oriented)\n";
+}
 
 int main(int argc,char *argv[]) {
-  if (argc < 2) {
-    std::cout << "Usage: " << argv[0] << " <graph> \n";
-    std::cout << "Example: " << argv[0] << " ../../inputs/mico/graph\n";
-    abort();
+  std::string schemename;
+  int c;
+  while ((c = getopt(argc, argv, "s:h")) != -1) {
+    switch (c) {
+      case 's':
+        schemename = optarg;
+        break;
+      case 'h':
+        printusage(argv[0]);
+        return 0;
+      default:
+        abort();
+    }
   }
+  if (argc < 3) {
+    std::cout << "# arguments (" << argc << ") incorrect\n";
+    printusage(argv[0]);
+    return -1;
+  }
+ 
   Graph g;
-  g.load_compressed_graph(argv[1]);
+  if (schemename == "decomp")
+    g.load_graph(argv[3]);
+  else if (schemename == "cgr")
+    g.load_compressed_graph(argv[3], true);
+  else
+    g.load_compressed_graph(argv[3], false);
   g.print_meta_data();
   vidType num_cached = 0;
-  if (argc > 2) num_cached = atoi(argv[2]);
+  if (argc > 4) num_cached = atoi(argv[4]);
+  //if (num_cached > 0) g.decompress();
 
   uint64_t total = 0;
-  if (num_cached > 0) g.decompress();
-  //triangle_count(g, total);
-  //std::cout << "total_num_triangles = " << total << "\n";
-
-  total = 0;
-  triangle_count_compressed(g, total, num_cached);
+  if (schemename == "decomp")
+    triangle_count(g, total);
+  else if (schemename == "cgr")
+    triangle_count_cgr(g, total, num_cached);
+  else
+    triangle_count_vbyte(g, total, schemename);
   std::cout << "total_num_triangles = " << total << "\n";
   return 0;
 }
@@ -30,6 +57,35 @@ int main(int argc,char *argv[]) {
 #include "cuda_launch_config.hpp"
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
+
+void triangle_count(Graph &g, uint64_t &total) {
+  size_t memsize = print_device_info(0);
+  auto nv = g.num_vertices();
+  GraphGPU gg(g);
+  size_t nthreads = BLOCK_SIZE;
+  size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
+  if (nblocks > 65536) nblocks = 65536;
+  //refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex);
+  std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
+  AccType h_total = 0, *d_total;
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
+  CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  Timer t;
+  t.Start();
+  //triangle_bs_warp_vertex<<<nblocks, nthreads>>>(0, g.V(), gg, d_total);
+  t.Stop();
+  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  std::cout << "runtime [tc_gpu_base] = " << t.Seconds() << " sec\n";
+  CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
+  total = h_total;
+  CUDA_SAFE_CALL(cudaFree(d_total));
+}
+
+#include "decompressor.cuh"
+void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
+}
+
 #define WARP_CENTRIC
 //#define USE_HINDEX
 #define VERTEX_PARALLEL
@@ -57,7 +113,7 @@ typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
 #endif
 #endif
 
-void triangle_count_compressed(Graph &g, uint64_t &total, vidType num_cached) {
+void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached) {
   size_t memsize = print_device_info(0);
 #ifndef VERTEX_PARALLEL
   if (!USE_ZERO_COPY && g.is_compressed_only()) g.decompress(); 
