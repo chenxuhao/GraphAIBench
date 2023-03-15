@@ -56,7 +56,7 @@ VertexSet N_vbyte(Graph &g, vidType vid) {
   auto length = vertices_compressed[vid+1] - start;
   size_t osize(max_deg);
   shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(schemename);
-  //std::cout << "decoding vertex " << vid << " 's neighbor list, starting at " << start << " with " << length << " bytes\n";
+  //std::cout << "decoding vertex " << vid << " 's neighbor list, starting at " << start << " with " << length << " words\n";
   //std::cout << "debugging: edges_compressed " << edges_compressed << " adj.data() " << adj.data() << "\n";
   schemeptr->decodeArray(&edges_compressed[start], length, adj.data(), osize);
   assert(osize <= max_deg);

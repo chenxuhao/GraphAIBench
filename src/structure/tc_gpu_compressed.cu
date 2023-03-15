@@ -33,10 +33,8 @@ int main(int argc,char *argv[]) {
   Graph g;
   if (schemename == "decomp")
     g.load_graph(argv[3]);
-  else if (schemename == "cgr")
-    g.load_compressed_graph(argv[3], true);
   else
-    g.load_compressed_graph(argv[3], false);
+    g.load_compressed_graph(argv[3], schemename == "cgr" ? true : false);
   g.print_meta_data();
   vidType num_cached = 0;
   if (argc > 4) num_cached = atoi(argv[4]);
@@ -58,6 +56,8 @@ int main(int argc,char *argv[]) {
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
 
+#include "triangle_bs_warp_vertex.cuh"
+
 void triangle_count(Graph &g, uint64_t &total) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
@@ -65,7 +65,7 @@ void triangle_count(Graph &g, uint64_t &total) {
   size_t nthreads = BLOCK_SIZE;
   size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
   if (nblocks > 65536) nblocks = 65536;
-  //refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex);
+  refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex);
   std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
   AccType h_total = 0, *d_total;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
@@ -73,7 +73,7 @@ void triangle_count(Graph &g, uint64_t &total) {
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
   Timer t;
   t.Start();
-  //triangle_bs_warp_vertex<<<nblocks, nthreads>>>(0, g.V(), gg, d_total);
+  triangle_bs_warp_vertex<<<nblocks, nthreads>>>(0, g.V(), gg, d_total);
   t.Stop();
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
   std::cout << "runtime [tc_gpu_base] = " << t.Seconds() << " sec\n";
@@ -83,7 +83,36 @@ void triangle_count(Graph &g, uint64_t &total) {
 }
 
 #include "decompressor.cuh"
+#include "triangle_bs_warp_vertex_vbyte.cuh"
 void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
+  size_t memsize = print_device_info(0);
+  auto nv = g.num_vertices();
+  size_t nthreads = BLOCK_SIZE;
+  size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
+  if (nblocks > 65536) nblocks = 65536;
+  refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte);
+  std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
+
+  std::cout << "Allocating buffer for decompressed adjacency lists\n";
+  vidType *buffer;
+  size_t num_per_block = WARPS_PER_BLOCK;
+  allocate_gpu_buffer(3 * size_t(g.get_max_degree()) * num_per_block * nblocks, buffer);
+
+  GraphGPU gg(g);
+  AccType h_total = 0, *d_total;
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
+  CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+
+  Timer t;
+  t.Start();
+  triangle_bs_warp_vertex_vbyte<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+  t.Stop();
+  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  std::cout << "runtime [tc_gpu_base] = " << t.Seconds() << " sec\n";
+  CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
+  total = h_total;
+  CUDA_SAFE_CALL(cudaFree(d_total));
 }
 
 #define WARP_CENTRIC

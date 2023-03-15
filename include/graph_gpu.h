@@ -5,6 +5,7 @@
 #include "cutil_subset.h"
 #include "cuda_profiler_api.h"
 #include "cgr_decompressor.cuh"
+#include "decompressor.cuh"
 
 #ifdef USE_NVSHMEM
 #include <nvshmem.h>
@@ -31,21 +32,25 @@ protected:
   vidType *d_vlabels_frequency;     // vertex label frequency
   vidType *d_adj_buffer;            // buffer for copying an adjacency list from a remote GPU
 public:
-  GraphGPU(vidType nv=0, eidType ne=0, int vl=0, int el=0, 
-           bool directed=false, int n=0, int m=1, bool use_nvshmem=false) :
+  GraphGPU(bool directed=false, vidType nv=0, eidType ne=0, int vl=0, int el=0, 
+           int n=0, int m=1, bool use_nvshmem=false) :
       is_directed_(directed), num_vertices(nv), num_edges(ne),
-      device_id(n), n_gpu(m), num_vertex_classes(vl), num_edge_classes(el),
-      d_rowptr(NULL), d_colidx(NULL), d_src_list(NULL), d_dst_list(NULL),
-      d_vlabels(NULL), d_elabels(NULL), d_vlabels_frequency(NULL) {
+      num_vertex_classes(vl), num_edge_classes(el) {
+    GraphGPU(n, m);
     if (nv>0 && ne>0 && !use_nvshmem) allocateFrom(nv, ne, vl, el);
   }
   GraphGPU(Graph &g, int n=0, int m=1) : 
-      is_directed_(g.is_directed()), num_vertices(g.V()), num_edges(g.E()),
-      device_id(n), n_gpu(m), num_vertex_classes(g.get_vertex_classes()),
-      num_edge_classes(g.get_edge_classes()),
-      d_rowptr(NULL), d_colidx(NULL), d_src_list(NULL), d_dst_list(NULL),
-      d_vlabels(NULL), d_elabels(NULL), d_vlabels_frequency(NULL) {
+      is_directed_(g.is_directed()), 
+      num_vertices(g.V()), num_edges(g.E()),
+      num_vertex_classes(g.get_vertex_classes()),
+      num_edge_classes(g.get_edge_classes()) {
+    GraphGPU(n, m);
     init(g); 
+  }
+  GraphGPU(int n, int m) : device_id(n), n_gpu(m), 
+      d_rowptr(NULL), d_colidx(NULL), d_src_list(NULL), d_dst_list(NULL),
+      d_vlabels(NULL), d_elabels(NULL), d_vlabels_frequency(NULL),
+      d_adj_buffer(NULL) {
   }
   void release() { clean(); clean_edgelist(); clean_labels(); }
   inline __device__ __host__ bool is_directed() { return is_directed_; }
@@ -458,7 +463,18 @@ public:
     return adj;
   }
 
-  // decompress to an (unordered/ordered) vertex set using a warp
+  // decompress VByte format to an ordered vertex set using a warp
+  inline __device__ vidType decompress_vbyte_warp(vidType v, vidType *adj) {
+    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    auto start = d_rowptr_compressed[v];
+    auto num_bytes = d_colidx_compressed[v+1] - start;
+    //printf("decoding vertex %d 's neighbor list, starting at %d with %d words\n", v, start, words);
+    vidType degree = decode_vbyte_warp(num_bytes, &d_colidx_compressed[start], adj);
+    return degree;
+  }
+
+  // decompress CGR format to an (unordered/ordered) vertex set using a warp
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) {
     int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
     int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
