@@ -162,6 +162,8 @@ __device__ uint32_t decode_vbyte_warp(const size_t length, const uint32_t *in, u
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   __shared__ uint32_t shm_offsets[BLOCK_SIZE + BLOCK_SIZE / WARP_SIZE];
   auto end = ((nvalue - 1) / WARP_SIZE + 1) * WARP_SIZE;
+
+  if (thread_lane == 0) printf("\t decoded degree = %d\n", nvalue);
   for (vidType i = thread_lane; i < end; i += WARP_SIZE) {
     auto k = thread_lane % pack_size; // k is the element id within a pack
     // Read the header

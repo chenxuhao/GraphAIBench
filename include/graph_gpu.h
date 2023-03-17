@@ -48,9 +48,12 @@ public:
     init(g); 
   }
   GraphGPU(int n, int m) : device_id(n), n_gpu(m), 
-      d_rowptr(NULL), d_colidx(NULL), d_src_list(NULL), d_dst_list(NULL),
-      d_vlabels(NULL), d_elabels(NULL), d_vlabels_frequency(NULL),
-      d_adj_buffer(NULL) {
+      d_rowptr(NULL), d_colidx(NULL), 
+      d_in_rowptr(NULL), d_in_colidx(NULL), 
+      d_rowptr_compressed(NULL), d_colidx_compressed(NULL), 
+      d_src_list(NULL), d_dst_list(NULL),
+      d_vlabels(NULL), d_elabels(NULL), 
+      d_vlabels_frequency(NULL), d_adj_buffer(NULL) {
   }
   void release() { clean(); clean_edgelist(); clean_labels(); }
   inline __device__ __host__ bool is_directed() { return is_directed_; }
@@ -465,22 +468,25 @@ public:
 
   // decompress VByte format to an ordered vertex set using a warp
   inline __device__ vidType decompress_vbyte_warp(vidType v, vidType *adj) {
-    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
     //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    //if (v >= num_vertices) printf("Error: vid %d >= num_vertices %d\n", v, num_vertices);
+    //assert(d_rowptr_compressed && d_colidx_compressed);
+    //assert(v < num_vertices);
     auto start = d_rowptr_compressed[v];
-    auto num_bytes = d_colidx_compressed[v+1] - start;
-    //printf("decoding vertex %d 's neighbor list, starting at %d with %d words\n", v, start, words);
-    vidType degree = decode_vbyte_warp(num_bytes, &d_colidx_compressed[start], adj);
+    auto length = d_rowptr_compressed[v+1] - start;
+    if (thread_lane == 0) printf("decoding vertex %d 's neighbor list, starting at %ld with %ld words\n", v, start, length);
+    vidType degree = decode_vbyte_warp(length, &d_colidx_compressed[start], adj);
     return degree;
   }
 
   // decompress CGR format to an (unordered/ordered) vertex set using a warp
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-    int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
     CgrReaderGPU cgrr;
     cgrr.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
-    vidType degree = 0, num_itv = 0;
+    vidType degree = 0;
 #if USE_INTERVAL
     degree += decode_intervals_warp(cgrr, adj);
 #endif
@@ -493,8 +499,8 @@ public:
 
   // decompress to a hybrid vertex set (intervals+residuals) using a warp
   inline __device__ vidType warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-    int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
     CgrReaderGPU cgrr;
     cgrr.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
     vidType degree = 0;
@@ -509,7 +515,7 @@ public:
   inline __device__ vidType intersect_num_warp_compressed(vidType v, vidType u, vidType *v_residuals, vidType *u_residuals) {
     int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
     int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-    vidType num = 0, n_items = 0;
+    vidType num = 0;
     #if USE_INTERVAL
     __shared__ vidType num_itv_v[WARPS_PER_BLOCK], num_itv_u[WARPS_PER_BLOCK];
     #endif
@@ -529,7 +535,7 @@ public:
     #if USE_INTERVAL
     __shared__ vidType v_begins[WARPS_PER_BLOCK][32], v_ends[WARPS_PER_BLOCK][32];
     __shared__ vidType u_begins[WARPS_PER_BLOCK][32], u_ends[WARPS_PER_BLOCK][32];
-    n_items = decode_intervals_warp(v_decoder, v_begins[warp_lane], v_ends[warp_lane]);
+    auto n_items = decode_intervals_warp(v_decoder, v_begins[warp_lane], v_ends[warp_lane]);
     if (thread_lane == 0) num_itv_v[warp_lane] = n_items;
     n_items = decode_intervals_warp(u_decoder, u_begins[warp_lane], u_ends[warp_lane]);
     if (thread_lane == 0) num_itv_u[warp_lane] = n_items;
@@ -558,34 +564,33 @@ public:
 
   // adj_u is to be filled; adj_v is a sorted vertex set
   inline __device__ vidType intersect_num_warp_compressed(vidType u, vidType *adj_u, vidType deg_v, vidType *adj_v) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-    int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-    vidType num = 0, deg_u = 0, num_itv_u = 0, num_res_u = 0;
+    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    vidType num = 0, num_itv_u = 0, num_res_u = 0;
     CgrReaderGPU u_decoder;
     u_decoder.init(u, d_colidx_compressed, d_rowptr_compressed[u]);
     #if USE_INTERVAL
-    deg_u = decode_intervals_warp(u_decoder, adj_u, num_itv_u);
+    auto deg_u = decode_intervals_warp(u_decoder, adj_u, num_itv_u);
     num += intersect_num_itv_res(num_itv_u, adj_u, deg_v, adj_v);
     #endif
     vidType *u_residuals = adj_u + num_itv_u*2;
     num_res_u = decode_residuals_warp(u_decoder, u_residuals);
-    //deg_u += num_res_u;
     num += intersect_num(adj_v, deg_v, u_residuals, num_res_u);
     return num;
  }
 
   // adj_u is to be filled; adj_v is a hybrid set with intervals and residuals
  inline __device__ vidType intersect_num_warp_compressed(vidType u, vidType *adj_u, vidType *adj_v, vidType deg_v, vidType num_itv_v, vidType num_res_v) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-    int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-    vidType num = 0, deg_u = 0, num_itv_u = 0;
+    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+    vidType num = 0, num_itv_u = 0;
     assert(deg_v >= num_res_v);
     assert(num_itv_v > 0 || deg_v == num_res_v); // if num_itv_v == 0, then deg_v == num_res_v
     auto v_residuals = adj_v + num_itv_v*2;
     CgrReaderGPU u_decoder;
     u_decoder.init(u, d_colidx_compressed, d_rowptr_compressed[u]);
     #if USE_INTERVAL
-    deg_u = decode_intervals_warp(u_decoder, adj_u, num_itv_u);
+    auto deg_u = decode_intervals_warp(u_decoder, adj_u, num_itv_u);
     #endif
     auto u_residuals = adj_u + num_itv_u*2;
     auto num_res_u = decode_residuals_warp(u_decoder, u_residuals);

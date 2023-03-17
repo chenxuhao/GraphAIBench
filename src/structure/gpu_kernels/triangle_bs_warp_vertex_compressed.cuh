@@ -10,7 +10,7 @@ bs_warp_vertex_compressed(GraphGPU g, vidType *buffer, AccType *total) {
   vidType max_deg = g.get_max_degree();
   vidType *adj_v = buffer + (max_deg)*(2*warp_id);
   vidType *adj_u = buffer + (max_deg)*(2*warp_id+1);
-  vidType deg_v = 0, num_itv_v = 0, num_res_v = 0, degree_itv_v = 0;
+  vidType deg_v = 0, num_itv_v = 0, num_res_v = 0;
   for (vidType v = warp_id; v < g.V(); v += num_warps) {
     deg_v = g.warp_decompress(v, adj_v, num_itv_v, num_res_v);
     count += g.intersect_num_warp_compressed_hybrid(adj_v, deg_v, num_itv_v, num_res_v, adj_u);

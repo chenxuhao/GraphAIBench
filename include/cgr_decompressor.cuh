@@ -316,7 +316,7 @@ __device__ void decode_intervals_cta(CgrReaderGPU &decoder, vidType *adj_out, vi
 __device__ vidType decode_intervals_warp(CgrReaderGPU &decoder, vidType *adj_out) {
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-  __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
+  //__shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
   __shared__ eidType offset[WARPS_PER_BLOCK];
   __shared__ vidType degree[WARPS_PER_BLOCK];
   __shared__ vidType start_idx[WARPS_PER_BLOCK];

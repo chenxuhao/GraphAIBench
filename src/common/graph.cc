@@ -233,7 +233,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
 
   // load row offsets
   read_file(prefix+".vertex.bin", vertices_compressed, n_vertices+1);
-  std::cout << "Vertex pointers file loaded!\n";
+  //std::cout << "Vertex pointers file loaded!\n";
   //for (vidType v = 0; v < n_vertices+1; v++)
   //  std::cout << "rowptr[" << v << "]=" << vertices_compressed[v] << "\n";
 
@@ -244,7 +244,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
     std::cout << "open graph file failed!" << std::endl;
     exit(1);
   }
-  std::cout << "Loading edgelists file ...\n";
+  //std::cout << "Loading edgelists file ...\n";
   std::streamsize num_bytes = ifs.tellg();
   ifs.seekg(0, std::ios::beg);
   edges_compressed.clear();
@@ -470,8 +470,21 @@ void GraphT<map_vertices, map_edges>::decode_vertex(vidType v, VertexSet& adj, b
   if (need_order) adj.sort();
 }
 
+#include "codecfactory.h"
 template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices, map_edges>::decompress() {
+vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* ptr, std::string scheme) {
+  assert(vid >= 0 && vid < g.V());
+  auto start = vertices_compressed[vid];
+  auto length = vertices_compressed[vid+1] - start;
+  shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
+  vidType deg = 0;
+  schemeptr->decodeArray(&edges_compressed[start], length, ptr, deg);
+  assert(deg <= max_deg);
+  return deg;
+}
+
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
   std::cout << "Decompressing the graph ...\n";
   Timer t;
   t.Start();

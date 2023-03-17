@@ -38,7 +38,9 @@ int main(int argc,char *argv[]) {
   g.print_meta_data();
   vidType num_cached = 0;
   if (argc > 4) num_cached = atoi(argv[4]);
-  //if (num_cached > 0) g.decompress();
+  //if (num_cached > 0)
+    g.decompress();
+  g.print_graph();
 
   uint64_t total = 0;
   if (schemename == "decomp")

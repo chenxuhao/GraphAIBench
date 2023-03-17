@@ -75,6 +75,7 @@ public:
   void decompress();
   void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex(vidType v, vidType* ptr);
+  vidType decode_vertex_vbyte(vidType v, vidType* ptr, std::string scheme);
   vidType decode_intervals(vidType v, CgrReader &decoder, vidType *ptr);
   vidType decode_intervals(vidType v, CgrReader &decoder, VertexList &begin, VertexList &end);
   vidType decode_residuals(vidType v, CgrReader &decoder, vidType offset, vidType* ptr);
