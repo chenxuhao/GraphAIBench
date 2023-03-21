@@ -23,10 +23,10 @@ void PRSolver(Graph &g, score_t *scores) {
   for (; iter < MAX_ITER; iter ++) {
     double error = 0;
     #pragma omp parallel for
-    for (int n = 0; n < nv; n ++)
+    for (vidType n = 0; n < nv; n ++)
       outgoing_contrib[n] = scores[n] / g.get_degree(n);
     #pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
-    for (int dst = 0; dst < nv; dst ++) {
+    for (vidType dst = 0; dst < nv; dst ++) {
       score_t incoming_total = 0;
       for (auto src : g.in_neigh(dst))
         incoming_total += outgoing_contrib[src];

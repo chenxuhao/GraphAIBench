@@ -4,7 +4,7 @@
 #include "platform_atomics.h"
 #include <random>
 
-vidType SampleFrequentElement(vidType m, comp_t *comp, int64_t num_samples = 1024);
+comp_t SampleFrequentElement(vidType m, comp_t *comp, int64_t num_samples = 1024);
 void Link(vidType u, vidType v, comp_t *comp);
 void Compress(vidType m, comp_t *comp);
 

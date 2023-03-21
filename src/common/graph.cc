@@ -470,19 +470,6 @@ void GraphT<map_vertices, map_edges>::decode_vertex(vidType v, VertexSet& adj, b
   if (need_order) adj.sort();
 }
 
-#include "codecfactory.h"
-template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* ptr, std::string scheme) {
-  assert(vid >= 0 && vid < g.V());
-  auto start = vertices_compressed[vid];
-  auto length = vertices_compressed[vid+1] - start;
-  shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
-  vidType deg = 0;
-  schemeptr->decodeArray(&edges_compressed[start], length, ptr, deg);
-  assert(deg <= max_deg);
-  return deg;
-}
-
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
   std::cout << "Decompressing the graph ...\n";
@@ -490,6 +477,7 @@ void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
   t.Start();
   vertices = new eidType[n_vertices+1];
   edges = new vidType[n_edges];
+  if (scheme == "cgr") {
 #if 0
   VertexList degrees(n_vertices);
   #pragma omp parallel for
@@ -514,6 +502,10 @@ void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
     std::sort(edges+vertices[v], edges+offset);
   }
 #endif
+  } else {
+    // VByte format
+    //decode_vertex();
+  }
   t.Stop();
   std::cout << "Graph decompressed time: " << t.Seconds() << "\n";
 }

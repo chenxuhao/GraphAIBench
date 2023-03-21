@@ -3,15 +3,15 @@ OBJS += verifier.o
 all: pr_omp_base pr_omp_push pr_gpu_base pr_gpu_warp pr_gpu_push
 
 pr_gpu_base: gpu_base.o $(OBJS)
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 pr_gpu_warp: gpu_warp.o $(OBJS)
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_warp.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_warp.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 pr_gpu_push: gpu_push.o $(OBJS)
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_push.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_push.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 pr_omp_base: omp_base.o $(OBJS)

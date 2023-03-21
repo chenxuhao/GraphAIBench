@@ -10,7 +10,7 @@ color_omp_base: $(OBJS) omp_base.o
 	mv $@ $(BIN)
 
 color_gpu_base: $(OBJS) gpu_base.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 clean:

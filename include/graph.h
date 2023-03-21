@@ -72,7 +72,7 @@ public:
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix, bool zeta_coding = true);
   void load_row_pointers(std::string prefix);
-  void decompress();
+  void decompress(std::string scheme = "cgr");
   void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex(vidType v, vidType* ptr);
   vidType decode_vertex_vbyte(vidType v, vidType* ptr, std::string scheme);

@@ -10,7 +10,7 @@ void CCSolver(Graph &g, comp_t *comp) {
   }
   std::cout << "OpenMP Connected Components (" << num_threads << " threads)\n";
   #pragma omp parallel for
-  for (int n = 0; n < g.V(); n ++) comp[n] = n;
+  for (vidType n = 0; n < g.V(); n ++) comp[n] = n;
   bool change = true;
   int iter = 0;
 
@@ -21,7 +21,7 @@ void CCSolver(Graph &g, comp_t *comp) {
     iter++;
     //printf("Executing iteration %d ...\n", iter);
     #pragma omp parallel for schedule(dynamic, 64)
-    for (int src = 0; src < g.V(); src ++) {
+    for (vidType src = 0; src < g.V(); src ++) {
       auto comp_src = comp[src];
       for (auto dst : g.N(src)) {
         auto comp_dst = comp[dst];

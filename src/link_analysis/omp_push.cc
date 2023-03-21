@@ -23,7 +23,7 @@ void PRSolver(Graph &g, score_t *scores) {
   t.Start();
   for (iter = 0; iter < MAX_ITER; iter ++) {
     #pragma omp parallel for schedule(dynamic, 64)
-    for (int src = 0; src < nv; src ++) {
+    for (vidType src = 0; src < nv; src ++) {
       score_t contribution = scores[src] / (score_t)g.get_degree(src);
       for (auto dst : g.N(src)) {
         #pragma omp atomic
@@ -34,7 +34,7 @@ void PRSolver(Graph &g, score_t *scores) {
     }
     double error = 0;
     #pragma omp parallel for reduction(+ : error)
-    for (int u = 0; u < nv; u ++) {
+    for (vidType u = 0; u < nv; u ++) {
       score_t new_score = base_score + kDamp * sums[u];
       error += fabs(new_score - scores[u]);
       scores[u] = new_score;

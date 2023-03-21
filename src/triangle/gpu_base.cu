@@ -72,9 +72,9 @@ void TCSolver(Graph &g, uint64_t &total, int, int) {
 #endif
 #else
 #ifdef CTA_CENTRIC
-  triangle_bs_cta_edge<<<nblocks, nthreads>>>(gg, d_total);
+  triangle_bs_cta_edge<<<nblocks, nthreads>>>(g.E(), gg, d_total);
 #else
-  triangle_bs_warp_edge<<<nblocks, nthreads>>>(gg, d_total);
+  triangle_bs_warp_edge<<<nblocks, nthreads>>>(g.E(), gg, d_total);
 #endif
 #endif
   CUDA_SAFE_CALL(cudaDeviceSynchronize());

@@ -10,6 +10,7 @@ NVCC := nvcc
 #NVCC := $(CUDA_HOME)/bin/nvcc
 CLANG := $(CILK_HOME)/bin/clang
 CLANGXX := $(CILK_HOME)/bin/clang++
+SIMDCAI_HOME := ../../external/SIMDCAI
 
 GENCODE_SM30 := -gencode arch=compute_30,code=sm_30
 GENCODE_SM35 := -gencode arch=compute_35,code=sm_35
@@ -27,10 +28,15 @@ ICPCFLAGS := -O3 -Wall -qopenmp
 NVFLAGS := $(CUDA_ARCH)
 NVFLAGS += -Xptxas -v
 NVFLAGS += -DUSE_GPU
-NVLDFLAGS = -L$(CUDA_HOME)/lib64 -L$(CUDA_HOME)/lib64/stubs -lcuda -lcudart
+NVLIBS = -L$(CUDA_HOME)/lib64 -L$(CUDA_HOME)/lib64/stubs -lcuda -lcudart
 MPI_LIBS = -L$(MPI_HOME)/lib -lmpi
 NVSHMEM_LIBS = -L$(NVSHMEM_HOME)/lib -lnvshmem -lnvToolsExt -lnvidia-ml -ldl -lrt
 CILKFLAGS=-O3 -fopenmp=libiomp5 -fopencilk
+CILK_INC=-I$(GCC_HOME)/include -I$(CILK_CLANG)/include
+SIMDCAI_LIB := -L$(SIMDCAI_HOME) -lSIMDCompressionAndIntersection
+SIMDCAI_INC := -I$(SIMDCAI_HOME)/include
+INCLUDES := -I../../include
+LIBS := -lgomp
 
 ifeq ($(VTUNE), 1)
 	CXXFLAGS += -g
@@ -46,10 +52,6 @@ else
 	CXXFLAGS += -O3
 	NVFLAGS += -O3 -w
 endif
-
-INCLUDES := -I../../include
-LIBS := $(NVLDFLAGS) -lgomp
-CILK_INC=-I$(GCC_HOME)/include -I$(CILK_CLANG)/include
 
 ifeq ($(PAPI), 1)
 CXXFLAGS += -DENABLE_PAPI

@@ -60,7 +60,7 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
   //if (nblocks > 65536) nblocks = 65536;
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
-  int max_blocks_per_SM = maximum_residency(warp_edge, nthreads, 0);
+  int max_blocks_per_SM = maximum_residency(triangle_bs_warp_edge, nthreads, 0);
   std::cout << "max_blocks_per_SM = " << max_blocks_per_SM << "\n";
   size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
   nblocks = std::min(6*max_blocks, nblocks); 
@@ -83,7 +83,7 @@ void TCSolver(Graph &g, uint64_t &total, int n_gpus, int chunk_size) {
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     CUDA_SAFE_CALL(cudaMemcpy(d_count[i], &h_counts[i], sizeof(AccType), cudaMemcpyHostToDevice));
     //cudaMemcpyAsync(d_count[i], &h_counts[i], sizeof(AccType), cudaMemcpyHostToDevice);
-    warp_edge<<<nblocks, nthreads>>>(num_tasks[i], d_graphs[i], d_count[i]);
+    triangle_bs_warp_edge<<<nblocks, nthreads>>>(num_tasks[i], d_graphs[i], d_count[i]);
     CUDA_SAFE_CALL(cudaMemcpy(&h_counts[i], d_count[i], sizeof(AccType), cudaMemcpyDeviceToHost));
     //cudaMemcpyAsync(&h_counts[i], d_count[i], sizeof(AccType), cudaMemcpyDeviceToHost);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());

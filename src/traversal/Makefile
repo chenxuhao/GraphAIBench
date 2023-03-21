@@ -16,12 +16,12 @@ bfs_omp_direction: omp_direction.o $(OBJS)
 
 # data-driven BFS baseline
 bfs_gpu_base: gpu_base.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 # data-driven BFS using TWC load balancing
 bfs_gpu_twc: gpu_twc.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_twc.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_twc.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 sssp_omp_base: omp_dstep.o $(OBJS)
@@ -29,15 +29,15 @@ sssp_omp_base: omp_dstep.o $(OBJS)
 	mv $@ $(BIN)
 
 sssp_gpu_base: gpu_bellmanford.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_bellmanford.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_bellmanford.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 sssp_gpu_twc: gpu_bellmanford_twc.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_bellmanford_twc.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_bellmanford_twc.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 sssp_gpu_dstep: gpu_dstep.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_dstep.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_dstep.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 clean:

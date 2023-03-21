@@ -16,23 +16,23 @@ tc_cilk_base: $(OBJS) cilk_base.o
 	mv $@ $(BIN)
 
 tc_gpu_base: $(OBJS) gpu_base.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 tc_gpu_hindex: $(OBJS) gpu_hindex.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_hindex.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) gpu_hindex.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 tc_multigpu_base: $(OBJS) multigpu_base.o scheduler.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_base.o scheduler.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_base.o scheduler.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 tc_multigpu_induced: $(OBJS) multigpu_induced.o graph_partition.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_induced.o graph_partition.o -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) multigpu_induced.o graph_partition.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 tc_multigpu_nvshmem: $(OBJS) multigpu_nvshmem.o graph_partition.o
-	$(NVCC) $(CUDA_ARCH) -O3 -w -DUSE_NVSHMEM -DUSE_MPI $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(LIBS) $(MPI_LIBS)
+	$(NVCC) $(CUDA_ARCH) -O3 -w -DUSE_NVSHMEM -DUSE_MPI $(INCLUDES) $(OBJS) multigpu_nvshmem.o graph_partition.o -o $@ $(NVSHMEM_LIBS) $(NVLIBS) $(MPI_LIBS)
 	mv $@ $(BIN)
 
 tc_dist_cpu: $(OBJS) dist_cpu.o
@@ -40,7 +40,7 @@ tc_dist_cpu: $(OBJS) dist_cpu.o
 	mv $@ $(BIN)
 
 tc_dist_gpu: $(OBJS) dist_gpu.o gpu_kernel_wrapper.o
-	$(MPICXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) dist_gpu.o gpu_kernel_wrapper.o -o $@ $(LIBS)
+	$(MPICXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) dist_gpu.o gpu_kernel_wrapper.o -o $@ $(NVLIBS)
 	mv $@ $(BIN)
 
 clean:

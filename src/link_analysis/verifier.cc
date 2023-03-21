@@ -10,7 +10,7 @@ void PRVerifier(Graph &g, score_t *scores_to_test, double target_error) {
   const score_t base_score = (1.0f - kDamp) / m;
   const score_t init_score = 1.0f / m;
   score_t *scores = (score_t *) malloc(m * sizeof(score_t));
-  for (int i = 0; i < m; i ++) scores[i] = init_score;
+  for (vidType i = 0; i < m; i ++) scores[i] = init_score;
   score_t *outgoing_contrib = (score_t *) malloc(m * sizeof(score_t));
   //for (int i = 0; i < m; i ++) outgoing_contrib[i] = 0;
   int iter;
@@ -18,9 +18,9 @@ void PRVerifier(Graph &g, score_t *scores_to_test, double target_error) {
   t.Start();
   for (iter = 0; iter < MAX_ITER; iter ++) {
     double error = 0;
-    for (int n = 0; n < m; n ++)
+    for (vidType n = 0; n < m; n ++)
       outgoing_contrib[n] = scores[n] / g.get_degree(n);
-    for (int src = 0; src < m; src ++) {
+    for (vidType src = 0; src < m; src ++) {
       score_t incoming_total = 0;
       for (auto dst : g.in_neigh(src)) 
         incoming_total += outgoing_contrib[dst];
@@ -37,14 +37,14 @@ void PRVerifier(Graph &g, score_t *scores_to_test, double target_error) {
   std::cout << "runtime [serial] = " << t.Seconds() << " sec\n";
 
   score_t *incomming_sums = (score_t *)malloc(m * sizeof(score_t));
-  for (int i = 0; i < m; i ++) incomming_sums[i] = 0;
+  for (vidType i = 0; i < m; i ++) incomming_sums[i] = 0;
   double error = 0;
-  for (int src = 0; src < m; src ++) {
+  for (vidType src = 0; src < m; src ++) {
     score_t outgoing_contrib = scores_to_test[src] / g.get_degree(src);
     for (auto dst : g.out_neigh(src)) 
       incomming_sums[dst] += outgoing_contrib;
   }
-  for (int i = 0; i < m; i ++) {
+  for (vidType i = 0; i < m; i ++) {
     score_t new_score = base_score + kDamp * incomming_sums[i];
     error += fabs(new_score - scores_to_test[i]);
     incomming_sums[i] = 0;

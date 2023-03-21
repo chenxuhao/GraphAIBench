@@ -26,10 +26,10 @@ comp_t SampleFrequentElement(vidType m, comp_t *comp, int64_t num_samples) {
   return most_frequent->first;
 }
 
-int serial_solver(Graph &g, vidType *components) {
+int serial_solver(Graph &g, comp_t *components) {
   std::stack<int> DFS;
   int num_comps = 0;
-  for (int src = 0; src < g.V(); src ++) {
+  for (vidType src = 0; src < g.V(); src ++) {
     if (components[src] == -1) {
       DFS.push(src);
       components[src] = num_comps;
@@ -55,11 +55,10 @@ int serial_solver(Graph &g, vidType *components) {
 // - Asserts every vertex is visited (degree-0 vertex should have own label)
 void CCVerifier(Graph &g, comp_t *comp_test) {
   auto m = g.V();
-  vidType *comp = (vidType *)malloc(m * sizeof(vidType));
-  for (int i = 0; i < m; i ++) comp[i] = -1;
+  std::vector<comp_t> comp(m, -1);
   Timer t;
   t.Start();
-  serial_solver(g, comp);
+  serial_solver(g, comp.data());
   t.Stop();
 
   printf("Verifying...\n");
