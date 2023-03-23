@@ -469,46 +469,6 @@ void GraphT<map_vertices, map_edges>::decode_vertex(vidType v, VertexSet& adj, b
   adj.adjust_size(deg);
   if (need_order) adj.sort();
 }
-
-template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
-  std::cout << "Decompressing the graph ...\n";
-  Timer t;
-  t.Start();
-  vertices = new eidType[n_vertices+1];
-  edges = new vidType[n_edges];
-  if (scheme == "cgr") {
-#if 0
-  VertexList degrees(n_vertices);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v++) {
-    VertexSet adj(v);
-    degrees[v] = decode_vertex(v, adj.data());
-  }
-  parallel_prefix_sum<vidType,eidType>(degrees, vertices);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v++) {
-    auto offset = vertices[v];
-    auto deg = decode_vertex(v, &edges[offset]);
-    std::sort(edges+offset, edges+offset+deg);
-  }
-#else 
-  eidType offset = 0;
-  vertices[0] = 0;
-  for (vidType v = 0; v < n_vertices; v++) {
-    auto num = decode_vertex(v, &edges[offset]);
-    offset += num;
-    vertices[v+1] = offset;
-    std::sort(edges+vertices[v], edges+offset);
-  }
-#endif
-  } else {
-    // VByte format
-    //decode_vertex();
-  }
-  t.Stop();
-  std::cout << "Graph decompressed time: " << t.Seconds() << "\n";
-}
  
 template<bool map_vertices, bool map_edges>
 VertexSet GraphT<map_vertices, map_edges>::N(vidType vid) const {

@@ -106,7 +106,8 @@ public:
   vidType* adj_ptr(vidType v) const { return &edges[vertices[v]]; }
   vidType N(vidType v, vidType n) const { return edges[vertices[v]+n];} // get the n-th neighbor of v
   VertexSet N(vidType v) const;                                         // get the neighbor list of vertex v
-  VertexSet N_compressed(vidType v, bool need_order=true);              // get the compressed neighbor list of vertex v
+  VertexSet N_compressed(vidType v, bool need_order=true);              // get the CGR compressed neighbor list of vertex v
+  VertexSet N_vbyte(vidType v, std::string scheme);                     // get the VByte compressed neighbor list of vertex v
   VertexSet get_interval_neighbors(vidType v);                          // get the interval neighbors in a CGR graph
   eidType get_eid(vidType v, vidType n) const { return vertices[v]+n;}  // get the edge id of the n-th edge of v
   eidType* rowptr() { return vertices; }             // get row pointers array

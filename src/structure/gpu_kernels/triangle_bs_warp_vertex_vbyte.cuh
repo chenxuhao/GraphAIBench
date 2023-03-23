@@ -5,16 +5,20 @@ triangle_bs_warp_vertex_vbyte(vidType begin, vidType end, GraphGPU g, vidType *b
   int thread_id   = blockIdx.x * blockDim.x + threadIdx.x;
   int warp_id     = thread_id   / WARP_SIZE;                // global warp index
   int num_warps   = (BLOCK_SIZE / WARP_SIZE) * gridDim.x;   // total number of active warps
-  if (thread_id == 0) printf("running triangle_bs_warp_vertex_vbyte kernel\n");
+  int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+  //if (thread_id == 0) printf("running triangle_bs_warp_vertex_vbyte kernel\n");
   AccType count = 0;
   vidType max_deg = g.get_max_degree();
   vidType *adj_v = buffer + (max_deg)*(2*warp_id);
   vidType *adj_u = buffer + (max_deg)*(2*warp_id+1);
   for (vidType v = warp_id + begin; v < end; v += num_warps) {
-    auto deg_v = g.decompress_vbyte_warp(v, adj_v);
+    auto deg_v = g.decompress_vbyte_warp<4>(v, adj_v);
+    //if (v==285 && thread_lane == 0) printf("v=%d decoded, deg=%d\n", v, deg_v);
+    assert(deg_v <= max_deg);
     for (vidType i = 0; i < deg_v; i++) {
       auto u = adj_v[i];
-      auto deg_u = g.decompress_vbyte_warp(u, adj_u);
+      //if (v == 285 && thread_lane == 0) printf("v=%u [%u-th] = %u\n", v, i, u);
+      auto deg_u = g.decompress_vbyte_warp<4>(u, adj_u);
       count += intersect_num(adj_v, deg_v, adj_u, deg_u);
     }
   }

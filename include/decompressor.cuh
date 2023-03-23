@@ -4,14 +4,18 @@
 // offset: the starting point
 // bit: number of bits to extract
 template <typename T = uint8_t, int L = 8>
-__device__ int extract_bits(const T *in, int firstBit, size_t nbits) {
-  return int((in[firstBit / L] >> (firstBit%L)) & (T(-1) >> (L - nbits)));
+__device__ uint32_t extract_bits(const T *in, int firstBit, size_t nbits) {
+  return uint32_t((in[firstBit / L] >> (firstBit%L)) & (T(-1) >> (L - nbits)));
 }
 
 template <typename T = uint8_t, int L = 8>
-__device__ uint32_t extract_bytes(const T *in, int offset, size_t nbytes) {
-  const T *inbyte = in + offset;
+__device__ uint32_t extract_bytes(const T *inbyte, int nbytes) {
+
+  int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+ 
   uint32_t val = static_cast<uint32_t>(*inbyte++);
+  //if (warp_lane == 0) printf("\t thread %d in warp %d has %d bytes, val=%u, ptr=%p\n", thread_lane, warp_lane, nbytes, val, inbyte);
   if (nbytes > 1) {
     val |= (static_cast<uint32_t>(*inbyte++) << 8);
     if (nbytes > 2) {
@@ -142,49 +146,50 @@ __device__ void decode_vbyte_warp(size_t num,
   }
 }
 
-template <int pack_size = WARP_SIZE>
+template <int pack_size = WARP_SIZE, bool delta = true>
 __device__ uint32_t decode_vbyte_warp(const size_t length, const uint32_t *in, uint32_t *out) {
   if (length == 0) {
     return 0;
   }
+  assert(pack_size >= 4);
   const uint8_t *inbyte = reinterpret_cast<const uint8_t *>(in);
   uint32_t nvalue = *in; // number of elements to decompress
   inbyte += 4;
 
-  //const uint32_t *const endout = out + nvalue;
-  //const uint8_t *const endbyte = inbyte + length - 1;
-  //uint32_t val;
-
-  const int header_len = 2 * (pack_size/32); // number of words
-  const int hearder_bytes = header_len * 4;
+  const int header_bytes = (2 * pack_size) / 8;
+  assert(header_bytes > 0);
 
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-  __shared__ uint32_t shm_offsets[BLOCK_SIZE + BLOCK_SIZE / WARP_SIZE];
-  auto end = ((nvalue - 1) / WARP_SIZE + 1) * WARP_SIZE;
+  int num_rounds = 0;
+  if (nvalue > 0) {
+    num_rounds = (int(nvalue) - 1) / pack_size + 1;
+  }
+  typedef cub::WarpScan<uint32_t> WarpScan;
+  __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
+  vidType base = 0;
 
-  if (thread_lane == 0) printf("\t decoded degree = %d\n", nvalue);
-  for (vidType i = thread_lane; i < end; i += WARP_SIZE) {
-    auto k = thread_lane % pack_size; // k is the element id within a pack
+  //if (thread_lane == 0) printf("warp %d decoding degree = %d, num_rounds=%d\n", warp_lane, nvalue, num_rounds);
+  for (int i = 0; i < num_rounds; i ++) {
+    __syncwarp();
+    int j = thread_lane + i*pack_size; // % pack_size; // k is the element id within a pack
     // Read the header
-    auto num_bytes = 0;
-    if (i < nvalue) num_bytes = extract_bits(inbyte, k * 2, 2) + 1;
-    inbyte += hearder_bytes;
-    // Store the number of bits of each element in the shared memory
-    auto start = warp_lane * (pack_size+1);
-    auto offsets = &shm_offsets[start];
-    offsets[0] = 0;
-    offsets[thread_lane + 1] = num_bytes;
-    __syncthreads();
+    uint32_t num_bytes = 0;
+    if (thread_lane < pack_size && j < nvalue) num_bytes = extract_bits(inbyte, thread_lane * 2, 2) + 1;
+    inbyte += header_bytes;
     // Compute prefix sum to get the positions for extracting elements
-    typedef cub::BlockScan<uint32_t, pack_size> BlockScan;
-    __shared__ typename BlockScan::TempStorage temp_storage;
+    uint32_t offset = 0;
     uint32_t total_bytes = 0;
-    BlockScan(temp_storage).InclusiveSum(offsets[thread_lane + 1], offsets[thread_lane + 1], total_bytes);
-    __syncthreads();
+    WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_bytes, offset, total_bytes);
+    //if (warp_lane == 0) printf("thread %d in warp %d has %d bytes, offset=%d, total_bytes=%d, ptr=%p\n", thread_lane, warp_lane, num_bytes, offset, total_bytes, inbyte);
     // Extract elements
-    out[i] = extract_bytes(inbyte, offsets[thread_lane], num_bytes);
+    uint32_t val = 0, delta_val = 0;
+    if (thread_lane < pack_size && j < nvalue) val = extract_bytes(&inbyte[offset], num_bytes);
+    if (delta && thread_lane == 0) val += base;
+    if (delta) WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
+    if (thread_lane < pack_size && j < nvalue) out[j] = delta ? delta_val : val;
     inbyte += total_bytes;
+    base = __shfl_sync(FULL_MASK, delta_val, pack_size-1);
   }
   return nvalue;
 }

@@ -10,7 +10,7 @@ void printusage(std::string bin) {
 }
 
 int main(int argc,char *argv[]) {
-  std::string schemename;
+  std::string schemename = "cgr";
   int c;
   while ((c = getopt(argc, argv, "s:h")) != -1) {
     switch (c) {
@@ -39,8 +39,8 @@ int main(int argc,char *argv[]) {
   vidType num_cached = 0;
   if (argc > 4) num_cached = atoi(argv[4]);
   //if (num_cached > 0)
-    g.decompress();
-  g.print_graph();
+  //  g.decompress(schemename);
+  //g.print_graph();
 
   uint64_t total = 0;
   if (schemename == "decomp")
@@ -76,8 +76,8 @@ void triangle_count(Graph &g, uint64_t &total) {
   Timer t;
   t.Start();
   triangle_bs_warp_vertex<<<nblocks, nthreads>>>(0, g.V(), gg, d_total);
-  t.Stop();
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  t.Stop();
   std::cout << "runtime [tc_gpu_base] = " << t.Seconds() << " sec\n";
   CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
   total = h_total;
@@ -93,7 +93,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
   if (nblocks > 65536) nblocks = 65536;
   refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte);
-  std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
+  std::cout << "CUDA triangle counting VByte (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   std::cout << "Allocating buffer for decompressed adjacency lists\n";
   vidType *buffer;
@@ -109,9 +109,9 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   Timer t;
   t.Start();
   triangle_bs_warp_vertex_vbyte<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
-  t.Stop();
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
-  std::cout << "runtime [tc_gpu_base] = " << t.Seconds() << " sec\n";
+  t.Stop();
+  std::cout << "runtime [tc_gpu_vbyte] = " << t.Seconds() << " sec\n";
   CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
   total = h_total;
   CUDA_SAFE_CALL(cudaFree(d_total));
@@ -147,7 +147,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
 void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached) {
   size_t memsize = print_device_info(0);
 #ifndef VERTEX_PARALLEL
-  if (!USE_ZERO_COPY && g.is_compressed_only()) g.decompress(); 
+  if (!USE_ZERO_COPY && g.is_compressed_only()) g.decompress();
 #endif
   GraphGPU gg(g);
 
