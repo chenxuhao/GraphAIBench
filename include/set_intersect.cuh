@@ -495,7 +495,7 @@ template <typename T = vidType>
 __forceinline__ __device__ T intersect_num_itv_res(T num_itv, T* adj, T size_b, T *b) {
   if (num_itv == 0 || size_b == 0) return 0;
   int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
-  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+  //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   T count = 0;
   for (auto i = thread_lane; i < size_b; i += WARP_SIZE) {
     auto vertex = b[i];
@@ -519,7 +519,7 @@ template <typename T = vidType>
 __forceinline__ __device__ T intersect_num_itv_res(T num_itv, T* begins, T* ends, T size_b, T *b) {
   if (num_itv == 0 || size_b == 0) return 0;
   int thread_lane = threadIdx.x & (WARP_SIZE-1);            // thread index within the warp
-  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+  //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   T count = 0;
   //__shared__ T idx[WARPS_PER_BLOCK];
   //if (thread_lane == 0) idx[warp_lane] = 0;

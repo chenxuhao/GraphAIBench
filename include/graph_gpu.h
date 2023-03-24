@@ -473,24 +473,21 @@ public:
   }
 
   // decompress VByte format to an ordered vertex set using a warp
-  template <int pack_size = WARP_SIZE>
+  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ vidType decompress_vbyte_warp(vidType v, vidType *adj) {
-    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-    //if (v >= num_vertices) printf("Error: vid %d >= num_vertices %d\n", v, num_vertices);
-    //assert(d_rowptr_compressed && d_colidx_compressed);
-    //assert(v < num_vertices);
     auto start = d_rowptr_compressed[v];
     auto length = d_rowptr_compressed[v+1] - start;
-    vidType degree = decode_vbyte_warp<pack_size>(length, &d_colidx_compressed[start], adj);
-    //if (thread_lane == 0) printf("decode vertex %d 's neighbor list, starting at %ld with %ld words, degree=%d\n", v, start, length, degree);
+    vidType degree = 0;
+    if constexpr (scheme == 0) {
+      degree = decode_streamvbyte_warp<delta>(length, &d_colidx_compressed[start], adj);
+    } else {
+      degree = decode_varintgb_warp<delta,pack_size>(length, &d_colidx_compressed[start], adj);
+    }
     return degree;
   }
 
   // decompress CGR format to an (unordered/ordered) vertex set using a warp
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) {
-    //int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-    //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
     CgrReaderGPU cgrr;
     cgrr.init(v, d_colidx_compressed, d_rowptr_compressed[v]);
     vidType degree = 0;

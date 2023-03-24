@@ -92,7 +92,11 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   size_t nthreads = BLOCK_SIZE;
   size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
   if (nblocks > 65536) nblocks = 65536;
-  refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte);
+  if (scheme == "streamvbyte") {
+    refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte<0,true>);
+  } else {
+    refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte<1,true,4>);
+  }
   std::cout << "CUDA triangle counting VByte (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   std::cout << "Allocating buffer for decompressed adjacency lists\n";
@@ -108,10 +112,14 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
 
   Timer t;
   t.Start();
-  triangle_bs_warp_vertex_vbyte<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+  if (scheme == "streamvbyte") {
+    triangle_bs_warp_vertex_vbyte<0,true><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+  } else {
+    triangle_bs_warp_vertex_vbyte<1,true,4><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+  }
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
   t.Stop();
-  std::cout << "runtime [tc_gpu_vbyte] = " << t.Seconds() << " sec\n";
+  std::cout << "runtime [tc_gpu_" << scheme << "] = " << t.Seconds() << " sec\n";
   CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
   total = h_total;
   CUDA_SAFE_CALL(cudaFree(d_total));
