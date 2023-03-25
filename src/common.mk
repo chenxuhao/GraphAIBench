@@ -22,11 +22,11 @@ GENCODE_SM70 := -gencode arch=compute_70,code=sm_70
 GENCODE_SM75 := -gencode arch=compute_75,code=sm_75
 GENCODE_SM80 := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
 GENCODE_SM86 := -gencode arch=compute_86,code=sm_86
-CUDA_ARCH := $(GENCODE_SM86)
+CUDA_ARCH := $(GENCODE_SM70)
 CXXFLAGS  := -Wall -fopenmp -std=c++17 -march=native
 ICPCFLAGS := -O3 -Wall -qopenmp
 NVFLAGS := $(CUDA_ARCH)
-NVFLAGS += -Xptxas -v
+NVFLAGS += -Xptxas -v -std=c++17
 NVFLAGS += -DUSE_GPU
 NVLIBS = -L$(CUDA_HOME)/lib64 -L$(CUDA_HOME)/lib64/stubs -lcuda -lcudart
 MPI_LIBS = -L$(MPI_HOME)/lib -lmpi

@@ -92,7 +92,7 @@ __device__ vidType decode_streamvbyte_warp(size_t length, const uint32_t *in, ui
 // length  : the number of compressed words
 // *in     : the input (compressed) bit stream
 // *out    : the output (decompressed) integer array
-template <bool delta = true, size_t pack_size = BLOCK_SIZE>
+template <bool delta = true, int pack_size = BLOCK_SIZE>
 __device__ vidType decode_varintgb_block(const size_t length, const uint32_t *in, uint32_t *out) {
 }
 
@@ -136,39 +136,47 @@ __device__ vidType decode_varintgb_warp(const size_t length, const uint32_t *in,
   return vidType(nvalue);
 }
 
-// Decompress Binary Packing GPU kernel
-// Assuming BLOCK_SIZE >= pack_size
-// Each thread decodes one element at a time
-// num     : the number of elements
-// *offsets: the endpoints array
-// *in     : the input (compressed) bit stream
-// *out    : the output (decompressed) integer array
-template <size_t pack_size = 32>
-__device__ void decode_bp_block(size_t num,
-                                const uint32_t *offsets,
-                                const uint32_t *in,
-                                uint32_t *out) {
-  for (vidType i = threadIdx.x; i < num; i += BLOCK_SIZE) {
-    auto j = i / pack_size; // j is the pack id
-    auto begin = offsets[j];// start of the pack
-    auto end = offsets[j+1];// end of the pack
-    uint8_t nbits = (end - begin)*32 / pack_size; // number of bits per element
-    out[i] = extract(in + begin, (i%pack_size) * nbits, nbits);
-  }
+__device__ void unpackblock(const uint32_t *in, uint32_t *out, const uint32_t bit, uint32_t initoffset) {
 }
 
-template <size_t pack_size = 32>
-__device__ void decode_bp_warp(size_t num,
-                               const uint32_t *offsets,
-                               const uint32_t *in,
-                               uint32_t *out) {
-  int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-  for (vidType i = thread_lane; i < num; i += WARP_SIZE) {
-    auto j = i / pack_size; // j is the pack id
-    auto begin = offsets[j];// start of the pack
-    auto end = offsets[j+1];// end of the pack
-    uint8_t nbits = (end - begin)*32 / pack_size; // number of bits per element
-    out[i] = extract(in + begin, (i%pack_size) * nbits, nbits);
+// Decompress Binary Packing GPU kernel
+// length  : the number of words
+// *in     : the input (compressed) bit stream
+// *out    : the output (decompressed) integer array
+#define NumMiniBlocks 4
+template <uint32_t MiniBlockSize = 32>
+__device__ vidType decode_bp_block(size_t length, const uint32_t *in, uint32_t *out) {
+}
+
+template <uint32_t MiniBlockSize = 32>
+__device__ vidType decode_bp_warp(size_t length, const uint32_t *in, uint32_t *out) {
+  const uint32_t actuallength = *in++;
+  if (actuallength == 0) return 0;
+  if (actuallength % MiniBlockSize != 0) {
+    printf("ERROR\n");
+    return 0;
   }
+  const uint32_t *const initout(out);
+  uint32_t Bs[NumMiniBlocks];
+  uint32_t init = 0;
+  uint32_t MegaBlockSize = NumMiniBlocks * MiniBlockSize;
+  uint32_t num_rounds = (actuallength - 1)/ MegaBlockSize + 1;
+  const uint32_t *const end = initout + actuallength;
+  for (uint32_t i = 0; i < num_rounds; i ++) {
+    size_t howmany = (i == num_rounds-1) ? ((end - out) / MiniBlockSize) : NumMiniBlocks;
+    if (out < end) {
+      Bs[0] = static_cast<uint8_t>(in[0] >> 24);
+      Bs[1] = static_cast<uint8_t>(in[0] >> 16);
+      Bs[2] = static_cast<uint8_t>(in[0] >> 8);
+      Bs[3] = static_cast<uint8_t>(in[0]);
+      ++in;
+      for (uint32_t i = 0; i < NumMiniBlocks; ++i) {
+        unpackblock(in, out + i * MiniBlockSize, Bs[i], init);
+        in += Bs[i];
+      }
+    }
+    out += (i == num_rounds-1) ? (howmany * MiniBlockSize) : MegaBlockSize;
+  }
+  return out - initout;
 }
 
