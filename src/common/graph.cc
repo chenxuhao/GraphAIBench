@@ -244,8 +244,8 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
     std::cout << "open graph file failed!" << std::endl;
     exit(1);
   }
-  //std::cout << "Loading edgelists file ...\n";
   std::streamsize num_bytes = ifs.tellg();
+  //std::cout << "Loading edgelists file (" << num_bytes << " bytes)\n";
   ifs.seekg(0, std::ios::beg);
   edges_compressed.clear();
   is_compressed_ = true;
@@ -912,6 +912,13 @@ void GraphT<map_vertices, map_edges>::degree_histogram(int bin_width, std::strin
     auto bin_id = num_bins - 1 - i;
     std::cout << "Number of vertices in range[" << bin_id*bin_width << "," 
       << (bin_id+1)*bin_width << "]: " << counts[bin_id] << "\n";
+  }
+  if (num_bins > 20) {
+    for (int i = 0; i < std::min(11,num_bins); i++) {
+      auto bin_id = i;
+      std::cout << "Number of vertices in range[" << bin_id*bin_width << "," 
+        << (bin_id+1)*bin_width << "]: " << counts[bin_id] << "\n";
+    }
   }
 }
 

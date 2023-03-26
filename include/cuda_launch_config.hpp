@@ -379,5 +379,5 @@ inline __host__ void refine_kernel_config(size_t &nthreads, size_t &nblocks, T t
   cudaDeviceProp deviceProp;
   CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, 0));
   size_t max_blocks = max_blocks_per_SM * deviceProp.multiProcessorCount;
-  nblocks = std::min(max_blocks, nblocks);
+  if (max_blocks > 0) nblocks = std::min(max_blocks, nblocks);
 }
