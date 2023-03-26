@@ -55,7 +55,7 @@ public:
   void write_bit_array(FILE* &of);
 
 protected:
-  void encode_node(const size_type v, bool use_interval, bool add_degree);
+  void encode_vertex(const size_type v, bool use_interval, bool add_degree);
   void intervalize(const size_type v);
   void encode_intervals(const size_type v);
   void encode_residuals(const size_type v);

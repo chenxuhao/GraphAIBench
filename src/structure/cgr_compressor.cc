@@ -72,7 +72,7 @@ void cgr_compressor::write_bit_array(FILE* &of) {
   std::cout << "Writing bit array time: " << t.Seconds() << "\n";
 }
 
-void cgr_compressor::encode_node(const size_type v, bool use_interval, bool add_degree) {
+void cgr_compressor::encode_vertex(const size_type v, bool use_interval, bool add_degree) {
   auto &adj = this->_cgr[v];
   adj.node = v;
   adj.outd = g->get_degree(v);
@@ -263,7 +263,7 @@ void cgr_compressor::compress(bool use_interval, bool add_degree) {
   t.Start();
   #pragma omp parallel for
   for (vidType i = 0; i < g->V(); i++) {
-    encode_node(i, use_interval, add_degree);
+    encode_vertex(i, use_interval, add_degree);
   }
   std::cout << "max_num_itv_per_node = " << max_num_itv_per_node << "\n"
             << "max_num_res_per_node = " << max_num_res_per_node << "\n"
