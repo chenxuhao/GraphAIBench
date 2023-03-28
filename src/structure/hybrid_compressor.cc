@@ -1,6 +1,7 @@
 #include "hybrid_compressor.hpp"
 #include "codecfactory.h"
 using namespace SIMDCompressionLib;
+#define CHECKPOINT 50000000
 
 void hybrid_compressor::compress() {
   std::cout << "Start hybrid compressing: degree_threshold = " 
@@ -16,8 +17,12 @@ void hybrid_compressor::compress() {
   osizes.resize(g->V());
   t.Start();
   vidType vbyte_count = 0, unary_count = 0, trivial_count = 0;
-  #pragma omp parallel for reduction(+:vbyte_count,unary_count,trivial_count)
+  vidType vbyte_adj_count = 0, unary_adj_count = 0;
+  int64_t unary_bytes = 0, vbyte_bytes = 0;
+  std::cout << "Start encoding\n"; 
+  #pragma omp parallel for reduction(+:vbyte_count,unary_count,trivial_count,unary_bytes,vbyte_bytes) schedule(dynamic, 1)
   for (vidType v = 0; v < g->V(); v++) {
+    if (v > 0 && v%CHECKPOINT==0) std::cout << "(" << v/CHECKPOINT << " * " << CHECKPOINT << ") vertices compressed\n";
     auto deg = g->get_degree(v);
     if (deg == 0) {
       trivial_count ++;
@@ -28,16 +33,25 @@ void hybrid_compressor::compress() {
       edges_vbyte[v].clear();
       encode_vbyte(v, edges_vbyte[v]);
       vbyte_count ++;
+      vbyte_adj_count += deg;
+      vbyte_bytes += osizes[v] * 4;
     } else { // use unary encoding
       edges_unary[v].clear();
       encode_unary(v, edges_unary[v]);
-      osizes[v] = edges_unary[v].size(); // number of bits
+      assert(edges_unary[v].size() > 0);
+      osizes[v] = (edges_unary[v].size() - 1)/8 + 1; // number of bits --> number of bytes
       unary_count ++;
+      unary_adj_count += deg;
+      unary_bytes += osizes[v];
     }
   }
   t.Stop();
   std::cout << "Encoding time: " << t.Seconds() << "\n";
   std::cout << "vbyte_count: " << vbyte_count << " unary_count: " << unary_count << " trivial_count: " << trivial_count << "\n";
+  float vbyte_rate = float(vbyte_adj_count)*4.0/float(vbyte_bytes);
+  float unary_rate = float(unary_adj_count)*4.0/float(unary_bytes);
+  std::cout << "VByte bytes: " << float(vbyte_bytes)/1024/1024 << " MB, compression rate: " << vbyte_rate << "\n";
+  std::cout << "Unary bytes: " << float(unary_bytes)/1024/1024 << " MB, compression rate: " << unary_rate << "\n";
 }
 
 void hybrid_compressor::encode_vertex(const size_type v) {
@@ -86,6 +100,7 @@ void hybrid_compressor::write_compressed_colidx(std::string out_prefix) {
         exit(1);
         //printf("Number of items written to the file: %ld\n", num);
       }
+      osizes[v] = 4 * osizes[v]; // number of words --> number of bytes
     } else { // use unary encoding
       int bit_count = 0;
       unsigned char cur = 0;
@@ -132,7 +147,7 @@ void hybrid_compressor::write_compressed_rowptr(std::string out_prefix) {
 #else
   rowptr[0] = 0;
   for (vidType i = 0; i < g->V(); i++)
-    rowptr[i+1] = osizes[i] + rowptr[i];
+    rowptr[i+1] = osizes[i] + rowptr[i]; // byte offsets
 #endif
   t.Stop();
   std::cout << "Computing row pointers time: " << t.Seconds() << "\n";
