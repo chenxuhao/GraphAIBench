@@ -8,8 +8,8 @@ hybrid_compressor: hybrid_compressor.o unary_compressor.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) hybrid_compressor.o unary_compressor.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
-cgr_compressor: test_cgr_compressor.o cgr_compressor.o unary_compressor.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) test_cgr_compressor.o cgr_compressor.o unary_compressor.o $(OBJS) -o $@ $(LIBS)
+cgr_compressor: cgr_compressor.o unary_compressor.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) cgr_compressor.o unary_compressor.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 vbyte_compressor: vbyte_compressor.o $(OBJS)

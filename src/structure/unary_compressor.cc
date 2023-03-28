@@ -49,12 +49,14 @@ size_type unary_compressor::zeta_size(size_type x) {
 }
 
 void unary_compressor::pre_encoding() {
+  //auto num = g->V() > this->PRE_ENCODE_NUM ? this->PRE_ENCODE_NUM : g->V();
+  auto num = this->PRE_ENCODE_NUM;
   this->gamma_code.clear();
-  this->gamma_code.resize(this->PRE_ENCODE_NUM);
+  this->gamma_code.resize(num);
   this->zeta_code.clear();
-  this->zeta_code.resize(this->PRE_ENCODE_NUM);
+  this->zeta_code.resize(num);
   #pragma omp parallel for
-  for (size_type i = 0; i < this->PRE_ENCODE_NUM; i++) {
+  for (size_type i = 0; i < num; i++) {
     // pre-encode gamma
     encode_gamma(this->gamma_code[i], i);
     // pre-encode zeta
