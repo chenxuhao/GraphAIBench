@@ -357,7 +357,7 @@ vidType GraphT<map_vertices, map_edges>::decode_intervals(vidType v, CgrReader &
   // handle segmented intervals
   auto segment_cnt = decoder.decode_segment_cnt();
   // for each segment
-  auto interval_offset = decoder.global_offset;
+  auto interval_offset = decoder.get_offset();
   for (vidType i = 0; i < segment_cnt; i++) {
     CgrReader cgrr(v, &edges_compressed[0], interval_offset);
     IntervalSegmentHelper isHelper(v, cgrr);
@@ -375,9 +375,9 @@ vidType GraphT<map_vertices, map_edges>::decode_intervals(vidType v, CgrReader &
     }
     interval_offset += INTERVAL_SEGMENT_LEN;
     if (i == segment_cnt-1) {// last segment
-      decoder.global_offset = cgrr.global_offset;
+      decoder.set_offset(cgrr.get_offset());
     } else
-      decoder.global_offset += INTERVAL_SEGMENT_LEN;
+      decoder.inc_offset(INTERVAL_SEGMENT_LEN);
   }
   return num_neighbors;
 }
@@ -388,7 +388,7 @@ vidType GraphT<map_vertices, map_edges>::decode_intervals(vidType v, CgrReader &
   // handle segmented intervals
   auto segment_cnt = decoder.decode_segment_cnt();
   // for each segment
-  auto interval_offset = decoder.global_offset;
+  auto interval_offset = decoder.get_offset();
   for (vidType i = 0; i < segment_cnt; i++) {
     CgrReader cgrr(v, &edges_compressed[0], interval_offset);
     //IntervalSegmentHelper isHelper(v, decoder);
@@ -407,9 +407,9 @@ vidType GraphT<map_vertices, map_edges>::decode_intervals(vidType v, CgrReader &
     }
     interval_offset += INTERVAL_SEGMENT_LEN;
     if (i == segment_cnt-1) // last segment
-      decoder.global_offset = cgrr.global_offset;
+      decoder.set_offset(cgrr.get_offset());
     else
-      decoder.global_offset += INTERVAL_SEGMENT_LEN;
+      decoder.inc_offset(INTERVAL_SEGMENT_LEN);
   }
   return num_neighbors;
 }
@@ -418,9 +418,9 @@ template <bool map_vertices, bool map_edges>
 VertexSet GraphT<map_vertices, map_edges>::get_interval_neighbors(vidType v) {
   CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
   VertexSet adj(v);
-  std::cout << "before decode_intervals: global_offset = " << decoder.global_offset << "\n";
+  std::cout << "before decode_intervals: global_offset = " << decoder.get_offset() << "\n";
   vidType num_neighbors = decode_intervals(v, decoder, adj.data());
-  std::cout << "after decode_intervals: global_offset = " << decoder.global_offset << "\n";
+  std::cout << "after decode_intervals: global_offset = " << decoder.get_offset() << "\n";
   assert(num_neighbors <= max_degree);
   adj.adjust_size(num_neighbors);
   return adj;
@@ -431,7 +431,7 @@ vidType GraphT<map_vertices, map_edges>::decode_residuals(vidType v, CgrReader &
   vidType num_neighbors = offset;
   // handle segmented residuals
   auto segment_cnt = decoder.decode_segment_cnt();
-  auto residual_offset = decoder.global_offset;
+  auto residual_offset = decoder.get_offset();
   for (vidType i = 0; i < segment_cnt; i++) {
     CgrReader cgrr(v, &edges_compressed[0], residual_offset);
     ResidualSegmentHelper rsHelper(v, cgrr);
@@ -444,7 +444,7 @@ vidType GraphT<map_vertices, map_edges>::decode_residuals(vidType v, CgrReader &
       ptr[num_neighbors++] = residual;
     }
     residual_offset += RESIDUAL_SEGMENT_LEN;
-    decoder.global_offset += RESIDUAL_SEGMENT_LEN;
+    decoder.inc_offset(RESIDUAL_SEGMENT_LEN);
   }
   return num_neighbors;
 }

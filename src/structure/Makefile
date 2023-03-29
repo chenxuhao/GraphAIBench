@@ -4,12 +4,12 @@ LIBS += $(SIMDCAI_LIB)
 INCLUDES += -I./gpu_kernels $(SIMDCAI_INC)
 all: cgr_compressor vbyte_compressor tc_omp_compressed tc_gpu_compressed
 
-hybrid_compressor: hybrid_compressor.o unary_compressor.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) hybrid_compressor.o unary_compressor.o $(OBJS) -o $@ $(LIBS)
+hybrid_compressor: hybrid_compressor.o unary_encoder.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) hybrid_compressor.o unary_encoder.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
-cgr_compressor: cgr_compressor.o unary_compressor.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) cgr_compressor.o unary_compressor.o $(OBJS) -o $@ $(LIBS)
+cgr_compressor: compressor.o cgr_encoder.o unary_encoder.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) cgr_encoder.o compressor.o unary_encoder.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 vbyte_compressor: vbyte_compressor.o $(OBJS)

@@ -1,64 +1,18 @@
 #pragma once
-#include "common.h"
-using OFFSET_TYPE = uint64_t;
+#include "unary_decoder.hpp"
 
-class CgrReader {
+class CgrReader : public UnaryDecoder {
   public:
     vidType node;
-    vidType *graph;
-    OFFSET_TYPE global_offset;
 
     CgrReader(vidType v, vidType *g, OFFSET_TYPE off) :
-      node(v), graph(g), global_offset(off) { }
+      UnaryDecoder(g, off), node(v) { }
 
     void init(vidType v, vidType *graph, OFFSET_TYPE global_offset) {
       this->node = v;
       this->graph = graph;
       this->global_offset = global_offset;
     }
-    static vidType decode_first_num(vidType node, vidType x) {
-      return (x & 1) ? node - (x >> 1) - 1 : node + (x >> 1);
-    }
-    vidType cur() {
-      OFFSET_TYPE chunk = global_offset / 32;
-      auto buf_hi = graph[chunk];
-      auto buf_lo = graph[chunk + 1];
-      vidType offset = global_offset % 32;
-      uint64_t value = uint64_t(buf_hi) << 32 | buf_lo;
-      value = (value << offset) >> 32;
-      //if (value < 0) printf("node=%d\n", node);
-      //assert(value >= 0);
-      return value;
-      //return __funnelshift_l(buf_lo, buf_hi, offset);
-    }
-    vidType decode_unary() {
-      auto tmp = cur();
-      vidType x = __builtin_clz(tmp);
-      global_offset += x;
-      return x + 1;
-    }
-    vidType decode_int(vidType len) {
-      assert(len <= 32);
-      vidType x = cur() >> (32 - len);
-      global_offset += len;
-      return x;
-    }
-    vidType get_h() {
-      auto tmp = cur();
-      return __builtin_clz(tmp)+1;
-    }
-    vidType decode_gamma() {
-      vidType h = decode_unary();
-      return this->decode_int(h) - 1;
-    }
-#if ZETA_K != 1
-    vidType decode_zeta() {
-      vidType h = decode_unary();
-      global_offset++;
-      vidType x = decode_int(h * ZETA_K);
-      return x - 1;
-    }
-#endif
     vidType decode_residual_code() {
 #if ZETA_K == 1
       return decode_gamma();

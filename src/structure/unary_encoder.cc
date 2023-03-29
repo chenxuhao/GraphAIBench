@@ -1,6 +1,6 @@
-#include "unary_compressor.hpp"
+#include "unary_encoder.hh"
 
-void unary_compressor::print_bits(bits in) {
+void unary_encoder::print_bits(bits in) {
   std::cout << "0b";
   for (size_t i = 0; i < in.size(); i++) {
     if (in[i]) {
@@ -11,7 +11,8 @@ void unary_compressor::print_bits(bits in) {
   }
 }
 
-void unary_compressor::append_gamma(bits &bit_array, size_type x) {
+void unary_encoder::append_gamma(bits &bit_array, size_type x) {
+  //std::cout << "appending gmma code for value " << x << "\n";
   if (x < this->PRE_ENCODE_NUM) {
     bit_array.insert(bit_array.end(), this->gamma_code[x].begin(), this->gamma_code[x].end());
   } else {
@@ -19,7 +20,8 @@ void unary_compressor::append_gamma(bits &bit_array, size_type x) {
   }
 }
 
-void unary_compressor::append_zeta(bits &bit_array, size_type x) {
+void unary_encoder::append_zeta(bits &bit_array, size_type x) {
+  //std::cout << "appending zeta code for value " << x << "\n";
   if (x < this->PRE_ENCODE_NUM) {
     bit_array.insert(bit_array.end(), this->zeta_code[x].begin(), this->zeta_code[x].end());
   } else {
@@ -27,11 +29,11 @@ void unary_compressor::append_zeta(bits &bit_array, size_type x) {
   }
 }
 
-size_type unary_compressor::int_2_nat(size_type x) {
+size_type unary_encoder::int_2_nat(size_type x) {
   return x >= 0L ? x << 1 : -((x << 1) + 1L);
 }
 
-size_type unary_compressor::gamma_size(size_type x) {
+size_type unary_encoder::gamma_size(size_type x) {
   if (x < this->PRE_ENCODE_NUM) return this->gamma_code[x].size();
   x++;
   assert(x >= 0);
@@ -39,7 +41,7 @@ size_type unary_compressor::gamma_size(size_type x) {
   return 2 * len + 1;
 }
 
-size_type unary_compressor::zeta_size(size_type x) {
+size_type unary_encoder::zeta_size(size_type x) {
   if (x < this->PRE_ENCODE_NUM) return this->zeta_code[x].size();
   x++;
   assert(x >= 0);
@@ -48,9 +50,8 @@ size_type unary_compressor::zeta_size(size_type x) {
   return (h + 1) * (this->_zeta_k + 1);
 }
 
-void unary_compressor::pre_encoding() {
-  //auto num = g->V() > this->PRE_ENCODE_NUM ? this->PRE_ENCODE_NUM : g->V();
-  auto num = this->PRE_ENCODE_NUM;
+void unary_encoder::pre_encoding() {
+  auto num = PRE_ENCODE_NUM;
   this->gamma_code.clear();
   this->gamma_code.resize(num);
   this->zeta_code.clear();
@@ -68,7 +69,7 @@ void unary_compressor::pre_encoding() {
   }
 }
 
-void unary_compressor::encode_gamma(bits &bit_array, size_type x) {
+void unary_encoder::encode_gamma(bits &bit_array, size_type x) {
   x++;
   assert(x >= 0);
   int len = this->get_significent_bit(x);
@@ -76,7 +77,7 @@ void unary_compressor::encode_gamma(bits &bit_array, size_type x) {
   this->encode(bit_array, x, len);
 }
 
-void unary_compressor::encode_zeta(bits &bit_array, size_type x) {
+void unary_encoder::encode_zeta(bits &bit_array, size_type x) {
   if (this->_zeta_k == 1) {
     encode_gamma(bit_array, x);
   } else {
@@ -97,13 +98,13 @@ void unary_compressor::encode_zeta(bits &bit_array, size_type x) {
   }
 }
 
-void unary_compressor::encode(bits &bit_array, size_type x, int len) {
+void unary_encoder::encode(bits &bit_array, size_type x, int len) {
   for (int i = len - 1; i >= 0; i--) {
     bit_array.emplace_back((x >> i) & 1L);
   }
 }
 
-int unary_compressor::get_significent_bit(size_type x) {
+int unary_encoder::get_significent_bit(size_type x) {
   assert(x > 0);
   int ret = 0;
   while (x > 1) x >>= 1, ret++;

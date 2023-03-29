@@ -50,8 +50,12 @@ void hybrid_compressor::compress() {
   std::cout << "vbyte_count: " << vbyte_count << " unary_count: " << unary_count << " trivial_count: " << trivial_count << "\n";
   float vbyte_rate = float(vbyte_adj_count)*4.0/float(vbyte_bytes);
   float unary_rate = float(unary_adj_count)*4.0/float(unary_bytes);
-  std::cout << "VByte bytes: " << float(vbyte_bytes)/1024/1024 << " MB, compression rate: " << vbyte_rate << "\n";
-  std::cout << "Unary bytes: " << float(unary_bytes)/1024/1024 << " MB, compression rate: " << unary_rate << "\n";
+  std::cout << "VByte bytes: " << float(vbyte_bytes)/1024/1024 
+            << " MB, original data: " << float(vbyte_adj_count)*4.0/1024/1024 
+            << " MB, compression rate: " << vbyte_rate << "\n";
+  std::cout << "Unary bytes: " << float(unary_bytes)/1024/1024 
+            << " MB, original data: " << float(unary_adj_count)*4.0/1024/1024 
+            << " MB, compression rate: " << unary_rate << "\n";
 }
 
 void hybrid_compressor::encode_vertex(const size_type v) {
@@ -73,13 +77,15 @@ void hybrid_compressor::encode_unary(vidType v, bits& bit_array) {
 
 void hybrid_compressor::encode_vbyte(vidType v, std::vector<uint32_t>& buffer) {
   auto deg = g->get_degree(v);
-  size_t outsize = deg + 1024;
+  size_t outsize = deg + deg/16 +1;
   if (buffer.size() < outsize) buffer.resize(outsize);
   outsize = buffer.size();
   shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(vbyte_scheme);
   if (schemeptr.get() == NULL) return;
   schemeptr->encodeArray(g->adj_ptr(v), deg, buffer.data(), outsize);
   osizes[v] = static_cast<vidType>(outsize); // number of words
+  assert(outsize <= deg + deg/16 +1);
+  buffer.resize(outsize);
 }
 
 void hybrid_compressor::write_compressed_colidx(std::string out_prefix) {
