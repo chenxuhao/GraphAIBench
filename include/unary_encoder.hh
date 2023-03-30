@@ -17,7 +17,7 @@ public:
   explicit unary_encoder(int zeta_k) : _zeta_k(zeta_k) {}
   void pre_encoding();
 
-  virtual void encode(vidType id, vidType length, vidType *in) = 0;
+  virtual size_t encode(vidType id, vidType length, vidType *in) = 0;
   virtual void print_stats() = 0;
   virtual eidType get_compressed_size(vidType i) const = 0;
 

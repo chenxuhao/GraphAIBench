@@ -26,8 +26,8 @@ class cgr_encoder : public unary_encoder {
 
 public:
   explicit cgr_encoder(vidType n, 
-                       int zeta_k = 2,
-                       bool use_itv = true,
+                       int zeta_k,
+                       bool use_itv,
                        bool add_deg = false,
                        int min_itv_len = MIN_ITV_LEN, 
                        int itv_seg_len = INTERVAL_SEGMENT_LEN,
@@ -54,7 +54,7 @@ public:
               << (use_interval?"interval enabled, ":"interval disabled, ")
               << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
   }
-  void encode(vidType id, vidType length, vidType *in);
+  size_t encode(vidType id, vidType length, vidType *in);
   void print_stats();
   eidType get_compressed_size(vidType i) const { return get_compressed_bits_size(i); }
   //eidType get_compressed_size(vidType i) const { return bit_arrays[i].size(); }

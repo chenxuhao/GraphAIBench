@@ -11,7 +11,7 @@ void cgr_encoder::print_stats() {
 }
 
 // encode an integer array "*in" with "length" elements using CGR format
-void cgr_encoder::encode(vidType id, vidType length, vidType *in) {
+size_t cgr_encoder::encode(vidType id, vidType length, vidType *in) {
   interval_left[id].clear();
   interval_len[id].clear();
   residuals[id].clear();
@@ -21,7 +21,7 @@ void cgr_encoder::encode(vidType id, vidType length, vidType *in) {
   if (add_degree || _res_seg_len == 0) {
     //std::cout << "appending degree=" << length << "\n";
     append_gamma(bit_arrays[id], length);
-    if (length == 0) return;
+    if (length == 0) return 0;
   }
   if (use_interval) {
     intervalize(id, length, in);
@@ -31,6 +31,11 @@ void cgr_encoder::encode(vidType id, vidType length, vidType *in) {
     residuals[id].assign(in, in+length);
   }
   encode_residuals(id);
+
+  interval_left[id].clear();
+  interval_len[id].clear();
+  residuals[id].clear();
+  return (bit_arrays[id].size() - 1)/8 + 1; // number of bits --> number of bytes
 }
 
 //void cgr_encoder::encode_intervals(size_type id, size_type length, vidType *in) {
