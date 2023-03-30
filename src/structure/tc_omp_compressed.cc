@@ -71,12 +71,23 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
   } else if (scheme == "cgr") { // cgr graph
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {
-      auto adj_u = g.N_compressed(u, 1);
+      auto adj_u = g.N_cgr(u, 1);
       for (auto v : adj_u) {
         auto num = (uint64_t)g.intersect_num_compressed(adj_u, v);
         counter += num;
       }
     }
+  } else if (scheme == "hybrid") { // hybrid scheme: unary + vbyte
+    #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
+    for (vidType u = 0; u < g.V(); u ++) {
+      auto adj_u = g.N_hybrid(u, scheme);
+      for (auto v : adj_u) {
+        auto adj_v = g.N_hybrid(v, scheme);
+       auto num = (uint64_t)intersection_num(adj_u, adj_v);
+        counter += num;
+      }
+    }
+ 
   } else { // vbyte graph
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {

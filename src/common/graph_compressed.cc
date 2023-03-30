@@ -1,14 +1,42 @@
 #include "graph.h"
 #include "codecfactory.h"
 using namespace SIMDCompressionLib;
+
 template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* ptr, std::string scheme) {
+vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* ptr, std::string scheme) {
+  auto degree = read_degree(v);
+  if (degree > degree_threshold) { // vbyte
+    decode_vertex_vbyte(v, ptr, scheme);
+  } else { // unary
+    decode_vertex_unary(v, ptr, degree);
+  }
+  return degree;
+}
+
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* out, vidType degree) {
+  auto start = vertices_compressed[v];
+  auto in = &edges_compressed[start];
+  //uint32_t count = *(uint32_t *)in;
+  //in ++;
+  uint64_t offset = 0;
+  UnaryDecoder decoder(in, offset);
+  vidType x = decoder.decode_residual_code();
+  out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+  for (vidType i = 1; i < degree; i++) {
+    out[i] = out[i-1] + decoder.decode_residual_code() + 1;
+  }
+}
+
+template<bool map_vertices, bool map_edges>
+vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* out, std::string scheme) {
   assert(v >= 0 && v < V());
   auto start = vertices_compressed[v];
   auto length = vertices_compressed[v+1] - start;
+  auto in = &edges_compressed[start];
   shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
   size_t deg = 0;
-  schemeptr->decodeArray(&edges_compressed[start], length, ptr, deg);
+  schemeptr->decodeArray(in, length, out, deg);
   assert(deg <= max_degree);
   return vidType(deg);
 }
@@ -23,7 +51,8 @@ void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
   vertices[0] = 0;
   eidType offset = 0;
 
-  if (scheme == "cgr") {
+  if (scheme == "hybrid") {
+  } else if (scheme == "cgr") {
 #if 0
   VertexList degrees(n_vertices);
   #pragma omp parallel for
@@ -49,7 +78,6 @@ void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
     // VByte format
     for (vidType v = 0; v < n_vertices; v++) {
       auto deg = decode_vertex_vbyte(v, &edges[offset], scheme);
-      //std::cout << "decoding vertex " << v << " degree=" << deg << "\n";
       offset += deg;
       vertices[v+1] = offset;
     }
@@ -59,11 +87,23 @@ void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
 }
 
 template<bool map_vertices, bool map_edges>
+VertexSet GraphT<map_vertices, map_edges>::N_hybrid(vidType vid, std::string scheme) {
+  assert(vid >= 0);
+  assert(vid < V());
+  VertexSet adj(vid);
+  vidType deg = 0;
+  deg = decode_vertex_hybrid(vid, adj.data(), scheme);
+  adj.adjust_size(deg);
+  return adj;
+}
+
+template<bool map_vertices, bool map_edges>
 VertexSet GraphT<map_vertices, map_edges>::N_vbyte(vidType vid, std::string scheme) {
   assert(vid >= 0);
   assert(vid < V());
   VertexSet adj(vid);
-  auto deg = decode_vertex_vbyte(vid, adj.data(), scheme);
+  vidType deg = 0;
+  deg = decode_vertex_vbyte(vid, adj.data(), scheme);
   assert(deg <= max_degree);
   adj.adjust_size(deg);
   return adj;

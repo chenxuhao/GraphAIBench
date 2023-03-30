@@ -485,7 +485,7 @@ VertexSet GraphT<map_vertices, map_edges>::N(vidType vid) const {
 
 // TODO: this method does not work for now
 template<bool map_vertices, bool map_edges>
-VertexSet GraphT<map_vertices, map_edges>::N_compressed(vidType vid, bool need_order) {
+VertexSet GraphT<map_vertices, map_edges>::N_cgr(vidType vid, bool need_order) {
   assert(vid >= 0);
   assert(vid < n_vertices);
   VertexSet adj(vid);
@@ -510,7 +510,8 @@ void GraphT<map_vertices,map_edges>::sort_neighbors() {
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices,map_edges>::sort_and_clean_neighbors(std::string outfile_prefix) {
   std::cout << "Sorting the neighbor lists and remove selfloops and redundent edges (used for pattern mining)\n";
-  std::vector<vidType> degrees(n_vertices, 0);
+  degrees.resize(n_vertices);
+  std::fill(degrees.begin(), degrees.end(), 0);
   eidType num_selfloops = 0;
   eidType num_redundants = 0;
   using T = typename std::conditional_t<map_edges,VertexList,VertexSet>;
@@ -657,7 +658,8 @@ void GraphT<map_vertices,map_edges>::sort_and_clean_neighbors(std::string outfil
 
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices,map_edges>::symmetrize() {
-  std::vector<vidType> degrees(n_vertices, 0);
+  degrees.resize(n_vertices);
+  std::fill(degrees.begin(), degrees.end(), 0);
   std::cout << "Computing degrees\n";
   #pragma omp parallel for
   for (vidType v = 0; v < n_vertices; v++) {
@@ -881,14 +883,6 @@ void GraphT<map_vertices, map_edges>::compute_max_degree() {
     auto deg = this->get_degree(v);
     if (deg > max_degree) max_degree = deg;
   }
-  /*
-  std::vector<vidType> degrees(n_vertices, 0);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v++) {
-    degrees[v] = vertices[v+1] - vertices[v];
-  }
-  max_degree = *(std::max_element(degrees.begin(), degrees.end()));
-  */
   t.Stop();
   std::cout << "maximum degree: " << max_degree << "\n";
   std::cout << "Time computing the maximum degree: " << t.Seconds() << " sec\n";
@@ -927,7 +921,8 @@ void GraphT<map_vertices, map_edges>::orientation(std::string outfile_prefix) {
   std::cout << "Orientation enabled, generating DAG\n";
   Timer t;
   t.Start();
-  std::vector<vidType> degrees(n_vertices, 0);
+  degrees.resize(n_vertices);
+  std::fill(degrees.begin(), degrees.end(), 0);
   #pragma omp parallel for
   for (vidType v = 0; v < n_vertices; v++) {
     degrees[v] = this->get_degree(v);

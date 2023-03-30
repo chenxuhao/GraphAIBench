@@ -52,5 +52,12 @@ class UnaryDecoder {
       vidType x = decode_int(h * ZETA_K);
       return x - 1;
     }
+    vidType decode_residual_code() {
+#if ZETA_K == 1
+      return decode_gamma();
+#else
+      return decode_zeta();
+#endif
+    }
 };
 

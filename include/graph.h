@@ -1,6 +1,6 @@
 #pragma once
 #include "VertexSet.h"
-#include "cgr_decompressor.h"
+#include "cgr_decoder.hh"
 
 using namespace std;
 
@@ -27,6 +27,7 @@ protected:
   int num_edge_classes;         // number of distinct edge labels: '0' means no edge labels
   int core_length_;
   int vid_size, eid_size, vlabel_size, elabel_size; // number of bytes for vid, eid, vlabel, elabel
+  vidType degree_threshold;
 
   vidType *edges;               // column indices of CSR format
   eidType *vertices;            // row pointers of CSR format
@@ -44,6 +45,7 @@ protected:
   std::vector<nlf_map> nlf_;    // neighborhood label frequency
   std::vector<eidType> reverse_index_offsets_; // pointers to each vertex group
   std::vector<uint32_t> edges_compressed;      // compressed edgelist
+  std::vector<vidType> degrees; 
 
 public:
   GraphT(std::string prefix, bool use_dag = false, bool directed = false,
@@ -54,6 +56,7 @@ public:
             n_vertices(0), n_edges(0), nnz(0), 
             max_label_frequency_(0), max_label(0), feat_len(0), 
             num_vertex_classes(0), num_edge_classes(0), core_length_(0),
+            vid_size(4), eid_size(8), vlabel_size(0), elabel_size(0), degree_threshold(32),
             edges(NULL), vertices(NULL), vlabels(NULL), elabels(NULL),
             features(NULL), src_list(NULL), dst_list(NULL) { }
   GraphT(vidType nv, eidType ne) : GraphT() { allocateFrom(nv, ne); }
@@ -69,13 +72,17 @@ public:
                        bool use_dag = false, bool use_vlabel = false, 
                        bool use_elabel = false, bool need_reverse = false);
   void deallocate();
+
+  // graph compression
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix, bool zeta_coding = true);
   void load_row_pointers(std::string prefix);
   void decompress(std::string scheme = "cgr");
   void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
-  vidType decode_vertex(vidType v, vidType* ptr);
-  vidType decode_vertex_vbyte(vidType v, vidType* ptr, std::string scheme);
+  vidType decode_vertex(vidType v, vidType* out_ptr);
+  vidType decode_vertex_vbyte(vidType v, vidType* out_ptr, std::string scheme);
+  vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme);
+  void decode_vertex_unary(vidType v, vidType* out_ptr, vidType degree);
   vidType decode_intervals(vidType v, CgrReader &decoder, vidType *ptr);
   vidType decode_intervals(vidType v, CgrReader &decoder, VertexList &begin, VertexList &end);
   vidType decode_residuals(vidType v, CgrReader &decoder, vidType offset, vidType* ptr);
@@ -99,6 +106,7 @@ public:
   size_t get_compressed_colidx_length() const { return edges_compressed.size(); }
 
   // get methods for graph topology information
+  vidType read_degree(vidType v) const { return degrees[v]; }
   vidType get_degree(vidType v) const { return vertices[v+1] - vertices[v]; }
   vidType out_degree(vidType v) const { return vertices[v+1] - vertices[v]; }
   eidType edge_begin(vidType v) const { return vertices[v]; }
@@ -106,7 +114,8 @@ public:
   vidType* adj_ptr(vidType v) const { return &edges[vertices[v]]; }
   vidType N(vidType v, vidType n) const { return edges[vertices[v]+n];} // get the n-th neighbor of v
   VertexSet N(vidType v) const;                                         // get the neighbor list of vertex v
-  VertexSet N_compressed(vidType v, bool need_order=true);              // get the CGR compressed neighbor list of vertex v
+  VertexSet N_hybrid(vidType v, std::string scheme);                    // get the CGR compressed neighbor list of vertex v
+  VertexSet N_cgr(vidType v, bool need_order=true);                     // get the CGR compressed neighbor list of vertex v
   VertexSet N_vbyte(vidType v, std::string scheme);                     // get the VByte compressed neighbor list of vertex v
   VertexSet get_interval_neighbors(vidType v);                          // get the interval neighbors in a CGR graph
   eidType get_eid(vidType v, vidType n) const { return vertices[v]+n;}  // get the edge id of the n-th edge of v

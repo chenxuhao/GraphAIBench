@@ -1,5 +1,5 @@
 #pragma once
-#include "unary_decoder.hpp"
+#include "unary_decoder.hh"
 
 class CgrReader : public UnaryDecoder {
   public:
@@ -12,13 +12,6 @@ class CgrReader : public UnaryDecoder {
       this->node = v;
       this->graph = graph;
       this->global_offset = global_offset;
-    }
-    vidType decode_residual_code() {
-#if ZETA_K == 1
-      return decode_gamma();
-#else
-      return decode_zeta();
-#endif
     }
     vidType decode_segment_cnt() {
       vidType segment_cnt = decode_gamma() + 1;
