@@ -1,7 +1,13 @@
 #include "compressor.hh"
+#include "codecfactory.h"
+#include "scan.h"
+using namespace SIMDCompressionLib;
 
 void Compressor::write_compressed_graph() {
-  write_compressed_edges_to_disk();
+  if (use_unary) {
+    std::cout << "writing the compressed edges to disk\n";
+    write_compressed_edges_to_disk();
+  }
   std::cout << "Computing the row pointers\n";
   compute_ptrs();
   std::cout << "Writing the row pointers to disk\n";
@@ -19,9 +25,15 @@ void Compressor::compute_ptrs() {
     buffer[i] = encoder->get_compressed_size(i).size();
   parallel_prefix_sum<vidType,eidType>(degrees, rowptr.data());
 #else
-  rowptr[0] = 0;
-  for (vidType i = 0; i < g->V(); i++)
-    rowptr[i+1] = encoder->get_compressed_size(i) + rowptr[i];
+  if (use_unary) {
+    rowptr[0] = 0;
+    for (vidType i = 0; i < g->V(); i++) {
+      auto length = encoder->get_compressed_size(i);
+      rowptr[i+1] = length + rowptr[i];
+    }
+  } else {
+    parallel_prefix_sum<vidType,eidType>(osizes, rowptr.data());
+  }
 #endif
   t.Stop();
   std::cout << "Computing row pointers time: " << t.Seconds() << "\n";
@@ -42,7 +54,6 @@ void Compressor::write_ptrs_to_disk() {
 }
 
 void Compressor::write_compressed_edges_to_disk() {
-  std::cout << "writing the compressed edges to disk\n";
   std::string edge_file_name = out_prefix + ".edge.bin";
   FILE *of_graph = fopen((edge_file_name).c_str(), "w");
   if (of_graph == 0) {
@@ -81,21 +92,49 @@ void Compressor::write_compressed_edges_to_disk() {
 }
 
 void Compressor::compress(bool pre_encode) {
-  std::cout << "Pre-encoding ...\n";
   Timer t;
-  t.Start();
-  if (pre_encode) encoder->pre_encoding();
-  t.Stop();
-  std::cout << "Pre-encoding time: " << t.Seconds() << "\n";
+  if (use_unary && pre_encode) {
+    std::cout << "Pre-encoding ...\n";
+    t.Start();
+    encoder->pre_encoding();
+    t.Stop();
+    std::cout << "Pre-encoding time: " << t.Seconds() << "\n";
+  }
 
   t.Start();
-  #pragma omp parallel for
-  for (vidType i = 0; i < g->V(); i++) {
-    encoder->encode(i, g->get_degree(i), g->N(i).data());
+  if (use_unary) {
+    #pragma omp parallel for
+    for (vidType i = 0; i < g->V(); i++) {
+      encoder->encode(i, g->get_degree(i), g->N(i).data());
+    }
+    encoder->print_stats();
+  } else {
+    FILE *of_graph = fopen((out_prefix + ".edge.bin").c_str(), "w");
+    if (of_graph == 0) {
+      std::cout << "graph file cannot create!" << std::endl;
+      abort();
+    }
+    osizes.resize(g->V());
+    for (vidType v = 0; v < g->V(); v++) {
+      auto deg = g->get_degree(v);
+      if (buffer.size() < deg + 1024) {
+        buffer.resize(deg + 1024);
+      }
+      size_t outsize = buffer.size();
+      shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
+      if (schemeptr.get() == NULL) exit(1);
+      schemeptr->encodeArray(g->adj_ptr(v), deg, buffer.data(), outsize);
+      osizes[v] = static_cast<vidType>(outsize);
+      if (fwrite(buffer.data(), sizeof(vidType) * outsize, 1, of_graph) != 1) {
+        std::cerr << "aborting" << std::endl;
+        fclose(of_graph);
+        exit(1);
+      }
+    }
+    fclose(of_graph);
   }
   t.Stop();
   std::cout << "Encoding time: " << t.Seconds() << "\n";
-  encoder->print_stats();
 }
 
 void printusage() {
@@ -129,9 +168,15 @@ int main(int argc,char *argv[]) {
   if (argc > 5) zeta_k = atoi(argv[optind+2]);
   if (argc > 6) use_interval = atoi(argv[optind+3]);
   if (argc > 7) add_degree = atoi(argv[optind+4]);
+  bool use_unary = (scheme == "cgr" || scheme == "hybrid");
+  std::cout << "Using the " << scheme << " compression scheme\n";
 
-  unary_encoder *encoder = new cgr_encoder(g.V(), zeta_k, use_interval, add_degree);
-  Compressor compressor(scheme, argv[optind+1], &g, encoder);
+  unary_encoder *encoder = NULL;
+  if (use_unary) {
+    std::cout << "Creating a CGR encoder\n";
+    encoder = new cgr_encoder(g.V(), zeta_k, use_interval, add_degree);
+  }
+  Compressor compressor(scheme, argv[optind+1], use_unary, &g, encoder);
   std::cout << "start compression ...\n";
   compressor.compress();
   std::cout << "writing compressed graph to disk ...\n";
