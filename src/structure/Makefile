@@ -8,8 +8,8 @@ compressor: compressor.o cgr_encoder.o unary_encoder.o hybrid_encoder.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o unary_encoder.o cgr_encoder.o hybrid_encoder.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
-tc_omp_compressed: tc_omp_compressed.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_omp_compressed.o $(OBJS) -o $@ $(LIBS)
+tc_omp_compressed: cgr_decoder.o tc_omp_compressed.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) cgr_decoder.o tc_omp_compressed.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 tc_cilk_vbyte: $(OBJS) tc_cilk_vbyte.o 

@@ -1,41 +1,64 @@
 #pragma once
 #include "unary_decoder.hh"
 
-class CgrReader : public UnaryDecoder {
+template<typename T = vidType>
+class CgrReader : public UnaryDecoder<T> {
+    T id_;
   public:
-    vidType node;
+    CgrReader() : UnaryDecoder<T>(NULL, 0) {}
+    CgrReader(T id, T* data, OFFSET_TYPE off) :
+      UnaryDecoder<T>(data, off), id_(id) { }
 
-    CgrReader(vidType v, vidType *g, OFFSET_TYPE off) :
-      UnaryDecoder(g, off), node(v) { }
-
-    void init(vidType v, vidType *graph, OFFSET_TYPE global_offset) {
-      this->node = v;
-      this->graph = graph;
-      this->global_offset = global_offset;
+    void init(T id, T* data, OFFSET_TYPE off) {
+      this->id_ = id;
+      this->word_array = data;
+      this->global_offset = off;
     }
-    vidType decode_segment_cnt() {
-      vidType segment_cnt = decode_gamma() + 1;
-      if (segment_cnt == 1 && (cur() & 0x80000000)) {
-        global_offset += 1;
+    T get_id() { return id_; }
+    T decode_segment_cnt() {
+      T segment_cnt = this->decode_gamma() + 1;
+      if (segment_cnt == 1 && (this->cur() & 0x80000000)) {
+        this->global_offset += 1;
         segment_cnt = 0;
       }
       return segment_cnt;
     }
 };
 
+template <typename T>
+class cgr_decoder {
+  private:
+    CgrReader<T> reader;
+    T *in_ptr;
+    T *out_ptr;
+  public:
+    cgr_decoder(T id, T *in, OFFSET_TYPE off, T* out = NULL) {
+      reader.init(id, in, off);
+      in_ptr = in;
+      out_ptr = out;
+    }
+    vidType decode();
+    vidType decode_intervals();
+    vidType decode_intervals(VertexList &itv_begin, VertexList &itv_end);
+    vidType decode_residuals(T offset, T* out_res_ptr);
+    T get_id() { return reader.get_id(); }
+    OFFSET_TYPE get_offset() { return reader.get_offset(); }
+};
+
+template<typename T = vidType>
 struct ResidualSegmentHelper{
-  CgrReader &cgrr;
-  vidType left;
-  vidType residual_cnt;
+  CgrReader<T> &cgrr;
+  T left;
+  T residual_cnt;
   bool first_res;
 
-  ResidualSegmentHelper(vidType node, CgrReader &cgrr) :
+  ResidualSegmentHelper(CgrReader<T> &cgrr) :
     cgrr(cgrr), left(0), residual_cnt(0), first_res(true) { }
 
   void decode_residual_cnt() {
     this->residual_cnt = cgrr.decode_gamma();
   }
-  vidType get_residual() {
+  T get_residual() {
     if (first_res) {
       left = decode_first_num();
       first_res = false;
@@ -45,31 +68,32 @@ struct ResidualSegmentHelper{
     residual_cnt--;
     return left;
   }
-  vidType decode_first_num() {
-    vidType x = cgrr.decode_residual_code();
-    return (x & 1) ? cgrr.node - (x >> 1) - 1 : cgrr.node + (x >> 1);
+  T decode_first_num() {
+    T x = cgrr.decode_residual_code();
+    return (x & 1) ? cgrr.get_id() - (x >> 1) - 1 : cgrr.get_id() + (x >> 1);
   }
-  vidType get_h() {
+  T get_h() {
     return cgrr.get_h();
   }
-  vidType get_raw_residual_value() {
+  T get_raw_residual_value() {
     return cgrr.cur();
   }
 };
 
+template<typename T = vidType>
 struct IntervalSegmentHelper {
-  CgrReader &cgrr;
-  vidType left;
-  vidType interval_cnt;
+  CgrReader<T> &cgrr;
+  T left;
+  T interval_cnt;
   bool first_interval;
 
-  IntervalSegmentHelper(vidType node, CgrReader &cgrr) :
+  IntervalSegmentHelper(CgrReader<T> &cgrr) :
     cgrr(cgrr), left(0), interval_cnt(0), first_interval(true) {
   }
   void decode_interval_cnt() {
     interval_cnt = cgrr.decode_gamma();
   }
-  vidType get_interval_left() {
+  T get_interval_left() {
     if (first_interval) {
       left = decode_first_num();
       first_interval = false;
@@ -78,36 +102,37 @@ struct IntervalSegmentHelper {
     }
     return left;
   }
-  vidType get_interval_len() {
-    vidType len = cgrr.decode_gamma() + MIN_ITV_LEN;
+  T get_interval_len() {
+    T len = cgrr.decode_gamma() + MIN_ITV_LEN;
     left += len;
     interval_cnt--;
     return len;
   }
-  vidType decode_first_num() {
-    vidType x = cgrr.decode_gamma();
-    return (x & 1) ? cgrr.node - (x >> 1) - 1 : cgrr.node + (x >> 1);
+  T decode_first_num() {
+    T x = cgrr.decode_gamma();
+    return (x & 1) ? cgrr.get_id() - (x >> 1) - 1 : cgrr.get_id() + (x >> 1);
   }
 };
 
+/*
 struct SeriesHelper {
   CgrReader &curp;
-  vidType node;
+  vidType id_;
   vidType dout;
   vidType left;
   vidType interval_num;
   bool first_res;
   bool first_interval;
 
-  SeriesHelper(vidType node, CgrReader &curp, vidType dout) :
-    curp(curp), node(node), dout(dout), left(0), 
+  SeriesHelper(vidType id_, CgrReader &curp, vidType dout) :
+    curp(curp), id_(id_), dout(dout), left(0), 
     first_res(true), first_interval(true) {
     interval_num = dout ? curp.decode_gamma() : 0;
   }
   vidType get_interval_left() {
     if (first_interval) {
       left = curp.decode_gamma();
-      left = curp.decode_first_num(node, left);
+      left = curp.decode_first_num(id_, left);
       first_interval = false;
     } else {
       left += curp.decode_gamma() + 1;
@@ -123,7 +148,7 @@ struct SeriesHelper {
   vidType get_residual() {
     if (first_res) {
       left = curp.decode_residual_code();
-      left = curp.decode_first_num(node, left);
+      left = curp.decode_first_num(id_, left);
       first_res = false;
     } else {
       left += curp.decode_residual_code() + 1;
@@ -134,7 +159,7 @@ struct SeriesHelper {
   vidType calc_residual(vidType x) {
     if (first_res) {
       left = x;
-      left = curp.decode_first_num(node, left);
+      left = curp.decode_first_num(id_, left);
       first_res = false;
     } else {
       left += x + 1;
@@ -146,7 +171,7 @@ struct SeriesHelper {
 
 struct BaseHelper {
   CgrReader &curp;
-  vidType node;
+  vidType id_;
   vidType interval_idx;
   vidType interval_num;
   vidType dout;
@@ -154,8 +179,8 @@ struct BaseHelper {
   vidType len ;
   bool first_res;
 
-  BaseHelper (vidType node, CgrReader &curp, vidType dout) : 
-      curp(curp), node(node), dout(dout) {
+  BaseHelper (vidType id_, CgrReader &curp, vidType dout) : 
+      curp(curp), id_(id_), dout(dout) {
     if (dout) {
       interval_num = curp.decode_gamma();
       interval_idx = 0;
@@ -169,7 +194,7 @@ struct BaseHelper {
     if (len) return;
     if (interval_idx == 0) {
       left = curp.decode_gamma();
-      left = curp.decode_first_num(node, left);
+      left = curp.decode_first_num(id_, left);
     } else {
       left += curp.decode_gamma() + 1;
     }
@@ -189,7 +214,7 @@ struct BaseHelper {
       // residual
       if (first_res) {
         left = curp.decode_residual_code();
-        left = curp.decode_first_num(node, left);
+        left = curp.decode_first_num(id_, left);
         first_res = false;
         return left;
       } else {
@@ -199,4 +224,5 @@ struct BaseHelper {
     }
   }
 };
+*/
 

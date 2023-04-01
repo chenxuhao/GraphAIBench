@@ -352,112 +352,26 @@ template<> void GraphT<>::print_compressed_colidx() {
 }
 
 template <bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_intervals(vidType v, CgrReader &decoder, vidType* ptr) {
-  vidType num_neighbors = 0;
-  // handle segmented intervals
-  auto segment_cnt = decoder.decode_segment_cnt();
-  // for each segment
-  auto interval_offset = decoder.get_offset();
-  for (vidType i = 0; i < segment_cnt; i++) {
-    CgrReader cgrr(v, &edges_compressed[0], interval_offset);
-    IntervalSegmentHelper isHelper(v, cgrr);
-    isHelper.decode_interval_cnt();
-    auto num_intervals = isHelper.interval_cnt;
-    // for each interval in the segment
-    for (vidType j = 0; j < num_intervals; j++) {
-      auto left = isHelper.get_interval_left();
-      auto len = isHelper.get_interval_len();
-      assert(left < n_vertices);
-      assert(len < max_degree);
-      for (vidType k = 0; k < len; k++) {
-        ptr[num_neighbors++] = left+k;
-      }
-    }
-    interval_offset += INTERVAL_SEGMENT_LEN;
-    if (i == segment_cnt-1) {// last segment
-      decoder.set_offset(cgrr.get_offset());
-    } else
-      decoder.inc_offset(INTERVAL_SEGMENT_LEN);
-  }
-  return num_neighbors;
-}
-
-template <bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_intervals(vidType v, CgrReader &decoder, VertexList &itv_begin, VertexList &itv_end) {
-  vidType num_neighbors = 0;
-  // handle segmented intervals
-  auto segment_cnt = decoder.decode_segment_cnt();
-  // for each segment
-  auto interval_offset = decoder.get_offset();
-  for (vidType i = 0; i < segment_cnt; i++) {
-    CgrReader cgrr(v, &edges_compressed[0], interval_offset);
-    //IntervalSegmentHelper isHelper(v, decoder);
-    IntervalSegmentHelper isHelper(v, cgrr);
-    isHelper.decode_interval_cnt();
-    auto num_intervals = isHelper.interval_cnt;
-    // for each interval in the segment
-    for (vidType j = 0; j < num_intervals; j++) {
-      auto left = isHelper.get_interval_left();
-      auto len = isHelper.get_interval_len();
-      assert(left < n_vertices);
-      assert(len < max_degree);
-      itv_begin.push_back(left);
-      itv_end.push_back(left+len);
-      num_neighbors += len;
-    }
-    interval_offset += INTERVAL_SEGMENT_LEN;
-    if (i == segment_cnt-1) // last segment
-      decoder.set_offset(cgrr.get_offset());
-    else
-      decoder.inc_offset(INTERVAL_SEGMENT_LEN);
-  }
-  return num_neighbors;
-}
-
-template <bool map_vertices, bool map_edges>
 VertexSet GraphT<map_vertices, map_edges>::get_interval_neighbors(vidType v) {
-  CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
   VertexSet adj(v);
+  auto in_ptr = &edges_compressed[0];
+  auto off = vertices_compressed[v];
+  cgr_decoder decoder(v, in_ptr, off, adj.data());
   std::cout << "before decode_intervals: global_offset = " << decoder.get_offset() << "\n";
-  vidType num_neighbors = decode_intervals(v, decoder, adj.data());
+  vidType num_neighbors = decoder.decode_intervals();
   std::cout << "after decode_intervals: global_offset = " << decoder.get_offset() << "\n";
   assert(num_neighbors <= max_degree);
   adj.adjust_size(num_neighbors);
   return adj;
 }
 
-template <bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_residuals(vidType v, CgrReader &decoder, vidType offset, vidType *ptr) {
-  vidType num_neighbors = offset;
-  // handle segmented residuals
-  auto segment_cnt = decoder.decode_segment_cnt();
-  auto residual_offset = decoder.get_offset();
-  for (vidType i = 0; i < segment_cnt; i++) {
-    CgrReader cgrr(v, &edges_compressed[0], residual_offset);
-    ResidualSegmentHelper rsHelper(v, cgrr);
-    rsHelper.decode_residual_cnt();
-    auto num_res = rsHelper.residual_cnt;
-    // for each residual in the segment
-    for (vidType j = 0; j < num_res; j++) {
-      auto residual = rsHelper.get_residual();
-      assert(residual < n_vertices);
-      ptr[num_neighbors++] = residual;
-    }
-    residual_offset += RESIDUAL_SEGMENT_LEN;
-    decoder.inc_offset(RESIDUAL_SEGMENT_LEN);
-  }
-  return num_neighbors;
-}
-
 template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex(vidType v, vidType* ptr) {
-  CgrReader decoder(v, &edges_compressed[0], vertices_compressed[v]);
-  vidType num_neighbors = 0;
-#if USE_INTERVAL
-  num_neighbors = decode_intervals(v, decoder, ptr);
-#endif
-  num_neighbors = decode_residuals(v, decoder, num_neighbors, ptr);
-  return num_neighbors;
+vidType GraphT<map_vertices, map_edges>::decode_vertex(vidType v, vidType* out) {
+  auto in = &edges_compressed[0];
+  auto off = vertices_compressed[v];
+  //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << "\n";
+  cgr_decoder decoder(v, in, off, out);
+  return decoder.decode();
 }
 
 template<bool map_vertices, bool map_edges>
@@ -1117,16 +1031,19 @@ template<> bool GraphT<>::is_connected(std::vector<vidType> sg) const {
 template <bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, vidType u) {
   vidType num = 0;
+  auto offset = vertices_compressed[u];
+  auto in_ptr = &edges_compressed[0];
+  cgr_decoder u_decoder(u, in_ptr, offset);
+  //std::cout << "intersect_num_compressed() vertex " << u << " in_ptr=" << in_ptr << "\n";
+
   Timer t;
   t.Start();
-  auto start_offset = vertices_compressed[u];
-  CgrReader u_decoder(u, &edges_compressed[0], start_offset);
 #if USE_INTERVAL
   VertexList u_begins, u_ends;
-  decode_intervals(u, u_decoder, u_begins, u_ends);
+  u_decoder.decode_intervals(u_begins, u_ends);
 #endif
   VertexSet u_residuals(u);
-  auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
+  auto u_deg_res = u_decoder.decode_residuals(0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
   t.Stop();
   timers[DECOMPRESS] += t.Seconds();
@@ -1146,15 +1063,18 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, 
 template <bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, vidType u, vidType up) {
   vidType num = 0;
+  auto offset = vertices_compressed[u];
+  auto in_ptr = &edges_compressed[0];
+  cgr_decoder u_decoder(u, in_ptr, offset);
+
   Timer t;
   t.Start();
-  CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
 #if USE_INTERVAL
   VertexList u_begins, u_ends;
-  decode_intervals(u, u_decoder, u_begins, u_ends);
+  u_decoder.decode_intervals(u_begins, u_ends);
 #endif
   VertexSet u_residuals(u);
-  auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
+  auto u_deg_res = u_decoder.decode_residuals(0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
   t.Stop();
   timers[DECOMPRESS] += t.Seconds();
@@ -1174,19 +1094,23 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, 
 template <bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidType u) {
   vidType num = 0;
-  CgrReader v_decoder(v, &edges_compressed[0], vertices_compressed[v]);
-  CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
+  auto uoff = vertices_compressed[u];
+  auto voff = vertices_compressed[v];
+  auto in_ptr = &edges_compressed[0];
+  cgr_decoder u_decoder(u, in_ptr, uoff);
+  cgr_decoder v_decoder(v, in_ptr, voff);
+
 #if USE_INTERVAL
   VertexList u_begins, u_ends;
   VertexList v_begins, v_ends;
-  decode_intervals(v, v_decoder, v_begins, v_ends);
-  decode_intervals(u, u_decoder, u_begins, u_ends);
+  v_decoder.decode_intervals(v_begins, v_ends);
+  u_decoder.decode_intervals(u_begins, u_ends);
 #endif
   VertexSet v_residuals(v);
   VertexSet u_residuals(u);
-  auto v_deg_res = decode_residuals(v, v_decoder, 0, v_residuals.data());
+  auto v_deg_res = v_decoder.decode_residuals(0, v_residuals.data());
   v_residuals.adjust_size(v_deg_res);
-  auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
+  auto u_deg_res = u_decoder.decode_residuals(0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
 
 #if USE_INTERVAL
@@ -1205,19 +1129,23 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidT
 template <bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidType u, vidType up) {
   vidType num = 0;
-  CgrReader v_decoder(v, &edges_compressed[0], vertices_compressed[v]);
-  CgrReader u_decoder(u, &edges_compressed[0], vertices_compressed[u]);
+  auto uoff = vertices_compressed[u];
+  auto voff = vertices_compressed[v];
+  auto in_ptr = &edges_compressed[0];
+  cgr_decoder u_decoder(u, in_ptr, uoff);
+  cgr_decoder v_decoder(v, in_ptr, voff);
+
 #if USE_INTERVAL
   VertexList v_begins, v_ends;
   VertexList u_begins, u_ends;
-  decode_intervals(v, v_decoder, v_begins, v_ends);
-  decode_intervals(u, u_decoder, u_begins, u_ends);
+  v_decoder.decode_intervals(v_begins, v_ends);
+  u_decoder.decode_intervals(u_begins, u_ends);
 #endif
   VertexSet v_residuals(v);
   VertexSet u_residuals(u);
-  auto v_deg_res = decode_residuals(v, v_decoder, 0, v_residuals.data());
+  auto v_deg_res = v_decoder.decode_residuals(0, v_residuals.data());
   v_residuals.adjust_size(v_deg_res);
-  auto u_deg_res = decode_residuals(u, u_decoder, 0, u_residuals.data());
+  auto u_deg_res = u_decoder.decode_residuals(0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
 
 #if USE_INTERVAL

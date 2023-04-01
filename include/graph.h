@@ -83,9 +83,6 @@ public:
   vidType decode_vertex_vbyte(vidType v, vidType* out_ptr, std::string scheme);
   vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme);
   void decode_vertex_unary(vidType v, vidType* out_ptr, vidType degree);
-  vidType decode_intervals(vidType v, CgrReader &decoder, vidType *ptr);
-  vidType decode_intervals(vidType v, CgrReader &decoder, VertexList &begin, VertexList &end);
-  vidType decode_residuals(vidType v, CgrReader &decoder, vidType offset, vidType* ptr);
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }
