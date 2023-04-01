@@ -7,7 +7,6 @@ vidType cgr_decoder<T>::decode_intervals() {
   // handle segmented intervals
   auto segment_cnt = reader.decode_segment_cnt();
   //std::cout << "decoding vertex " << get_id() << " intervals: segment_cnt=" << segment_cnt << "\n";
-  assert(segment_cnt<2);
   // for each segment
   auto interval_offset = reader.get_offset();
   for (T i = 0; i < segment_cnt; i++) {
