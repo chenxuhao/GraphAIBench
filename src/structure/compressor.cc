@@ -29,6 +29,8 @@ void Compressor::compute_ptrs() {
     rowptr[0] = 0;
     for (vidType i = 0; i < g->V(); i++) {
       auto length = encoder->get_compressed_size(i);
+      if (byte_aligned && length > 0)
+        length = ((length-1)/8 + 1)*8;
       rowptr[i+1] = length + rowptr[i];
     }
   } else {
@@ -69,6 +71,7 @@ void Compressor::write_compressed_edges_to_disk() {
   std::vector<unsigned char> buf;
   unsigned char cur = 0;
   int bit_count = 0;
+  //int byte_count = 0, res_byte_count = 0;
   for (vidType i = 0; i < g->V(); i++) {
     auto deg = g->get_degree(i);
     if (scheme == "hybrid" && deg > degree_threshold) { // use VByte encoding
@@ -79,7 +82,11 @@ void Compressor::write_compressed_edges_to_disk() {
         //printf("Number of items written to the file: %ld\n", num);
       }
     } else {
-      for (auto bit : encoder->get_compressed_bits(i)) {
+      auto &bit_array = encoder->get_compressed_bits(i);
+      if (bit_array.size() == 0) continue;
+      //byte_count = (bit_array.size() - 1) / 8 + 1;
+      //res_byte_count = byte_count % 4;
+      for (auto bit : bit_array) {
         cur <<= 1;
         if (bit) cur++;
         bit_count++;
@@ -89,12 +96,28 @@ void Compressor::write_compressed_edges_to_disk() {
           bit_count = 0;
         }
       }
+      if (byte_aligned && bit_count) {
+        // byte alignment for each adj list
+        while (bit_count < 8) cur <<= 1, bit_count++;
+        buf.emplace_back(cur);
+        bit_count = 0;
+      }
     }
   }
+  // the last byte
   if (bit_count) {
     while (bit_count < 8) cur <<= 1, bit_count++;
     buf.emplace_back(cur);
   }
+  /*
+  if (word_aligned && res_byte_count) {
+    while (res_byte_count != 4) {
+      cur = 0;
+      buf.emplace_back(cur);
+      res_byte_count ++;
+    }
+  }
+  */
   fwrite(buf.data(), sizeof(unsigned char), buf.size(), of_graph);
   t.Stop();
   std::cout << "Time writing compressed edges to disk: " << t.Seconds() << "\n";
@@ -119,6 +142,7 @@ void Compressor::write_degrees() {
 }
 
 void Compressor::compress(bool pre_encode) {
+  if (byte_aligned) std::cout << "Byte alignment enabled for each adj list\n";
   Timer t;
   if (use_unary && pre_encode) {
     std::cout << "Pre-encoding ...\n";
@@ -200,30 +224,41 @@ void Compressor::print_stats() {
 }
 
 void printusage() {
-  cout << "./compressor -s name-of-scheme <input_path> <output_path> [-z zeta_k] [-i use_interval] [-d degree_threshold(32)]\n";
+  cout << "./compressor -s name-of-scheme <input_path> <output_path> [-z zeta_k] [-i use_interval(0/1)] [-d degree_threshold(32)] [-a alignment(0/1/2)]\n";
 }
 
 int main(int argc,char *argv[]) {
-  int zeta_k = 3, use_interval = 0, degree_threshold = 32;
+  int zeta_k = 3, use_interval = 0, degree_threshold = 32, alignment = 0;
   std::string scheme = "cgr";
   int c;
-  while ((c = getopt(argc, argv, "s:h:z:d:i")) != -1) {
+  while ((c = getopt(argc, argv, "s:z:ia:d:h")) != -1) {
     switch (c) {
       case 's':
         scheme = optarg;
+        //std::cout << "scheme: " << scheme << "\n";
         break;
       case 'z':
         zeta_k = atoi(optarg);
-        break;
-      case 'd':
-        degree_threshold = atoi(optarg);
+        //std::cout << "zeta_k: " << zeta_k << "\n";
         break;
       case 'i':
         use_interval = 1;
+        //std::cout << "use_interval: " << use_interval << "\n";
+        break;
+      case 'a':
+        alignment = atoi(optarg);
+        //std::cout << "alignment: " << alignment << "\n";
+        break;
+      case 'd':
+        degree_threshold = atoi(optarg);
+        //std::cout << "degree_threshold: " << degree_threshold << "\n";
         break;
       case 'h':
         printusage();
         return 0;
+      case '?': 
+        printf("unknown option: %c\n", optopt);
+        break;
       default:
         abort();
     }
@@ -251,7 +286,8 @@ int main(int argc,char *argv[]) {
     std::cout << "Creating a hybrid encoder\n";
     encoder = new hybrid_encoder(g.V(), zeta_k, use_interval, degree_threshold);
   }
-  Compressor compressor(scheme, argv[optind+1], use_unary, &g, encoder, degree_threshold);
+  if (alignment == 1) std::cout << "Config: byte alignment enabled for each adj list\n";
+  Compressor compressor(scheme, argv[optind+1], use_unary, &g, encoder, degree_threshold, alignment);
   std::cout << "start compression ...\n";
   compressor.compress();
   std::cout << "writing compressed graph to disk ...\n";

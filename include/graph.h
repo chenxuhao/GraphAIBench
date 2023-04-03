@@ -48,17 +48,34 @@ protected:
   std::vector<vidType> degrees; 
 
 public:
-  GraphT(std::string prefix, bool use_dag = false, bool directed = false,
-        bool use_vlabel = false, bool use_elabel = false, 
-        bool need_reverse = false, bool bipartite = false, bool partitioned = false);
-  GraphT() : name_(""), 
-            is_directed_(0), is_bipartite_(0), is_compressed_(0), has_reverse(0),
-            n_vertices(0), n_edges(0), nnz(0), 
-            max_label_frequency_(0), max_label(0), feat_len(0), 
-            num_vertex_classes(0), num_edge_classes(0), core_length_(0),
-            vid_size(4), eid_size(8), vlabel_size(0), elabel_size(0), degree_threshold(32),
-            edges(NULL), vertices(NULL), vlabels(NULL), elabels(NULL),
-            features(NULL), src_list(NULL), dst_list(NULL) { }
+  GraphT(std::string prefix,
+         bool use_dag = false,
+         bool directed = false,
+         bool use_vlabel = false,
+         bool use_elabel = false,
+         bool need_reverse = false,
+         bool bipartite = false,
+         bool partitioned = false);
+  GraphT(bool directed = false, bool bipartite = false) :
+            name_(""), 
+            is_directed_(0), is_bipartite_(0),
+            is_compressed_(0), has_reverse(0),
+            max_degree(0), n_vertices(0),
+            n_edges(0), nnz(0), 
+            max_label_frequency_(0),
+            n_vert0(0), n_vert1(0),
+            max_label(0), feat_len(0), 
+            num_vertex_classes(0),
+            num_edge_classes(0),
+            core_length_(0),
+            vid_size(4), eid_size(8),
+            vlabel_size(0), elabel_size(0),
+            degree_threshold(32),
+            edges(NULL), vertices(NULL),
+            reverse_edges(NULL), reverse_vertices(NULL),
+            vlabels(NULL), elabels(NULL),
+            features(NULL),
+            src_list(NULL), dst_list(NULL) { }
   GraphT(vidType nv, eidType ne) : GraphT() { allocateFrom(nv, ne); }
   ~GraphT();
   GraphT(const GraphT &)=delete;
@@ -67,7 +84,7 @@ public:
   void load_graph(std::string prefix, 
                   bool use_dag = false, bool use_vlabel = false, 
                   bool use_elabel = false, bool need_reverse = false, 
-                  bool bipartite = false, bool partitioned = false);
+                  bool partitioned = false);
   void load_graph_data(std::string prefix, 
                        bool use_dag = false, bool use_vlabel = false, 
                        bool use_elabel = false, bool need_reverse = false);
@@ -221,7 +238,7 @@ public:
   void print_neighbors(vidType v) const;
 
  protected:
-  void read_meta_info(std::string prefix, bool bipartite = false);
+  void read_meta_info(std::string prefix);
   bool binary_search(vidType key, eidType begin, eidType end) const;
 };
 

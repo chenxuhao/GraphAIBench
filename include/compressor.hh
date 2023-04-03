@@ -9,6 +9,8 @@ class Compressor {
   std::string scheme;          // compression scheme: VByte or Binary Packing
   std::string out_prefix;      // output file prefix
   bool use_unary;              // VByte schemes do not use unary encoding
+  bool word_aligned;           // word alignment
+  bool byte_aligned;           // byte alignment
   GraphTy *g;                  // input graph; uncompressed
   unary_encoder *encoder;      // encoder
   vidType degree_threshold;    // degree threshold for hybrid scheme
@@ -27,9 +29,13 @@ class Compressor {
  
 public:
   Compressor(std::string sch, std::string pre, bool is_unary, 
-             GraphTy *graph, unary_encoder *enc, vidType deg = 32) :
+             GraphTy *graph, unary_encoder *enc, vidType deg = 32, int align = 0) :
     scheme(sch), out_prefix(pre), use_unary(is_unary),
-    g(graph), encoder(enc), degree_threshold(deg) {}
+    word_aligned(false), byte_aligned(false),
+    g(graph), encoder(enc), degree_threshold(deg) {
+      if (align == 1) byte_aligned = true;
+      if (align == 2) word_aligned = true;
+  }
   void compress(bool pre_encode=true);
   void write_compressed_graph();
   void write_degrees();
