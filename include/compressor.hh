@@ -1,7 +1,6 @@
 #pragma once
 #include "graph.h"
 #include "unary_encoder.hh"
-#define CHECKPOINT 50000000
 
 typedef OutOfCoreGraph GraphTy;
 

@@ -1,6 +1,7 @@
 #include "graph.h"
 #include "scan.h"
 #include "platform_atomics.h"
+
 std::map<OPS,double> timers;
 
 #pragma omp declare reduction(vec_int_plus : std::vector<int> : \

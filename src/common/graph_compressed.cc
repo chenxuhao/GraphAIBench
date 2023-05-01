@@ -1,8 +1,15 @@
 #include "graph.h"
 #include "codecfactory.h"
+#include <endian.h>
+
+// Intel CPU uses little endian
+#if __BYTE_ORDER != __LITTLE_ENDIAN
+# error "File I/O is not implemented for this system: wrong endianness."
+#endif
+
 using namespace SIMDCompressionLib;
 
-template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_coding) {
+template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_coding, bool permutated) {
   // read meta information
   read_meta_info(prefix);
   assert(max_degree > 0 && max_degree < n_vertices);
@@ -28,30 +35,16 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
   edges_compressed.clear();
   is_compressed_ = true;
 
+  // vbyte encoding, read binary directly
   if (!zeta_coding) {
     edges_compressed.resize((num_bytes-1)/vid_size+1);
     ifs.read((char*)edges_compressed.data(), num_bytes);
     ifs.close();
     return;
   }
+
+  // cgr encoding; permutate bytes within each word
   auto res_bytes = num_bytes % vid_size;
-#if 0
-  std::vector<uint8_t> buffer(num_bytes);
-  ifs.read((char*) buffer.data(), num_bytes);
-  for (size_t i = 0; i < buffer.size(); i++) {
-    tmp <<= 8;
-    tmp += buffer[i];
-    if ((i + 1) % vid_size == 0) { // vidType has 4 bytes
-      edges_compressed.push_back(tmp);
-    }
-  }
-  if (res_bytes) {
-    int rem = res_bytes;
-    while (rem % vid_size)
-      tmp <<= 8, rem++;
-    edges_compressed.push_back(tmp);
-  }
-#else
   std::vector<uint8_t> buffer(num_bytes);
   ifs.read((char*) buffer.data(), num_bytes);
   auto num_words = (num_bytes-res_bytes)/vid_size + (res_bytes?1:0);
@@ -80,17 +73,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
       tmp <<= 8, rem++;
     edges_compressed[num_words-1] = tmp;
   }
-  // buffer.resize(res_bytes);
-  //ifs.read((char*) edges_compressed.data(), num_bytes);
-  /*ifs.read((char*) edges_compressed.data(), num_bytes - res_bytes);
-  ifs.read((char*) buffer.data(), res_bytes);
-  for (int i = 0; i < vid_size; i++) {
-    tmp <<= 8;
-    if (i < res_bytes) tmp += buffer[i];
-  }
-  edges_compressed.push_back(tmp);
-  */
-#endif
+
   ifs.close();
   //std::cout << "Edgelists file loaded!\n";
 }

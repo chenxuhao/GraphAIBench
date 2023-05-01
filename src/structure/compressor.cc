@@ -3,6 +3,9 @@
 #include "scan.h"
 #include "cgr_encoder.hh"
 #include "hybrid_encoder.hh"
+
+#define CHECKPOINT 50000000
+
 using namespace SIMDCompressionLib;
 
 void Compressor::write_compressed_graph() {
@@ -224,11 +227,12 @@ void Compressor::print_stats() {
 }
 
 void printusage() {
-  cout << "./compressor -s name-of-scheme <input_path> <output_path> [-z zeta_k] [-i use_interval(0/1)] [-d degree_threshold(32)] [-a alignment(0/1/2)]\n";
+  cout << "./compressor -s name-of-scheme <input_path> <output_path> [-z zeta_k(3)] [-i use_interval] [-d degree_threshold(32)] [-a alignment(0)]\n";
 }
 
 int main(int argc,char *argv[]) {
-  int zeta_k = 3, use_interval = 0, degree_threshold = 32, alignment = 0;
+  int zeta_k = 3, use_interval = 0, degree_threshold = 32;
+  int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
   std::string scheme = "cgr";
   int c;
   while ((c = getopt(argc, argv, "s:z:ia:d:h")) != -1) {
@@ -268,7 +272,7 @@ int main(int argc,char *argv[]) {
     return -1;
   }
  
-  OutOfCoreGraph g(argv[optind]);
+  GraphTy g(argv[optind]);
   g.print_meta_data();
 
   //if (argc > 5) zeta_k = atoi(argv[optind+2]);

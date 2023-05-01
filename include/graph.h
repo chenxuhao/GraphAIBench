@@ -56,9 +56,10 @@ public:
          bool need_reverse = false,
          bool bipartite = false,
          bool partitioned = false);
-  GraphT(bool directed = false, bool bipartite = false) :
+  GraphT(bool directed, bool bipartite) :
             name_(""), 
-            is_directed_(0), is_bipartite_(0),
+            is_directed_(directed),
+            is_bipartite_(bipartite),
             is_compressed_(0), has_reverse(0),
             max_degree(0), n_vertices(0),
             n_edges(0), nnz(0), 
@@ -77,6 +78,7 @@ public:
             features(NULL),
             src_list(NULL), dst_list(NULL) { }
   GraphT(vidType nv, eidType ne) : GraphT() { allocateFrom(nv, ne); }
+  GraphT() : GraphT(false, false) {}
   ~GraphT();
   GraphT(const GraphT &)=delete;
   GraphT& operator=(const GraphT &)=delete;
@@ -92,7 +94,7 @@ public:
 
   // graph compression
   void print_compressed_colidx();
-  void load_compressed_graph(std::string prefix, bool zeta_coding = true);
+  void load_compressed_graph(std::string prefix, bool zeta_coding = true, bool permutated = false);
   void load_row_pointers(std::string prefix);
   void decompress(std::string scheme = "cgr");
   void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
