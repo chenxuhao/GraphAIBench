@@ -1,10 +1,11 @@
 
-#../../bin/test_cgr_compressor ~/datasets/automine/citeseer/dag ~/datasets/automine/citeseer/dag-cgr
-../../bin/vbyte_compressor -s streamvbyte ~/datasets/automine/livej/dag ~/datasets/automine/livej/dag-streamvbyte
+../../bin/compressor -s streamvbyte ~/datasets/automine/livej/dag ~/datasets/automine/livej/dag-streamvbyte
 
-../../bin/vbyte_compressor -s varintgb ~/datasets/automine/livej/dag ~/datasets/automine/livej/dag-varintgb
+../../bin/compressor -s varintgb ~/datasets/automine/livej/dag ~/datasets/automine/livej/dag-varintgb
 cp ~/datasets/automine/livej/dag.meta.txt ~/datasets/automine/livej/dag-varintgb.meta.txt
 
-../../bin/vbyte_compressor -s varintgb ~/datasets/automine/orkut/dag ~/datasets/automine/orkut/dag-varintgb
-cp ~/datasets/automine/orkut/dag.meta.txt ~/datasets/automine/orkut/dag-varintgb.meta.txt
+../../bin/compressor -s cgr ~/data/orkut/dag ~/data/orkut/dag-cgr-zeta3 -z 3 -i
 
+../../bin/compressor -s cgr ~/data/orkut/dag ~/data/orkut/dag-zeta2-word_aligned -z 2 -a 2
+
+../../bin/compressor -s cgr ~/data/mico/dag ~/data/mico/dag-zeta2-word_aligned-permutated -z 2 -a 2 -p

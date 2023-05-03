@@ -1,4 +1,5 @@
 #include "graph.h"
+#include "cgr_decoder.hh"
 #include "codecfactory.h"
 #include <endian.h>
 
@@ -36,7 +37,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
   is_compressed_ = true;
 
   // vbyte encoding, read binary directly
-  if (!zeta_coding) {
+  if (!zeta_coding || permutated) {
     edges_compressed.resize((num_bytes-1)/vid_size+1);
     ifs.read((char*)edges_compressed.data(), num_bytes);
     ifs.close();
@@ -44,6 +45,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
   }
 
   // cgr encoding; permutate bytes within each word
+  std::cout << "This graph is not pre-permutated; permutate it now as we read it from disk (due to little-endian in Intel CPU)\n";
   auto res_bytes = num_bytes % vid_size;
   std::vector<uint8_t> buffer(num_bytes);
   ifs.read((char*) buffer.data(), num_bytes);
@@ -241,7 +243,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, 
 
   Timer t;
   t.Start();
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   VertexList u_begins, u_ends;
   u_decoder.decode_intervals(u_begins, u_ends);
 #endif
@@ -252,7 +254,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, 
   timers[DECOMPRESS] += t.Seconds();
 
   t.Start();
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   // compare vs and u_itv
   num += intersection_num(vs, u_begins, u_ends);
 #endif
@@ -272,7 +274,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, 
 
   Timer t;
   t.Start();
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   VertexList u_begins, u_ends;
   u_decoder.decode_intervals(u_begins, u_ends);
 #endif
@@ -283,7 +285,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(VertexSet& vs, 
   timers[DECOMPRESS] += t.Seconds();
 
   t.Start();
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   // compare vs and u_itv
   num += intersection_num(vs, u_begins, u_ends, up);
 #endif
@@ -303,7 +305,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidT
   cgr_decoder u_decoder(u, in_ptr, uoff);
   cgr_decoder v_decoder(v, in_ptr, voff);
 
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   VertexList u_begins, u_ends;
   VertexList v_begins, v_ends;
   v_decoder.decode_intervals(v_begins, v_ends);
@@ -316,7 +318,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidT
   auto u_deg_res = u_decoder.decode_residuals(0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
 
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
    // compare v_itv and u_itv
   num += intersection_num(v_begins, v_ends, u_begins, u_ends);
   // compare v_itv and u_res
@@ -338,7 +340,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidT
   cgr_decoder u_decoder(u, in_ptr, uoff);
   cgr_decoder v_decoder(v, in_ptr, voff);
 
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   VertexList v_begins, v_ends;
   VertexList u_begins, u_ends;
   v_decoder.decode_intervals(v_begins, v_ends);
@@ -351,7 +353,7 @@ vidType GraphT<map_vertices,map_edges>::intersect_num_compressed(vidType v, vidT
   auto u_deg_res = u_decoder.decode_residuals(0, u_residuals.data());
   u_residuals.adjust_size(u_deg_res);
 
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
    // compare v_itv and u_itv
   num += intersection_num(v_begins, v_ends, u_begins, u_ends, up);
   // compare v_itv and u_res

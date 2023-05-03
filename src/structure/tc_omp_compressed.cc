@@ -6,16 +6,24 @@ using namespace SIMDCompressionLib;
 void TCSolver(Graph &g, uint64_t &total, std::string scheme = "decomp");
 
 void printusage(std::string bin) {
-  std::cout << "Try " << bin << " -s name-of-scheme[streamvbyte] ../../inputs/mico/dag-streamvbyte (graph oriented)\n";
+  std::cout << "Try " << bin << " -s name-of-scheme(cgr) -i ../../inputs/mico/dag-streamvbyte [-o (oriented)] [-p (permutated)]\n";
 }
 
 int main(int argc,char *argv[]) {
-  std::string schemename = "decomp";
+  std::string schemename = "cgr";
+  std::string filename = "";
   int c;
-  while ((c = getopt(argc, argv, "s:h")) != -1) {
+  bool permutated = false;
+  while ((c = getopt(argc, argv, "s:i:ph")) != -1) {
     switch (c) {
       case 's':
         schemename = optarg;
+        break;
+      case 'i':
+        filename = optarg;
+        break;
+      case 'p':
+        permutated = true;
         break;
       case 'h':
         printusage(argv[0]);
@@ -31,12 +39,12 @@ int main(int argc,char *argv[]) {
   }
  
   Graph g;
-  if (schemename == "decomp")
-    g.load_graph(argv[3]);
-  else if (schemename == "cgr")
-    g.load_compressed_graph(argv[3], true);
+  if (schemename == "decomp") // uncompressed graph
+    g.load_graph(filename);
+  else if (schemename == "cgr") // cgr format
+    g.load_compressed_graph(filename, true, permutated);
   else
-    g.load_compressed_graph(argv[3], false);
+    g.load_compressed_graph(filename, false, permutated);
   g.print_meta_data();
 
   uint64_t total = 0;

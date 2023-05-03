@@ -6,6 +6,7 @@
 #include "cuda_profiler_api.h"
 #include "cgr_decompressor.cuh"
 #include "decompressor.cuh"
+#define USE_INTERVAL 1
 
 #ifdef USE_NVSHMEM
 #include <nvshmem.h>

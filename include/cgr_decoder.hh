@@ -1,5 +1,8 @@
 #pragma once
 #include "unary_decoder.hh"
+#define WORD_ALIGHED
+//#define BYTE_ALIGHED
+//#define USE_INTERVAL
 
 template<typename T = vidType>
 class CgrReader : public UnaryDecoder<T> {
@@ -33,9 +36,15 @@ class cgr_decoder {
     T *out_ptr;
   public:
     cgr_decoder(T id, T *in, OFFSET_TYPE off, T* out = NULL) {
-      reader.init(id, in, off);
       in_ptr = in;
       out_ptr = out;
+      #ifdef WORD_ALIGHED 
+        reader.init(id, in, off*32); // transform word offset to bit offset
+      #elif BYTE_ALIGHED 
+        reader.init(id, in, off*8); // transform byte offset to bit offset
+      #else
+        reader.init(id, in, off);
+      #endif
     }
     vidType decode();
     vidType decode_intervals();

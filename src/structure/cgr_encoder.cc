@@ -1,13 +1,15 @@
 #include "cgr_encoder.hh"
 
 void cgr_encoder::print_stats() {
-  std::cout << "max_num_itv_per_node = " << max_num_itv_per_node << "\n"
-            << "max_num_res_per_node = " << max_num_res_per_node << "\n"
-            << "max_num_itv_section_per_node = " << max_num_itv_section_per_node << "\n"
+  if (use_interval) {
+    std::cout << "max_num_itv_per_node = " << max_num_itv_per_node << "\n"
+              << "max_num_itv_section_per_node = " << max_num_itv_section_per_node << "\n"
+              << "max_num_itv_per_section = " << max_num_itv_per_section << "\n"
+              << "max_itv_len = " << _max_itv_len << "\n";
+  }
+  std::cout << "max_num_res_per_node = " << max_num_res_per_node << "\n"
             << "max_num_res_section_per_node = " << max_num_res_section_per_node << "\n"
-            << "max_num_itv_per_section = " << max_num_itv_per_section << "\n"
-            << "max_num_res_per_section = " << max_num_res_per_section << "\n"
-            << "max_itv_len = " << _max_itv_len << "\n";
+            << "max_num_res_per_section = " << max_num_res_per_section << "\n";
 }
 
 // encode an integer array "*in" with "length" elements using CGR format

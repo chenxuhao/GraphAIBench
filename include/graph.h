@@ -1,6 +1,5 @@
 #pragma once
 #include "VertexSet.h"
-#include "cgr_decoder.hh"
 
 using namespace std;
 

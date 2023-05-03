@@ -10,6 +10,7 @@ class Compressor {
   bool use_unary;              // VByte schemes do not use unary encoding
   bool word_aligned;           // word alignment
   bool byte_aligned;           // byte alignment
+  bool use_permutate;          // permutate bytes in every word or not; only used when word-aligned
   GraphTy *g;                  // input graph; uncompressed
   unary_encoder *encoder;      // encoder
   vidType degree_threshold;    // degree threshold for hybrid scheme
@@ -17,6 +18,7 @@ class Compressor {
   std::vector<vidType> osizes; // sizes of each compressed edgelist
   std::vector<eidType> rowptr; // row pointers
   std::vector<vidType> buffer;
+  void permutate_bytes_by_word(std::vector<unsigned char> &buf);
   void compute_ptrs();
   void write_ptrs_to_disk();
   void write_compressed_edges_to_disk();
@@ -27,13 +29,26 @@ class Compressor {
   int64_t unary_bytes, vbyte_bytes; // number of bytes
  
 public:
-  Compressor(std::string sch, std::string pre, bool is_unary, 
-             GraphTy *graph, unary_encoder *enc, vidType deg = 32, int align = 0) :
-    scheme(sch), out_prefix(pre), use_unary(is_unary),
-    word_aligned(false), byte_aligned(false),
-    g(graph), encoder(enc), degree_threshold(deg) {
+  Compressor(std::string sch,
+             std::string pre,
+             bool is_unary, 
+             GraphTy *graph,
+             unary_encoder *enc,
+             bool permutate = false, // permutate bytes in every word; only used when word-aligned
+             vidType deg = 32,
+             int align = 0) :
+    scheme(sch),
+    out_prefix(pre),
+    use_unary(is_unary),
+    word_aligned(false),
+    byte_aligned(false),
+    use_permutate(permutate),
+    g(graph),
+    encoder(enc),
+    degree_threshold(deg) {
       if (align == 1) byte_aligned = true;
       if (align == 2) word_aligned = true;
+      if (use_permutate) assert(word_aligned);
   }
   void compress(bool pre_encode=true);
   void write_compressed_graph();
