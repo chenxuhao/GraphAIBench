@@ -11,11 +11,24 @@ void printusage(std::string bin) {
 
 int main(int argc,char *argv[]) {
   std::string schemename = "cgr";
+  std::string filename = "";
+  bool permutated = false;
+  bool oriented = false;
+ 
   int c;
   while ((c = getopt(argc, argv, "s:h")) != -1) {
     switch (c) {
       case 's':
         schemename = optarg;
+        break;
+      case 'i':
+        filename = optarg;
+        break;
+      case 'o':
+        oriented = true;
+        break;
+      case 'p':
+        permutated = true;
         break;
       case 'h':
         printusage(argv[0]);
@@ -29,24 +42,25 @@ int main(int argc,char *argv[]) {
     printusage(argv[0]);
     return -1;
   }
+  if (!oriented) {
+    std::cout << "Graph must be oriented\n";
+    printusage(argv[0]);
+    return -1;
+  }
  
   Graph g;
   if (schemename == "decomp")
-    g.load_graph(argv[3]);
+    g.load_graph(filename);
   else
-    g.load_compressed_graph(argv[3], schemename == "cgr" ? true : false);
+    g.load_compressed_graph(filename, schemename, permutated);
   g.print_meta_data();
-  vidType num_cached = 0;
-  if (argc > 4) num_cached = atoi(argv[4]);
-  //if (num_cached > 0)
-  //  g.decompress(schemename);
   //g.print_graph();
 
   uint64_t total = 0;
   if (schemename == "decomp")
     triangle_count(g, total);
   else if (schemename == "cgr")
-    triangle_count_cgr(g, total, num_cached);
+    triangle_count_cgr(g, total);
   else
     triangle_count_vbyte(g, total, schemename);
   std::cout << "total_num_triangles = " << total << "\n";

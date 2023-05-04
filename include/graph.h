@@ -93,7 +93,7 @@ public:
 
   // graph compression
   void print_compressed_colidx();
-  void load_compressed_graph(std::string prefix, bool zeta_coding = true, bool permutated = false);
+  void load_compressed_graph(std::string prefix, std::string scheme = "", bool permutated = false);
   void load_row_pointers(std::string prefix);
   void decompress(std::string scheme = "cgr");
   void decode_vertex(vidType v, VertexSet &adj, bool ordered = 1);
@@ -101,6 +101,7 @@ public:
   vidType decode_vertex_vbyte(vidType v, vidType* out_ptr, std::string scheme);
   vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme);
   void decode_vertex_unary(vidType v, vidType* out_ptr, vidType degree);
+  void set_degree_threshold(vidType deg) { degree_threshold = deg; }
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }

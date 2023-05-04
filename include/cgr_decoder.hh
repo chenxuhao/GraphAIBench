@@ -1,6 +1,6 @@
 #pragma once
 #include "unary_decoder.hh"
-#define WORD_ALIGHED
+//#define WORD_ALIGHED
 //#define BYTE_ALIGHED
 //#define USE_INTERVAL
 

@@ -10,12 +10,24 @@
 
 using namespace SIMDCompressionLib;
 
-template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_coding, bool permutated) {
+template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string scheme, bool permutated) {
   // read meta information
   read_meta_info(prefix);
   assert(max_degree > 0 && max_degree < n_vertices);
   std::cout << "Reading compressed graph: |V| " << n_vertices << " |E| " << n_edges << "\n";
   VertexSet::MAX_DEGREE = std::max(max_degree, VertexSet::MAX_DEGREE);
+
+  if (scheme == "hybrid") {
+    degrees.resize(n_vertices);
+    std::string degree_filename = prefix+".degree.bin";
+    //std::cout << "Hybrid scheme: Loading degrees from file " << degree_filename << "\n";
+    std::ifstream inf(degree_filename.c_str(), std::ios::binary);
+    assert(inf.good());
+    inf.read(reinterpret_cast<char*>(degrees.data()), sizeof(vidType) * n_vertices);
+    inf.close();
+    //for (int i = 0; i < 8; i++)
+    //  std::cout << "Debug: degrees[" << i << "]=" << degrees[i] << "\n";
+  }
 
   // load row offsets
   read_file(prefix+".vertex.bin", vertices_compressed, n_vertices+1);
@@ -36,8 +48,8 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
   edges_compressed.clear();
   is_compressed_ = true;
 
-  // vbyte encoding, read binary directly
-  if (!zeta_coding || permutated) {
+  // vbyte or hybrid encoding, read binary directly
+  if (scheme != "cgr" || permutated) {
     edges_compressed.resize((num_bytes-1)/vid_size+1);
     ifs.read((char*)edges_compressed.data(), num_bytes);
     ifs.close();
@@ -82,10 +94,15 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, bool zeta_co
 
 template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* ptr, std::string scheme) {
+  //std::cout << "Debug: v = " << v << "\n";
   auto degree = read_degree(v);
+  if (degree == 0) return 0;
+  //std::cout << "hybrid degree: " << degree << "\n";
   if (degree > degree_threshold) { // vbyte
+    //std::cout << "v = " << v << " degree: " << degree << " vbyte decoding\n";
     decode_vertex_vbyte(v, ptr, scheme);
   } else { // unary
+    //std::cout << "v = " << v << " degree: " << degree << " unary decoding\n";
     decode_vertex_unary(v, ptr, degree);
   }
   return degree;
@@ -93,16 +110,17 @@ vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType
 
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* out, vidType degree) {
-  auto start = vertices_compressed[v];
-  auto in = &edges_compressed[start];
-  //uint32_t count = *(uint32_t *)in;
-  //in ++;
-  uint64_t offset = 0;
+  auto offset = vertices_compressed[v] * 32; // transform word-offset to bit-offset
+  auto in = &edges_compressed[0];
   UnaryDecoder decoder(in, offset);
+  // decode the first element
   vidType x = decoder.decode_residual_code();
   out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+  //std::cout << "hybrid unary: first element is " << out[0] << "\n";
+  // decode the rest of elements
   for (vidType i = 1; i < degree; i++) {
     out[i] = out[i-1] + decoder.decode_residual_code() + 1;
+    //std::cout << "hybrid unary: " << i+1 << "-th element is " << out[i] << "\n";
   }
 }
 
@@ -132,7 +150,7 @@ void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
   if (scheme == "hybrid") {
   } else if (scheme == "cgr") {
 #if 0
-  VertexList degrees(n_vertices);
+  degrees.resize(n_vertices);
   #pragma omp parallel for
   for (vidType v = 0; v < n_vertices; v++) {
     VertexSet adj(v);

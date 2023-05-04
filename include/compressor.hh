@@ -22,6 +22,7 @@ class Compressor {
   void compute_ptrs();
   void write_ptrs_to_disk();
   void write_compressed_edges_to_disk();
+  void bits_to_bytes(bits bit_array, std::vector<unsigned char> &buf, unsigned char &cur, int &bit_count);
 
   // statistics
   vidType vbyte_count, unary_count, trivial_count; // number of vertices

@@ -462,49 +462,7 @@ void GraphT<map_vertices,map_edges>::symmetrize() {
   n_edges = num_edges;
   sort_neighbors();
 }
-/*
-template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices,map_edges>::symmetrize() {
-  std::cout << "Symmetrizing the neighbor lists (used for pattern mining)\n";
-  std::vector<std::set<vidType>> neighbor_lists(n_vertices);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v++) {
-    auto deg = get_degree(v);
-    assert (deg <= max_degree);
-    neighbor_lists[v].insert(edges+edge_begin(v), edges+edge_end(v));
-  }
-  std::cout << "Inserting reverse edges\n";
-  for (vidType v = 0; v < n_vertices; v++) {
-    for (auto u : N(v)) {
-      if (u == v) continue;
-      neighbor_lists[u].insert(v);
-    }
-  }
 
-  std::cout << "Computing degrees\n";
-  std::vector<vidType> degrees(n_vertices, 0);
-  for (vidType v = 0; v < n_vertices; v++) {
-    degrees[v] = neighbor_lists[v].size();
-  }
-  std::cout << "Computing indices by prefix sum\n";
-  eidType *new_vertices = custom_alloc_global<eidType>(n_vertices+1);
-  parallel_prefix_sum<vidType,eidType>(degrees, new_vertices);
-  auto num_edges = new_vertices[n_vertices];
-  std::cout << "|E| after symmetrization: " << num_edges << "\n";
-  assert(num_edges <= 2*n_edges);
-  vidType *new_edges = custom_alloc_global<vidType>(num_edges);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v ++) {
-    auto begin = new_vertices[v];
-    std::copy(neighbor_lists[v].begin(), neighbor_lists[v].end(), &new_edges[begin]);
-  }
-  delete [] vertices;
-  delete [] edges;
-  vertices = new_vertices;
-  edges = new_edges;
-  n_edges = num_edges;
-}
-*/
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices,map_edges>::write_to_file(std::string outfilename, bool v, bool e, bool vl, bool el) {
   std::cout << "Writing graph to file\n";

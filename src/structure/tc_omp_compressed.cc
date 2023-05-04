@@ -12,9 +12,11 @@ void printusage(std::string bin) {
 int main(int argc,char *argv[]) {
   std::string schemename = "cgr";
   std::string filename = "";
-  int c;
   bool permutated = false;
-  while ((c = getopt(argc, argv, "s:i:ph")) != -1) {
+  bool oriented = false;
+  vidType degree_threshold = 32;
+  int c;
+  while ((c = getopt(argc, argv, "s:i:opd:h")) != -1) {
     switch (c) {
       case 's':
         schemename = optarg;
@@ -22,8 +24,14 @@ int main(int argc,char *argv[]) {
       case 'i':
         filename = optarg;
         break;
+      case 'o':
+        oriented = true;
+        break;
       case 'p':
         permutated = true;
+        break;
+      case 'd':
+        degree_threshold = atoi(optarg);
         break;
       case 'h':
         printusage(argv[0]);
@@ -37,14 +45,18 @@ int main(int argc,char *argv[]) {
     printusage(argv[0]);
     return -1;
   }
+  if (!oriented) {
+    std::cout << "Graph must be oriented\n";
+    printusage(argv[0]);
+    return -1;
+  }
  
   Graph g;
+  g.set_degree_threshold(degree_threshold);
   if (schemename == "decomp") // uncompressed graph
     g.load_graph(filename);
-  else if (schemename == "cgr") // cgr format
-    g.load_compressed_graph(filename, true, permutated);
   else
-    g.load_compressed_graph(filename, false, permutated);
+    g.load_compressed_graph(filename, schemename, permutated);
   g.print_meta_data();
 
   uint64_t total = 0;
@@ -86,11 +98,12 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
       }
     }
   } else if (scheme == "hybrid") { // hybrid scheme: unary + vbyte
+    std::string vbyte_scheme = "streamvbyte";
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {
-      auto adj_u = g.N_hybrid(u, scheme);
+      auto adj_u = g.N_hybrid(u, vbyte_scheme);
       for (auto v : adj_u) {
-        auto adj_v = g.N_hybrid(v, scheme);
+        auto adj_v = g.N_hybrid(v, vbyte_scheme);
        auto num = (uint64_t)intersection_num(adj_u, adj_v);
         counter += num;
       }
