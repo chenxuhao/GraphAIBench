@@ -116,11 +116,9 @@ void GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* ou
   // decode the first element
   vidType x = decoder.decode_residual_code();
   out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
-  //std::cout << "hybrid unary: first element is " << out[0] << "\n";
   // decode the rest of elements
   for (vidType i = 1; i < degree; i++) {
     out[i] = out[i-1] + decoder.decode_residual_code() + 1;
-    //std::cout << "hybrid unary: " << i+1 << "-th element is " << out[i] << "\n";
   }
 }
 

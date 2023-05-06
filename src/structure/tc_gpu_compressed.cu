@@ -67,7 +67,7 @@ int main(int argc,char *argv[]) {
   return 0;
 }
 
-#include "graph_gpu.h"
+#include "graph_gpu_compressed.h"
 #include "cuda_launch_config.hpp"
 
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
@@ -118,7 +118,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   size_t num_per_block = WARPS_PER_BLOCK;
   allocate_gpu_buffer(3 * size_t(g.get_max_degree()) * num_per_block * nblocks, buffer);
 
-  GraphGPU gg(g);
+  GraphGPUCompressed gg(g);
   AccType h_total = 0, *d_total;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
@@ -171,7 +171,7 @@ void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached) {
 #ifndef VERTEX_PARALLEL
   if (!USE_ZERO_COPY && g.is_compressed_only()) g.decompress();
 #endif
-  GraphGPU gg(g);
+  GraphGPUCompressed gg(g);
 
   // kernel launch configuration
   size_t nthreads = BLOCK_SIZE, nblocks = (g.V()-1)/nthreads+1;

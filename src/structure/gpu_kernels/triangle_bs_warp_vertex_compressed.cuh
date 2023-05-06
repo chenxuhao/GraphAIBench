@@ -1,6 +1,7 @@
+typedef GraphGPUCompressed GraphTy;
 // vertex parallel: each warp takes one vertex
 __global__  void //__launch_bounds__(BLOCK_SIZE, 8)
-bs_warp_vertex_compressed(GraphGPU g, vidType *buffer, AccType *total) {
+bs_warp_vertex_compressed(GraphTy g, vidType *buffer, AccType *total) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   int thread_id   = blockIdx.x * blockDim.x + threadIdx.x;
   int warp_id     = thread_id   / WARP_SIZE;                // global warp index
@@ -21,7 +22,7 @@ bs_warp_vertex_compressed(GraphGPU g, vidType *buffer, AccType *total) {
 
 // vertex parallel: each warp takes one vertex
 __global__  void __launch_bounds__(BLOCK_SIZE, 8)
-bs_warp_vertex_compressed_cached(GraphGPU g, vidType *buffer, AccType *total, vidType num_cached) {
+bs_warp_vertex_compressed_cached(GraphTy g, vidType *buffer, AccType *total, vidType num_cached) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   int thread_id   = blockIdx.x * blockDim.x + threadIdx.x;
   int warp_id     = thread_id   / WARP_SIZE;                // global warp index
