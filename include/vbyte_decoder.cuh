@@ -136,7 +136,7 @@ __device__ vidType decode_varintgb_warp(const size_t length, const uint32_t *in,
   return vidType(nvalue);
 }
 
-__device__ void unpackblock(const uint32_t *in, uint32_t *out, const uint32_t bit, uint32_t initoffset) {
+inline __device__ void unpackblock(const uint32_t *in, uint32_t *out, const uint32_t bit, uint32_t initoffset) {
 }
 
 // Decompress Binary Packing GPU kernel

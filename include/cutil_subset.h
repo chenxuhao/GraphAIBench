@@ -41,7 +41,7 @@
 
 // you must first call the cudaGetDeviceProperties() function, then pass
 // the devProp structure returned to this function:
-int getSPcores(cudaDeviceProp devProp) {
+inline int getSPcores(cudaDeviceProp devProp) {
   int cores = 0;
   int mp = devProp.multiProcessorCount;
   switch (devProp.major){

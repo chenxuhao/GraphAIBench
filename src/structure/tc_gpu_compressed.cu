@@ -67,13 +67,12 @@ int main(int argc,char *argv[]) {
   return 0;
 }
 
-#include "graph_gpu_compressed.h"
-#include "cuda_launch_config.hpp"
-
+#include <cub/cub.cuh>
 typedef cub::BlockReduce<AccType, BLOCK_SIZE> BlockReduce;
 
+#include "graph_gpu.h"
+#include "cuda_launch_config.hpp"
 #include "triangle_bs_warp_vertex.cuh"
-
 void triangle_count(Graph &g, uint64_t &total) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
@@ -98,7 +97,8 @@ void triangle_count(Graph &g, uint64_t &total) {
   CUDA_SAFE_CALL(cudaFree(d_total));
 }
 
-#include "decompressor.cuh"
+#include "graph_gpu_compressed.h"
+typedef GraphGPUCompressed GraphTy;
 #include "triangle_bs_warp_vertex_vbyte.cuh"
 void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   size_t memsize = print_device_info(0);
@@ -139,31 +139,13 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   CUDA_SAFE_CALL(cudaFree(d_total));
 }
 
-#define WARP_CENTRIC
-//#define USE_HINDEX
 #define VERTEX_PARALLEL
+#define WARP_CENTRIC
 #define USE_ZERO_COPY 1
-
-#ifdef USE_HINDEX
-#ifdef WARP_CENTRIC
-#ifdef VERTEX_PARALLEL
-#include "triangle_hindex_warp_vertex_compressed.cuh"
-#else
-#include "triangle_hindex_warp_edge_compressed.cuh"
-#endif
-#else
-#ifdef VERTEX_PARALLEL
-#include "triangle_hindex_cta_vertex_compressed.cuh"
-#else
-#include "triangle_hindex_cta_edge_compressed.cuh"
-#endif
-#endif
-#else // USE_BinarySearch
 #ifdef VERTEX_PARALLEL
 #include "triangle_bs_warp_vertex_compressed.cuh"
 #else
 #include "triangle_bs_warp_edge_compressed.cuh"
-#endif
 #endif
 
 void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached) {
@@ -276,4 +258,3 @@ void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached) {
   CUDA_SAFE_CALL(cudaFree(bins));
 #endif
 }
-
