@@ -25,6 +25,7 @@ protected:
   vidType *d_src_list, *d_dst_list; // for COO format
   vlabel_t *d_vlabels;              // vertex labels
   elabel_t *d_elabels;              // edge labels
+  vidType *d_degrees;               // vertex degree
   vidType *d_vlabels_frequency;     // vertex label frequency
   vidType *d_adj_buffer;            // buffer for copying an adjacency list from a remote GPU
 public:
@@ -51,8 +52,11 @@ public:
       d_in_rowptr(NULL),
       d_colidx(NULL), 
       d_in_colidx(NULL), 
-      d_src_list(NULL), d_dst_list(NULL),
-      d_vlabels(NULL), d_elabels(NULL), 
+      d_src_list(NULL),
+      d_dst_list(NULL),
+      d_vlabels(NULL),
+      d_elabels(NULL), 
+      d_degrees(NULL), 
       d_vlabels_frequency(NULL),
       d_adj_buffer(NULL) {
   }

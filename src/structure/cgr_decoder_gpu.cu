@@ -3,7 +3,7 @@
 template <typename T>
 __device__ vidType cgr_decoder_gpu<T>::decode() {
   vidType degree = 0;
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   degree += decode_intervals_warp(out_ptr);
 #endif
   degree += decode_residuals_warp(out_ptr+degree);
@@ -395,7 +395,7 @@ __device__ void cgr_decoder_gpu<T>::decode_intervals(SMem *smem, vidType *adj_ou
 
 template <typename T>
 __device__ void cgr_decoder_gpu<T>::handle_one_residual_segment(vidType v, vidType* adj_in, eidType offset, 
-                                                             SMem *smem, vidType *adj_out, vidType *out_len) {
+                                                                SMem *smem, vidType *adj_out, vidType *out_len) {
   //vidType thread_id = threadIdx.x;
   //vidType lane_id = thread_id % 32;
   //vidType warp_id = thread_id / 32;

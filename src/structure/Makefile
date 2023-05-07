@@ -2,6 +2,7 @@ include ../common.mk
 OBJS = graph.o VertexSet.o
 CGOBJS = graph_compressed.o cgr_decoder.o
 CGCUOBJS = graph_gpu_compressed.o cgr_decoder_gpu.o
+NVFLAGS += -dc
 LIBS += $(SIMDCAI_LIB)
 INCLUDES += -I./gpu_kernels $(SIMDCAI_INC)
 all: compressor tc_omp_compressed tc_gpu_compressed
@@ -19,8 +20,9 @@ tc_cilk_vbyte: $(OBJS) $(CGOBJS) tc_cilk_vbyte.o
 	mv $@ $(BIN)
 
 tc_gpu_compressed: $(OBJS) $(CGOBJS) $(CGCUOBJS) tc_gpu_compressed.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_gpu_compressed.o $(OBJS) $(CGOBJS) $(CGCUOBJS) -o $@ $(LIBS) $(NVLIBS)
+	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) tc_gpu_compressed.o $(OBJS) $(CGOBJS) $(CGCUOBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
+#	$(CXX) $(CXXFLAGS) $(INCLUDES) tc_gpu_compressed.o $(OBJS) $(CGOBJS) $(CGCUOBJS) -o $@ $(LIBS) $(NVLIBS)
 
 verify_compression: verify_compression.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) verify_compression.o $(OBJS) -o $@ $(LIBS)

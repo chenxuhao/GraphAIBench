@@ -12,17 +12,10 @@ CLANG := $(CILK_HOME)/bin/clang
 CLANGXX := $(CILK_HOME)/bin/clang++
 SIMDCAI_HOME := ../../external/SIMDCAI
 
-GENCODE_SM30 := -gencode arch=compute_30,code=sm_30
-GENCODE_SM35 := -gencode arch=compute_35,code=sm_35
-GENCODE_SM37 := -gencode arch=compute_37,code=sm_37
-GENCODE_SM50 := -gencode arch=compute_50,code=sm_50
-GENCODE_SM52 := -gencode arch=compute_52,code=sm_52
-GENCODE_SM60 := -gencode arch=compute_60,code=sm_60
-GENCODE_SM70 := -gencode arch=compute_70,code=sm_70
-GENCODE_SM75 := -gencode arch=compute_75,code=sm_75
-GENCODE_SM80 := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
-GENCODE_SM86 := -gencode arch=compute_86,code=sm_86
-CUDA_ARCH := $(GENCODE_SM70)
+ifndef GPU_ARCH
+GPU_ARCH = 70
+endif
+CUDA_ARCH := -gencode arch=compute_$(GPU_ARCH),code=sm_$(GPU_ARCH)
 CXXFLAGS  := -Wall -fopenmp -std=c++17 -march=native
 ICPCFLAGS := -O3 -Wall -qopenmp
 NVFLAGS := $(CUDA_ARCH)

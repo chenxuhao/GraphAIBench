@@ -1,6 +1,7 @@
 #pragma once
 #include <cub/cub.cuh>
 #include "unary_decoder.cuh"
+//#define USE_INTERVAL
 
 template<typename T = vidType>
 class CgrReaderGPU : public UnaryDecoderGPU<T> {

@@ -14,9 +14,9 @@ int main(int argc,char *argv[]) {
   std::string filename = "";
   bool permutated = false;
   bool oriented = false;
- 
+  vidType degree_threshold = 32;
   int c;
-  while ((c = getopt(argc, argv, "s:h")) != -1) {
+  while ((c = getopt(argc, argv, "s:i:opd:h")) != -1) {
     switch (c) {
       case 's':
         schemename = optarg;
@@ -29,6 +29,9 @@ int main(int argc,char *argv[]) {
         break;
       case 'p':
         permutated = true;
+        break;
+      case 'd':
+        degree_threshold = atoi(optarg);
         break;
       case 'h':
         printusage(argv[0]);
@@ -49,6 +52,7 @@ int main(int argc,char *argv[]) {
   }
  
   Graph g;
+  g.set_degree_threshold(degree_threshold);
   if (schemename == "decomp")
     g.load_graph(filename);
   else
@@ -57,12 +61,15 @@ int main(int argc,char *argv[]) {
   //g.print_graph();
 
   uint64_t total = 0;
-  if (schemename == "decomp")
+  if (schemename == "decomp") {
     triangle_count(g, total);
-  else if (schemename == "cgr")
+  } else if (schemename == "cgr") {
     triangle_count_cgr(g, total);
-  else
+  //} else if (schemename == "hybrid") {
+    //triangle_count_hybrid(g, total, schemename);
+  } else { // vbyte
     triangle_count_vbyte(g, total, schemename);
+  }
   std::cout << "total_num_triangles = " << total << "\n";
   return 0;
 }
@@ -100,33 +107,41 @@ void triangle_count(Graph &g, uint64_t &total) {
 #include "graph_gpu_compressed.h"
 typedef GraphGPUCompressed GraphTy;
 #include "triangle_bs_warp_vertex_vbyte.cuh"
+#include "triangle_bs_warp_vertex_unary.cuh"
 void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
   size_t nthreads = BLOCK_SIZE;
   size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
   if (nblocks > 65536) nblocks = 65536;
-  if (scheme == "streamvbyte") {
+  if (scheme == "hybrid") {
+    refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_unary);
+  } else if (scheme == "streamvbyte") {
     refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte<0,true>);
   } else {
     refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte<1,true,4>);
   }
-  std::cout << "CUDA triangle counting VByte (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   std::cout << "Allocating buffer for decompressed adjacency lists\n";
   vidType *buffer;
   size_t num_per_block = WARPS_PER_BLOCK;
   allocate_gpu_buffer(3 * size_t(g.get_max_degree()) * num_per_block * nblocks, buffer);
 
-  GraphGPUCompressed gg(g);
+  std::cout << "Allocating the graph on GPU\n";
+  GraphGPUCompressed gg(g, scheme);
   AccType h_total = 0, *d_total;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  std::cout << "CUDA triangle counting (" << nblocks << " CTAs, " << nthreads << " threads/CTA)\n";
 
   Timer t;
   t.Start();
-  if (scheme == "streamvbyte") {
+  if (scheme == "hybrid") {
+    std::cout << "launching hybrid kernel\n";
+    triangle_bs_warp_vertex_unary<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+  } else if (scheme == "streamvbyte") {
+    std::cout << "launching streamvbyte kernel\n";
     triangle_bs_warp_vertex_vbyte<0,true><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
   } else {
     triangle_bs_warp_vertex_vbyte<1,true,4><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
@@ -153,7 +168,7 @@ void triangle_count_cgr(Graph &g, uint64_t &total, vidType num_cached) {
 #ifndef VERTEX_PARALLEL
   if (!USE_ZERO_COPY && g.is_compressed_only()) g.decompress();
 #endif
-  GraphGPUCompressed gg(g);
+  GraphGPUCompressed gg(g, "cgr");
 
   // kernel launch configuration
   size_t nthreads = BLOCK_SIZE, nblocks = (g.V()-1)/nthreads+1;
