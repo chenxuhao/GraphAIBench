@@ -108,6 +108,7 @@ void triangle_count(Graph &g, uint64_t &total) {
 typedef GraphGPUCompressed GraphTy;
 #include "triangle_bs_warp_vertex_vbyte.cuh"
 #include "triangle_bs_warp_vertex_unary.cuh"
+#include "triangle_bs_warp_vertex_hybrid.cuh"
 void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   size_t memsize = print_device_info(0);
   auto nv = g.num_vertices();
@@ -128,7 +129,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   allocate_gpu_buffer(3 * size_t(g.get_max_degree()) * num_per_block * nblocks, buffer);
 
   std::cout << "Allocating the graph on GPU\n";
-  GraphGPUCompressed gg(g, scheme);
+  GraphGPUCompressed gg(g, scheme, g.get_degree_threshold());
   AccType h_total = 0, *d_total;
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_total, sizeof(AccType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_total, &h_total, sizeof(AccType), cudaMemcpyHostToDevice));
@@ -137,9 +138,12 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
 
   Timer t;
   t.Start();
-  if (scheme == "hybrid") {
-    std::cout << "launching hybrid kernel\n";
+  if (scheme == "unary") {
+    std::cout << "launching unary kernel\n";
     triangle_bs_warp_vertex_unary<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+  } else if (scheme == "hybrid") {
+    std::cout << "launching hybrid kernel\n";
+    triangle_bs_warp_vertex_hybrid<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
   } else if (scheme == "streamvbyte") {
     std::cout << "launching streamvbyte kernel\n";
     triangle_bs_warp_vertex_vbyte<0,true><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
@@ -152,6 +156,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   CUDA_SAFE_CALL(cudaMemcpy(&h_total, d_total, sizeof(AccType), cudaMemcpyDeviceToHost));
   total = h_total;
   CUDA_SAFE_CALL(cudaFree(d_total));
+  CUDA_SAFE_CALL(cudaFree(buffer));
 }
 
 #define VERTEX_PARALLEL

@@ -5,6 +5,7 @@
 class GraphGPUCompressed : public GraphGPU {
  private:
   std::string scheme;           // compression scheme   
+  vidType degree_threshold;     // threshold for hybrid scheme
   eidType *d_rowptr_compressed; // row pointers of Compressed Graph Representation (CGR)
   vidType *d_colidx_compressed; // column induces of Compressed Graph Representation (CGR)
 
@@ -12,12 +13,14 @@ class GraphGPUCompressed : public GraphGPU {
   GraphGPUCompressed() :
     GraphGPU(),
     scheme(""),
+    degree_threshold(32),
     d_rowptr_compressed(NULL),
     d_colidx_compressed(NULL) {
   }
-  GraphGPUCompressed(Graph &g, std::string scheme_name, int n=0, int m=1) : 
+  GraphGPUCompressed(Graph &g, std::string scheme_name, vidType deg=32, int n=0, int m=1) : 
       GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
     scheme = scheme_name;
+    degree_threshold = deg;
     init(g);
   }
   void init(Graph &hg);
@@ -85,16 +88,15 @@ class GraphGPUCompressed : public GraphGPU {
     }
     return degree;
   }
-  inline __device__ vidType decompress_adj_warp(vidType v, vidType *adj, int scheme = 0, vidType degree = 0) {
-    vidType deg = degree;
-    if (scheme == 0) {
-      decode_unary_warp(v, adj, degree);
-    } else if (scheme == 1) {
-      deg = decode_cgr_warp(v, adj);
+  inline __device__ vidType decode_hybrid_warp(vidType v, vidType *adj) {
+    auto degree = read_degree(v);
+    if (degree == 0) return 0;
+    if (degree > degree_threshold) {
+      decode_vbyte_warp<0,true>(v, adj);
     } else {
-      deg = decode_vbyte_warp(v, adj);
+      decode_unary_warp(v, adj, degree);
     }
-    return deg;
+    return degree;
   }
 
   /*

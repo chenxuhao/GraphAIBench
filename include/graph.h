@@ -124,6 +124,7 @@ public:
   // get methods for graph topology information
   vidType read_degree(vidType v) const { return degrees[v]; }
   const vidType* get_degrees_ptr() const { return degrees.data(); }
+  vidType get_degree_threshold() const { return degree_threshold; }
   vidType get_degree(vidType v) const { return vertices[v+1] - vertices[v]; }
   vidType out_degree(vidType v) const { return vertices[v+1] - vertices[v]; }
   eidType edge_begin(vidType v) const { return vertices[v]; }

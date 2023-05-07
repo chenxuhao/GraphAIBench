@@ -14,7 +14,7 @@ SIMDCAI_HOME := ../../external/SIMDCAI
 
 UNAME_P := $(shell uname -p)
 ifndef GPU_ARCH
-GPU_ARCH = 70
+GPU_ARCH = 80
 endif
 CUDA_ARCH := -gencode arch=compute_$(GPU_ARCH),code=sm_$(GPU_ARCH)
 CXXFLAGS  := -Wall -fopenmp -std=c++17
