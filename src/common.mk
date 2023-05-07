@@ -12,11 +12,16 @@ CLANG := $(CILK_HOME)/bin/clang
 CLANGXX := $(CILK_HOME)/bin/clang++
 SIMDCAI_HOME := ../../external/SIMDCAI
 
+UNAME_P := $(shell uname -p)
 ifndef GPU_ARCH
 GPU_ARCH = 70
 endif
 CUDA_ARCH := -gencode arch=compute_$(GPU_ARCH),code=sm_$(GPU_ARCH)
-CXXFLAGS  := -Wall -fopenmp -std=c++17 -march=native
+CXXFLAGS  := -Wall -fopenmp -std=c++17
+#ifneq ($(UNAME_P), arm)
+ifeq ($(UNAME_P), x86_64)
+  CXXFLAGS += -march=native
+endif
 ICPCFLAGS := -O3 -Wall -qopenmp
 NVFLAGS := $(CUDA_ARCH)
 NVFLAGS += -Xptxas -v -std=c++17
