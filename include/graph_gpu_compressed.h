@@ -25,7 +25,6 @@ class GraphGPUCompressed : public GraphGPU {
   }
   void init(Graph &hg);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
-  //inline __device__ void decode_unary_warp(vidType v, vidType* out, vidType degree);
   //inline __device__ vidType decode_cgr_warp(vidType v, vidType *adj);
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) { return decode_cgr_warp(v, adj); }
   //inline __device__ vidType warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res);
@@ -50,7 +49,7 @@ class GraphGPUCompressed : public GraphGPU {
     #endif
     return degree;
   }
-  inline __device__ void decode_unary_warp(vidType v, vidType* out, vidType degree) {
+  inline __device__ void decode_unary_warp_naive(vidType v, vidType* out, vidType degree) {
     int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
     if (thread_lane == 0) {
       auto offset = d_rowptr_compressed[v] * 32; // transform word-offset to bit-offset
@@ -59,10 +58,98 @@ class GraphGPUCompressed : public GraphGPU {
       // decode the first element
       vidType x = decoder.decode_residual_code();
       out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
-      // decode the rest of elements
+      // decode the rest of elements one-by-one
       for (vidType i = 1; i < degree; i++) {
         out[i] = out[i-1] + decoder.decode_residual_code() + 1;
       }
+    }
+  }
+  inline __device__ void decode_unary_warp(vidType v, vidType* out, vidType degree) {
+    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    int warp_lane   = threadIdx.x / WARP_SIZE;
+    eidType offset = d_rowptr_compressed[v] * 32; // transform word-offset to bit-offset
+    auto in = &d_colidx_compressed[0];
+    __shared__ int64_t length[WARPS_PER_BLOCK];
+    vidType val = 0;
+    // decode the first element
+    if (thread_lane == 0) {
+      UnaryDecoderGPU decoder(in, offset);
+      val = decoder.decode_residual_code();
+      out[0] = (val & 1) ? v - (val >> 1) - 1 : v + (val >> 1);
+      length[warp_lane] = decoder.get_offset() - offset;
+    }
+    if (degree == 1) return;
+    __syncwarp();
+    assert(length[warp_lane] > 0);
+    if (length[warp_lane] > 36) printf("length=%ld\n", length[warp_lane]);
+    offset += length[warp_lane];
+    int64_t num_bits = d_rowptr_compressed[v+1] * 32 - offset;
+    assert(num_bits > 0);
+ 
+    // decode the rest of elements in parallel
+    int nrounds = (num_bits - 1) / WARP_SIZE + 1;
+    int num_decoded = 1;
+    __shared__ int poss[BLOCK_SIZE];
+    __shared__ int flags[BLOCK_SIZE];
+    __shared__ int64_t prefix_offset[WARPS_PER_BLOCK];
+    typedef cub::WarpScan<vidType> WarpScan;
+    __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
+    int shm_off = warp_lane * WARP_SIZE;
+    int prefix = out[0];
+    // each round processes 32 bits of data
+    for (int i = 0; i < nrounds; i ++) {
+      // each thread takes one bit to start decoding; some are invalid
+      UnaryDecoderGPU decoder(in, offset+thread_lane);
+      assert (offset < int64_t(117185093)*32);
+      //if (offset > int64_t(117185093)*32);
+      //  printf("v %d word_offset=%ld, bit_offset=%ld\n", v, (offset+thread_lane)/32, offset+thread_lane);
+      val = decoder.decode_residual_code() + 1;
+      assert(decoder.get_offset() > offset);
+      //if (thread_lane == 0 && decoder.get_offset() - offset >= 32)
+      //  printf("v %d round %d thread_lane=%d, old_offset=%ld, new_offset=%ld, num_decoded=%d\n", v, i, thread_lane, offset, decoder.get_offset(), num_decoded);
+      //assert(thread_lane != 0 || decoder.get_offset() - offset < 32);
+      poss[threadIdx.x] = decoder.get_offset() - offset;
+      flags[threadIdx.x] = thread_lane ? 0 : 1;
+      __syncwarp();
+      int flag = flags[threadIdx.x]; // whether it is valid
+      int pos = poss[threadIdx.x]; // position is the bit offset, range in [0, 31]
+      bool is_active = true;
+      // find all valid starting bits within 32 bits
+      do {
+        if (pos < WARP_SIZE) {
+          if (flag) flags[shm_off+pos] = 1;
+          poss[threadIdx.x] = pos<32 ? poss[shm_off+pos] : WARP_SIZE;
+        }
+        flag = flags[threadIdx.x];
+        pos = poss[threadIdx.x];
+        is_active = flag && pos < WARP_SIZE;
+      } while (__any_sync(0xFFFFFFFF, is_active)); // active thread?
+      int valid_index = 0; // index to valid elements (i.e. flag==1)
+      int total = 0; // number of elements decoded in this round
+      //WarpScan(temp_storage[warp_lane]).ExclusiveSum(flag, valid_index, total);
+      unsigned mask = __ballot_sync(0xFFFFFFFF, flag);
+      // Note that flag[0] = 1, so __popc >= 1
+      valid_index = __popc(mask << (WARP_SIZE-thread_lane-1)) - 1;
+      total = __popc(mask);
+
+      // write valid elements back
+      if (!flag) val = 0;
+      if (thread_lane == 0) val += prefix;
+      vidType out_val = 0;
+      WarpScan(temp_storage[warp_lane]).InclusiveSum(val, out_val);
+      // delta coding
+      if (flag && valid_index+num_decoded < degree)
+        out[valid_index+num_decoded] = out_val;
+      //if (flag) out[num_decoded[warp_lane]+valid_index] = out_val + prefix;
+      //if (thread_lane == 0) num_decoded[warp_lane] += __popc(mask);
+      if (total + num_decoded >= degree) break;
+      num_decoded += total;
+      prefix = out[num_decoded-1];
+      // update the offset based on the last valid element
+      if (thread_lane == 31 - __clz(mask)) // mask is definitely not zero
+        prefix_offset[warp_lane] = decoder.get_offset();
+      __syncwarp();
+      offset = prefix_offset[warp_lane];
     }
   }
   inline __device__ vidType warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res) {

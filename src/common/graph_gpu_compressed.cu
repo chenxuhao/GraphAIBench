@@ -9,7 +9,7 @@ void GraphGPUCompressed::init(Graph &hg) {
     
     auto len = hg.get_compressed_colidx_length();
     std::cout << "Number of words in compressed edges: " << len << "\n";
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, (len+1) * sizeof(uint32_t))); // allocate one more word for memory safty
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, (len+2) * sizeof(uint32_t))); // allocate two more word for memory safty
     CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, hg.colidx_compressed(), len * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
     if (scheme == "hybrid") {
