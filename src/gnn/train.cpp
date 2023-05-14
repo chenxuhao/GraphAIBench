@@ -13,9 +13,12 @@ int main(int argc, char* argv[]) {
   #ifdef USE_GAT
   Model<GAT_layer> model;
   std::cout << "Using Graph Attention Network\n";
-  #elif USE_SAGE
+  #elif defined(USE_SAGE)
   Model<SAGE_layer> model;
   std::cout << "Using GraphSAGE\n";
+  #elif defined(USE_GGNN)
+  Model<GGNN_layer> model;
+  std::cout << "Using Gated Graph Neural Network\n";
   #else
   Model<GCN_layer> model;
   std::cout << "Using Graph Convolutional Network\n";

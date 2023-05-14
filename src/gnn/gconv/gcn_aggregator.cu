@@ -1,4 +1,4 @@
-#include "util.h"
+#include "timer.h"
 #include "aggregator.h"
 #include "graph_operations.h"
 
@@ -21,8 +21,8 @@ void GCN_Aggregator::aggregate(int len, Graph& g, const float* in, float* out) {
 #else
   init_const_gpu(n*len, 0., out);
   //reduce_vertex<float>(n, len, g, g.edge_data_ptr(), in, out);
-  //update_all_gcn<float><<<(n-1) / WARPS_PER_BLOCK + 1, BLOCK_SIZE>>>(n, len, g, in, out);
-  reduce_warp<float><<<(n-1) / WARPS_PER_BLOCK + 1, BLOCK_SIZE>>>(n, len, g, g.edge_data_ptr(), in, out);
+  update_all_gcn<float><<<(n-1) / WARPS_PER_BLOCK + 1, BLOCK_SIZE>>>(n, len, g, in, out);
+  // reduce_warp<float><<<(n-1) / WARPS_PER_BLOCK + 1, BLOCK_SIZE>>>(n, len, g, g.edge_data_ptr(), in, out);
   //reduce_cta<float><<<(n-1) / WARPS_PER_BLOCK + 1, BLOCK_SIZE>>>(n, len, g, g.edge_data_ptr(), in, out);
   CudaTest("solving update_all_gcn kernel failed");
 #endif

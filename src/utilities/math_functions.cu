@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <curand_kernel.h>
-#include "util.h"
+#include "timer.h"
 #include "cub/cub.cuh"
 #include "gpu_context.h"
 #include "math_functions.hh"

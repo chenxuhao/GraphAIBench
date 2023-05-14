@@ -85,4 +85,5 @@ void graph_conv_layer<Aggregator>::update_dim_size(size_t x) {
 template class graph_conv_layer<GCN_Aggregator>;
 template class graph_conv_layer<GAT_Aggregator>;
 template class graph_conv_layer<SAGE_Aggregator>;
+template class graph_conv_layer<GGNN_Aggregator>;
 

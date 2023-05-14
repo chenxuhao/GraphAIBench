@@ -1,8 +1,9 @@
 #include "net.h"
-#include "reader.h"
+
 #include "math_functions.hh"
-#include "softmax_loss_layer.h"
+#include "reader.h"
 #include "sigmoid_loss_layer.h"
+#include "softmax_loss_layer.h"
 #ifdef ENABLE_GPU
 #include "cutils.h"
 #endif
@@ -16,14 +17,16 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
 #ifdef USE_MKL
   mkl_set_num_threads(num_threads);
 #endif
-  is_sigmoid = std::string(argv[4])=="sigmoid" ? true:false;
+  is_sigmoid = std::string(argv[4]) == "sigmoid" ? true : false;
   use_dense = false;
   use_l2norm = false;
   arch = gnn_arch::GCN;
 #ifdef USE_GAT
   arch = gnn_arch::GAT;
-#elif USE_SAGE
+#elif defined(USE_SAGE)
   arch = gnn_arch::SAGE;
+#elif defined(USE_GGNN)
+  arch = gnn_arch::GGNN;
 #endif
 
   feat_drop = 0.;
@@ -60,9 +63,11 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
     inductive = atoi(argv[12]);
   }
   assert(num_layers >= 2);
+  if (arch == gnn_arch::GGNN) num_layers = 1;
 
-  // l2norm+dense layer is useful for sampling and GAT
-  if (subg_size > 0 || arch == gnn_arch::GAT) use_l2norm = true;
+  // l2norm+dense layer is useful for sampling and GAT & GGNN
+  if (subg_size > 0 || arch == gnn_arch::GAT || arch == gnn_arch::GGNN)
+    use_l2norm = true;
   if (use_l2norm) use_dense = true;
 
   use_gpu = false;
@@ -71,13 +76,23 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
 #endif
   full_graph = new Graph(use_gpu);
   auto reader = new Reader(dataset_name);
-  reader->readGraphFromGRFile(full_graph);
-  num_samples = full_graph->size();
-  //full_graph->print_graph();
-  if (arch != gnn_arch::SAGE)
-    full_graph->add_selfloop();
-  dim_init = reader->read_features(input_features);
-  num_cls = reader->read_labels(labels, !is_sigmoid);
+
+  auto dataset_type = 1; // 0: csgr, 1: bin
+
+  if (dataset_type == 0) {
+    reader->csgr_read_graph(full_graph);
+    num_samples = full_graph->size();
+    dim_init = reader->csgr_read_features(input_features);
+    num_cls = reader->csgr_read_labels(labels, !is_sigmoid);
+  } else {
+    reader->bin_read_graph(full_graph);
+    num_samples = full_graph->size();
+    dim_init = reader->bin_read_features(input_features);
+    num_cls = reader->bin_read_vlabels(labels, !is_sigmoid);
+  }
+  // full_graph->print_graph();
+
+  if (arch != gnn_arch::SAGE) full_graph->add_selfloop();
 #ifdef CSR_SEGMENTING
   full_graph->segmenting(dim_hid);
 #endif
@@ -91,61 +106,62 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
             << ", num_layers = " << num_layers
             << ", \nnum_epochs = " << num_epochs
             << ", input_length = " << dim_init
-            << ", hidden_length = " << dim_hid
-            << ", num_classes = " << num_cls 
+            << ", hidden_length = " << dim_hid << ", num_classes = " << num_cls
             << ", \nfeat_drop = " << feat_drop
-            << ", score_drop = " << score_drop
-            << ", subg_size = " << subg_size
+            << ", score_drop = " << score_drop << ", subg_size = " << subg_size
             << ", val_interval = " << val_interval
             << ", learning_rate = " << lrate << "\n";
+
   masks_train.resize(num_samples);
   masks_test.resize(num_samples);
   masks_val.resize(num_samples);
-  if (dataset_name == "reddit") {
-    train_begin = 0;
-    train_count = 153431;
-    train_end   = train_begin + train_count;
-    val_begin   = 153431;
-    val_count   = 23831;
-    val_end     = val_begin + val_count;
-    #pragma omp parallel for
-    for (size_t i = train_begin; i < train_end; i++)
-      masks_train[i] = 1;
-    #pragma omp parallel for
-    for (size_t i = val_begin; i < val_end; i++)
-      masks_val[i] = 1;
-    test_begin = 177262;
-    test_count = 55703;
-    test_end = test_begin + test_count;
-    #pragma omp parallel for
-    for (size_t i = test_begin; i < test_end; i++)
-      masks_test[i] = 1;
-    std::cout << "train_mask range: [" << train_begin << ", "
-            << train_end << ") Number of valid samples: " << train_count << " ("
-            << (float)train_count / (float)num_samples * (float)100 << "\%)\n";
-    std::cout << "val_mask range: [" << val_begin << ", "
-            << val_end << ") Number of valid samples: " << val_count << " ("
-            << (float)val_count / (float)num_samples * (float)100 << "\%)\n";
-    std::cout << "test_mask range: [" << test_begin << ", "
-            << test_end << ") Number of valid samples: " << test_count << " ("
-            << (float)test_count / (float)num_samples * (float)100 << "\%)\n";
-  } else {
-    train_count = reader->read_masks("train", num_samples, train_begin, train_end, masks_train.data());
-    val_count = reader->read_masks("val", num_samples, val_begin, val_end, masks_val.data());
-    test_count = reader->read_masks("test", num_samples, test_begin, test_end, masks_test.data());
+
+  if (dataset_type == 0){
+    train_count = reader->csgr_read_masks("train", num_samples, train_begin, train_end, masks_train.data());
+    val_count = reader->csgr_read_masks("val", num_samples, val_begin, val_end, masks_val.data());
+    test_count = reader->csgr_read_masks("test", num_samples, test_begin, test_end, masks_test.data());
   }
+  else{
+    train_count = reader->bin_read_masks("train", num_samples, train_begin, train_end, masks_train.data());
+    val_count = reader->bin_read_masks("val", num_samples, val_begin, val_end, masks_val.data());
+    test_count = reader->bin_read_masks("test", num_samples, test_begin, test_end, masks_test.data());
+
+    std::fill(masks_train.begin(), masks_train.end(), 0);
+    std::fill(masks_val.begin(), masks_val.end(), 0);
+    std::fill(masks_test.begin(), masks_test.end(), 0);
+
+    for (int i = train_begin; i < train_end; i++){
+      masks_train[i] = 1;
+    }
+    for (int i = val_begin; i < val_end; i++){
+      masks_val[i] = 1;
+    }
+    for (int i = test_begin; i < test_end; i++){
+      masks_test[i] = 1;
+    }
+    // --------- to correct the labels
+    // for (size_t v = 0; v < num_samples - 1; v++){
+    //   labels[v] = labels.at(v + 1);
+    // }
+    // ---------
+  }
+
+
   // for sampling
   assert(size_t(subg_size) <= train_count);
   num_subgraphs = num_threads;
   if (subg_size > 0) inductive = true;
-  if (inductive) training_graph = full_graph->generate_masked_graph(&masks_train[0]);
-  else training_graph = full_graph;
+  if (inductive)
+    training_graph = full_graph->generate_masked_graph(&masks_train[0]);
+  else
+    training_graph = full_graph;
   if (subg_size > 0) {
     assert(inductive);
-    //std::cout << "Allocating sampler\n";
-    sampler = new Sampler(full_graph, training_graph, &masks_train[0], train_count);
+    // std::cout << "Allocating sampler\n";
+    sampler =
+        new Sampler(full_graph, training_graph, &masks_train[0], train_count);
     subgs.resize(num_subgraphs);
-    //std::cout << "Allocating sampled subgraphs\n";
+    // std::cout << "Allocating sampled subgraphs\n";
     for (int i = 0; i < num_subgraphs; i++) {
       subgs[i] = new Graph(use_gpu);
       subgs[i]->alloc_on_device(subg_size);
@@ -154,7 +170,7 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
   }
   if (use_gpu) {
     if (subg_size > 0) {
-      float_malloc_device(subg_size*dim_init, d_feats_subg);
+      float_malloc_device(subg_size * dim_init, d_feats_subg);
       size_t labels_size = subg_size;
       if (is_sigmoid) labels_size *= num_cls;
       uint8_malloc_device(labels_size, d_labels_subg);
@@ -165,30 +181,36 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
     }
   }
   if (subg_size == 0 || !use_gpu) {
-#if (defined(USE_MKL) && defined(PRECOMPUTE_SCORES)) || (defined(ENABLE_GPU) && defined(USE_CUSPARSE))
-    if (inductive) training_graph->compute_edge_data();
-    else full_graph->compute_edge_data();
+#if (defined(USE_MKL) && defined(PRECOMPUTE_SCORES)) || \
+    (defined(ENABLE_GPU))
+    if (inductive)
+      training_graph->compute_edge_data();
+    else
+      full_graph->compute_edge_data();
 #else
-    if (inductive) training_graph->compute_vertex_data();
-    else full_graph->compute_vertex_data();
+    if (inductive)
+      training_graph->compute_vertex_data();
+    else
+      full_graph->compute_vertex_data();
 #endif
   }
 }
 
 template <typename gconv_layer>
 void Model<gconv_layer>::transfer_data_to_device() {
-  //std::cout << "transfer features to GPU\n";
-  float_malloc_device(num_samples*dim_init, d_input_features);
-  copy_float_device(num_samples*dim_init, &input_features[0], d_input_features);
-  //std::cout << "transfer labels to GPU\n";
+  // std::cout << "transfer features to GPU\n";
+  float_malloc_device(num_samples * dim_init, d_input_features);
+  copy_float_device(num_samples * dim_init, &input_features[0],
+                    d_input_features);
+  // std::cout << "transfer labels to GPU\n";
   if (is_sigmoid) {
-    uint8_malloc_device(num_samples*num_cls, d_labels);
-    copy_uint8_device(num_samples*num_cls, &labels[0], d_labels);
+    uint8_malloc_device(num_samples * num_cls, d_labels);
+    copy_uint8_device(num_samples * num_cls, &labels[0], d_labels);
   } else {
     uint8_malloc_device(num_samples, d_labels);
     copy_uint8_device(num_samples, &labels[0], d_labels);
   }
-  //std::cout << "transfer masks to GPU\n";
+  // std::cout << "transfer masks to GPU\n";
   uint8_malloc_device(num_samples, d_masks_train);
   copy_uint8_device(num_samples, &masks_train[0], d_masks_train);
   uint8_malloc_device(num_samples, d_masks_test);
@@ -199,28 +221,24 @@ void Model<gconv_layer>::transfer_data_to_device() {
 
 template <typename gconv_layer>
 void Model<gconv_layer>::update_weights(optimizer* opt) {
-  //std::cout << "Updating weights\n";
-  //regularize();
-  for (int i = 0; i < num_layers; i++)
-    layer_gconv[i].update_weight(opt);
+  // std::cout << "Updating weights\n";
+  // regularize();
+  for (int i = 0; i < num_layers; i++) layer_gconv[i].update_weight(opt);
 }
 
 //! set netphases for all layers in this network
 template <typename gconv_layer>
 void Model<gconv_layer>::set_netphases(net_phase phase) {
-  for (int i = 0; i < num_layers; i++)
-    layer_gconv[i].set_netphase(phase);
+  for (int i = 0; i < num_layers; i++) layer_gconv[i].set_netphase(phase);
   layer_loss->set_netphase(phase);
 }
 
 //! print all layers
 template <typename gconv_layer>
 void Model<gconv_layer>::print_layers_info() {
-  for (int i = 0; i < num_layers; i++)
-    layer_gconv[i].print_layer_info();
+  for (int i = 0; i < num_layers; i++) layer_gconv[i].print_layer_info();
   layer_loss->print_layer_info();
 }
-
 
 template <typename gconv_layer>
 void Model<gconv_layer>::construct_subg_feats(size_t m, const mask_t* masks) {
@@ -228,8 +246,8 @@ void Model<gconv_layer>::construct_subg_feats(size_t m, const mask_t* masks) {
   feats_subg.resize(m * dim_init);
   for (int i = 0; i < num_samples; i++) {
     if (masks[i] == 1) {
-      std::copy(&input_features[size_t(i) * size_t(dim_init)], 
-                &input_features[size_t(i+1) * size_t(dim_init)],
+      std::copy(&input_features[size_t(i) * size_t(dim_init)],
+                &input_features[size_t(i + 1) * size_t(dim_init)],
                 &feats_subg[count * dim_init]);
       count++;
     }
@@ -239,8 +257,10 @@ void Model<gconv_layer>::construct_subg_feats(size_t m, const mask_t* masks) {
 
 template <typename gconv_layer>
 void Model<gconv_layer>::construct_subg_labels(size_t m, const mask_t* masks) {
-  if (is_sigmoid) labels_subg.resize(m * num_cls);
-  else labels_subg.resize(m);
+  if (is_sigmoid)
+    labels_subg.resize(m * num_cls);
+  else
+    labels_subg.resize(m);
   size_t count = 0;
   // see which labels to copy over for this subgraph
   for (int i = 0; i < num_samples; i++) {
@@ -248,28 +268,30 @@ void Model<gconv_layer>::construct_subg_labels(size_t m, const mask_t* masks) {
       if (is_sigmoid)
         std::copy(&labels[i * num_cls], &labels[(i + 1) * num_cls],
                   &labels_subg[count * num_cls]);
-      else labels_subg[count] = labels[i];
+      else
+        labels_subg[count] = labels[i];
       count++;
     }
   }
-  assert(count == m); 
+  assert(count == m);
 }
 
 // subgraph sampling
 template <typename gconv_layer>
-void Model<gconv_layer>::subgraph_sampling(int curEpoch, int &num_subg_remain) {
+void Model<gconv_layer>::subgraph_sampling(int curEpoch, int& num_subg_remain) {
   if (num_subg_remain == 0) {
-    //std::cout << "Generating " << num_subgraphs << " subgraph(s)\n";
+    // std::cout << "Generating " << num_subgraphs << " subgraph(s)\n";
     double t1 = omp_get_wtime();
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int sid = 0; sid < num_subgraphs; sid++) {
       VertexSet sampledSet;
       auto tid = omp_get_thread_num();
       auto seed = tid;
-      //auto seed = curEpoch;
+      // auto seed = curEpoch;
       auto nv = sampler->select_vertices(subg_size, sampledSet, seed);
-      //std::cout << nv << " vertices seleceted\n";
-      sampler->generateSubgraph(sampledSet, &subg_masks[sid*num_samples], get_subg_ptr(sid));
+      // std::cout << nv << " vertices seleceted\n";
+      sampler->generateSubgraph(sampledSet, &subg_masks[sid * num_samples],
+                                get_subg_ptr(sid));
     }
     num_subg_remain = num_subgraphs;
     double t2 = omp_get_wtime();
@@ -283,7 +305,7 @@ void Model<gconv_layer>::subgraph_sampling(int curEpoch, int &num_subg_remain) {
   }
   // choose a subgraph to use
   num_subg_remain--;
-  int sg_id     = num_subg_remain;
+  int sg_id = num_subg_remain;
   auto subg_ptr = get_subg_ptr(sg_id);
   subg_nv = subg_ptr->size();
 
@@ -293,7 +315,8 @@ void Model<gconv_layer>::subgraph_sampling(int curEpoch, int &num_subg_remain) {
   subg_ptr->copy_to_gpu();
 #endif
   // update normalization scores for GCN
-#if (defined(USE_MKL) && defined(PRECOMPUTE_SCORES)) || (defined(ENABLE_GPU) && defined(USE_CUSPARSE))
+#if (defined(USE_MKL) && defined(PRECOMPUTE_SCORES)) || \
+    (defined(ENABLE_GPU) && defined(USE_CUSPARSE))
   subg_ptr->compute_edge_data();
 #else
   subg_ptr->compute_vertex_data();
@@ -310,21 +333,21 @@ void Model<gconv_layer>::subgraph_sampling(int curEpoch, int &num_subg_remain) {
   // update features for subgraph
   construct_subg_feats(subg_nv, &subg_masks[sg_id * num_samples]);
 #ifdef ENABLE_GPU
-  //copy_float_device(subg_nv*dim_init, &feats_subg[0], d_feats_subg);
-  copy_async_device<float>(subg_nv*dim_init, &feats_subg[0], d_feats_subg);
-  layer_gconv[0].set_feat_in(d_feats_subg); // feed input datd
+  // copy_float_device(subg_nv*dim_init, &feats_subg[0], d_feats_subg);
+  copy_async_device<float>(subg_nv * dim_init, &feats_subg[0], d_feats_subg);
+  layer_gconv[0].set_feat_in(d_feats_subg);  // feed input datd
   size_t labels_size = subg_nv;
   if (is_sigmoid) labels_size *= num_cls;
-  //copy_uint8_device(labels_size, &labels_subg[0], d_labels_subg);
+  // copy_uint8_device(labels_size, &labels_subg[0], d_labels_subg);
   copy_async_device<label_t>(labels_size, &labels_subg[0], d_labels_subg);
   layer_loss->set_labels_ptr(d_labels_subg);
 #else
-  layer_gconv[0].set_feat_in(&feats_subg[0]); // feed input data
+  layer_gconv[0].set_feat_in(&feats_subg[0]);  // feed input data
   layer_loss->set_labels_ptr(&labels_subg[0]);
 #endif
   double t4 = omp_get_wtime();
   time_ops[OP_COPY] += t4 - t3;
-  //std::cout << "Sampling done!\n";
+  // std::cout << "Sampling done!\n";
 }
 
 template <typename gconv_layer>
@@ -334,7 +357,7 @@ void Model<gconv_layer>::train() {
   double total_train_time = 0.0;
   int num_subg_remain = 0;
 
-  for (int itr = 0; itr < num_epochs; itr ++) {
+  for (int itr = 0; itr < num_epochs; itr++) {
     if (subg_size > 0) subgraph_sampling(itr, num_subg_remain);
     std::cout << "Epoch " << std::setw(3) << itr << " ";
     // training
@@ -355,32 +378,31 @@ void Model<gconv_layer>::train() {
               << train_loss << " train_acc " << train_acc << " ";
 
     // validation
-    if (itr%val_interval== 0 && itr != 0) {
+    if (itr % val_interval == 0 && itr != 0) {
       double t_v1 = omp_get_wtime();
       auto val_acc = evaluate("val");
       double t_v2 = omp_get_wtime();
       double val_time = t_v2 - t_v1;
-      std::cout << "val_acc " << std::setprecision(3) << std::fixed
-                << val_acc << " ";
+      std::cout << "val_acc " << std::setprecision(3) << std::fixed << val_acc
+                << " ";
       std::cout << "time " << std::setprecision(3) << std::fixed
-                << epoch_time + val_time << " s (train_time "
-                << epoch_time << " val_time " << val_time << ")\n";
-      if (inductive) { // back to training
+                << epoch_time + val_time << " s (train_time " << epoch_time
+                << " val_time " << val_time << ")\n";
+      if (inductive) {  // back to training
         for (int i = 0; i < num_layers; i++)
           layer_gconv[i].set_graph_ptr(training_graph);
       }
     } else {
-      std::cout << "train_time " << std::fixed << epoch_time
-                << " s (fw " << fw_time << ", bw " << bw_time << ")\n";
+      std::cout << "train_time " << std::fixed << epoch_time << " s (fw "
+                << fw_time << ", bw " << bw_time << ")\n";
     }
   }
   double avg_train_time = total_train_time / (double)num_epochs;
-  double throughput     = (double)num_epochs / total_train_time;
+  double throughput = (double)num_epochs / total_train_time;
   std::cout << "Average training time per epoch: " << avg_train_time
             << " seconds. Throughput " << throughput << " epoch/s\n";
   if (subg_size > 0) {
-    for (int i = 0; i < num_subgraphs; i++)
-      subgs[i]->dealloc();
+    for (int i = 0; i < num_subgraphs; i++) subgs[i]->dealloc();
 #ifdef ENABLE_GPU
     free_device<float>(d_feats_subg);
     free_device<label_t>(d_labels_subg);
@@ -393,20 +415,23 @@ template <typename gconv_layer>
 void Model<gconv_layer>::construct_network() {
   std::cout << "constructing neural network...\n";
   auto nv = num_samples;
-  if (subg_size > 0 && use_gpu) nv = subg_size; // save memory for GPU
-  for (int l = 0; l < num_layers-1; l++) {
+  if (subg_size > 0 && use_gpu) nv = subg_size;  // save memory for GPU
+  for (int l = 0; l < num_layers - 1; l++) {
     int dim_in = (l == 0) ? dim_init : dim_hid;
-    layer_gconv.push_back(gconv_layer(l, nv, dim_in, dim_hid, training_graph, true, lrate, feat_drop, score_drop));
+    layer_gconv.push_back(gconv_layer(l, nv, dim_in, dim_hid, training_graph,
+                                      true, lrate, feat_drop, score_drop));
   }
   int dim_out = num_cls;
   if (use_dense) dim_out = dim_hid;
-  layer_gconv.push_back(gconv_layer(num_layers-1, nv, dim_hid, dim_out, training_graph, false, lrate, feat_drop, score_drop));
+  layer_gconv.push_back(gconv_layer(num_layers - 1, nv, dim_hid, dim_out,
+                                    training_graph, false, lrate, feat_drop,
+                                    score_drop));
   if (use_l2norm) layer_l2norm = new l2norm_layer(nv, dim_hid);
   if (use_dense) layer_dense = new dense_layer(nv, dim_hid, num_cls, lrate);
 #ifdef ENABLE_GPU
-    layer_gconv[0].set_feat_in(d_input_features);
+  layer_gconv[0].set_feat_in(d_input_features);
 #else
-    layer_gconv[0].set_feat_in(&input_features[0]);
+  layer_gconv[0].set_feat_in(&input_features[0]);
 #endif
   label_t* labels_ptr = &labels[0];
 #ifdef ENABLE_GPU
@@ -417,23 +442,23 @@ void Model<gconv_layer>::construct_network() {
   } else {
     layer_loss = new softmax_loss_layer(nv, num_cls, labels_ptr);
   }
-  //print_layers_info();
+  // print_layers_info();
 }
 
 // forward pass in training phase
 template <typename gconv_layer>
 acc_t Model<gconv_layer>::forward_prop(acc_t& loss) {
-  for (int l = 0; l < num_layers-1; l++)
-    layer_gconv[l].forward(layer_gconv[l+1].get_feat_in());
+  for (int l = 0; l < num_layers - 1; l++)
+    layer_gconv[l].forward(layer_gconv[l + 1].get_feat_in());
   if (use_dense) {
     if (use_l2norm) {
-      layer_gconv[num_layers-1].forward(layer_l2norm->get_feat_in());
+      layer_gconv[num_layers - 1].forward(layer_l2norm->get_feat_in());
       layer_l2norm->forward(layer_dense->get_feat_in());
-    } else 
-      layer_gconv[num_layers-1].forward(layer_dense->get_feat_in());
+    } else
+      layer_gconv[num_layers - 1].forward(layer_dense->get_feat_in());
     layer_dense->forward(layer_loss->get_feat_in());
   } else {
-    layer_gconv[num_layers-1].forward(layer_loss->get_feat_in());
+    layer_gconv[num_layers - 1].forward(layer_loss->get_feat_in());
   }
 
   mask_t* masks_ptr = &masks_train[0];
@@ -458,12 +483,14 @@ acc_t Model<gconv_layer>::forward_prop(acc_t& loss) {
   loss = layer_loss->get_prediction_loss(begin, end, count, masks_ptr);
   // prediction error
   // Squared Norm Regularization to mitigate overfitting
-  //loss += weight_decay * layers[0]->get_weight_decay_loss();
+  // loss += weight_decay * layers[0]->get_weight_decay_loss();
   acc_t accuracy = 0.0;
   if (is_sigmoid)
-    accuracy = masked_accuracy_multi(begin, end, count, num_cls, masks_ptr, layer_loss->get_feat_out(), labels_ptr);
+    accuracy = masked_accuracy_multi(begin, end, count, num_cls, masks_ptr,
+                                     layer_loss->get_feat_out(), labels_ptr);
   else
-    accuracy = masked_accuracy_single(begin, end, count, num_cls, masks_ptr, layer_loss->get_feat_in(), labels_ptr);
+    accuracy = masked_accuracy_single(begin, end, count, num_cls, masks_ptr,
+                                      layer_loss->get_feat_in(), labels_ptr);
   return accuracy;
 }
 
@@ -478,11 +505,11 @@ acc_t Model<gconv_layer>::evaluate(std::string type) {
 #ifdef ENABLE_GPU
     full_graph->alloc_on_device();
     full_graph->copy_to_gpu();
-  #ifdef USE_CUSPARSE
+#ifdef USE_CUSPARSE
     full_graph->compute_edge_data();
-  #else
+#else
     full_graph->compute_vertex_data();
-  #endif
+#endif
 #endif
     // for sampling, also need to switch back the input features and labels
     if (subg_size > 0) {
@@ -501,19 +528,19 @@ acc_t Model<gconv_layer>::evaluate(std::string type) {
 #endif
     }
   }
-  for (int l = 0; l < num_layers-1; l++)
-    layer_gconv[l].forward(layer_gconv[l+1].get_feat_in());
+  for (int l = 0; l < num_layers - 1; l++)
+    layer_gconv[l].forward(layer_gconv[l + 1].get_feat_in());
   if (use_dense) {
     if (use_l2norm) {
-      layer_gconv[num_layers-1].forward(layer_l2norm->get_feat_in());
+      layer_gconv[num_layers - 1].forward(layer_l2norm->get_feat_in());
       layer_l2norm->forward(layer_dense->get_feat_in());
-    } else 
-      layer_gconv[num_layers-1].forward(layer_dense->get_feat_in());
+    } else
+      layer_gconv[num_layers - 1].forward(layer_dense->get_feat_in());
     layer_dense->forward(layer_loss->get_feat_in());
   } else {
-    layer_gconv[num_layers-1].forward(layer_loss->get_feat_in());
+    layer_gconv[num_layers - 1].forward(layer_loss->get_feat_in());
   }
- 
+
   mask_t* masks_ptr = &masks_val[0];
   label_t* labels_ptr = &labels[0];
 #ifdef ENABLE_GPU
@@ -534,9 +561,11 @@ acc_t Model<gconv_layer>::evaluate(std::string type) {
   acc_t accuracy = 0.0;
   if (is_sigmoid) {
     layer_loss->forward(begin, end, masks_ptr);
-    accuracy = masked_accuracy_multi(begin, end, count, num_cls, masks_ptr, layer_loss->get_feat_out(), labels_ptr);
+    accuracy = masked_accuracy_multi(begin, end, count, num_cls, masks_ptr,
+                                     layer_loss->get_feat_out(), labels_ptr);
   } else
-    accuracy = masked_accuracy_single(begin, end, count, num_cls, masks_ptr, layer_loss->get_feat_in(), labels_ptr);
+    accuracy = masked_accuracy_single(begin, end, count, num_cls, masks_ptr,
+                                      layer_loss->get_feat_in(), labels_ptr);
   return accuracy;
 }
 
@@ -556,21 +585,29 @@ void Model<gconv_layer>::backward_prop() {
     layer_loss->backward(begin, end, masks_ptr, layer_dense->get_grad_in());
     if (use_l2norm) {
       layer_dense->backward(layer_l2norm->get_grad_in());
-      layer_l2norm->backward(layer_gconv[num_layers-1].get_grad_in());
-      layer_gconv[num_layers-1].backward(layer_l2norm->get_feat_in(), layer_gconv[num_layers-2].get_grad_in());
+      layer_l2norm->backward(layer_gconv[num_layers - 1].get_grad_in());
+      layer_gconv[num_layers - 1].backward(
+          layer_l2norm->get_feat_in(),
+          layer_gconv[num_layers - 2].get_grad_in());
     } else {
-      layer_dense->backward(layer_gconv[num_layers-1].get_grad_in());
-      layer_gconv[num_layers-1].backward(layer_dense->get_feat_in(), layer_gconv[num_layers-2].get_grad_in());
+      layer_dense->backward(layer_gconv[num_layers - 1].get_grad_in());
+      layer_gconv[num_layers - 1].backward(
+          layer_dense->get_feat_in(),
+          layer_gconv[num_layers - 2].get_grad_in());
     }
   } else {
-    layer_loss->backward(begin, end, masks_ptr, layer_gconv[num_layers-1].get_grad_in());
-    layer_gconv[num_layers-1].backward(layer_loss->get_feat_in(), layer_gconv[num_layers-2].get_grad_in());
+    layer_loss->backward(begin, end, masks_ptr,
+                         layer_gconv[num_layers - 1].get_grad_in());
+    layer_gconv[num_layers - 1].backward(
+        layer_loss->get_feat_in(), layer_gconv[num_layers - 2].get_grad_in());
   }
-  for (int l = num_layers-2; l > 0; l--)
-    layer_gconv[l].backward(layer_gconv[l+1].get_feat_in(), layer_gconv[l-1].get_grad_in());
+  for (int l = num_layers - 2; l > 0; l--)
+    layer_gconv[l].backward(layer_gconv[l + 1].get_feat_in(),
+                            layer_gconv[l - 1].get_grad_in());
   layer_gconv[0].backward(layer_gconv[1].get_feat_in(), NULL);
 }
 
 template class Model<GCN_layer>;
 template class Model<GAT_layer>;
 template class Model<SAGE_layer>;
+template class Model<GGNN_layer>;

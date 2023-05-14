@@ -501,3 +501,204 @@ void symmetric_csr_transpose(size_t nv, Graph g, const DType* scores, DType* tra
   //CudaTest("solving symmetric_csr_transpose kernel failed");
 }
 
+
+template <typename DType>
+__global__ void ggnn_aggregate_all(size_t n, int len, Graph g, const DType *in, DType *out)
+{
+  __shared__ index_t ptrs[BLOCK_SIZE / WARP_SIZE][2];
+  const int thread_id = BLOCK_SIZE * blockIdx.x + threadIdx.x; // global thread index
+  const int thread_lane = threadIdx.x & (WARP_SIZE - 1);       // thread index within the warp
+  const int warp_id = thread_id / WARP_SIZE;                   // global warp index
+  const int warp_lane = threadIdx.x / WARP_SIZE;               // warp index within the CTA
+  const int num_warps = (BLOCK_SIZE / WARP_SIZE) * gridDim.x;  // total number of active warps
+
+  for (int src = warp_id; src < n; src += num_warps)
+  {
+    if (thread_lane < 2)
+      ptrs[warp_lane][thread_lane] = g.edge_begin(src + thread_lane);
+    __syncthreads();
+    const index_t row_begin = ptrs[warp_lane][0];
+    const index_t row_end = ptrs[warp_lane][1];
+    index_t base_src = src * len;
+    for (index_t offset = row_begin; offset < row_end; offset++)
+    {
+      index_t dst = g.getEdgeDst(offset);
+      index_t base_dst = dst * len;
+      for (int i = 0; i < len; i += WARP_SIZE)
+      {
+        if (thread_lane + i < len)
+        {
+          out[base_src + thread_lane + i] += in[base_dst + thread_lane + i];
+        }
+      }
+    }
+  }
+}
+
+// A - M x K matrix
+// B - K x N matrix
+template <typename DType>
+__global__ void ggnn_compute_gates_and_candidate(DType *W_z, DType *W_r, DType *W_c, DType *U_z, DType *U_r, DType *U_c, DType *agg, DType *in, DType *Z_gate, DType *R_gate, DType *candidate, int M, int K, int N)
+{
+  int row = blockIdx.y * blockDim.y + threadIdx.y;
+  int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (row < M && col < N)
+  {
+    DType value_z_left = 0, value_r_left = 0, value_z_right = 0, value_r_right = 0, value_c_left = 0, value_c_right = 0;
+    for (int k = 0; k < K; ++k)
+    {
+      int index_left = row * K + k;
+      int index_right = k * N + col;
+      float agg_temp = agg[index_right];
+      float in_temp = in[index_right];
+      value_z_left += W_z[index_left] * agg_temp;
+      value_r_left += W_r[index_left] * agg_temp;
+      value_c_left += W_c[index_left] * agg_temp;
+      value_z_right += U_z[index_left] * in_temp;
+      value_r_right += U_r[index_left] * in_temp;
+    }
+    Z_gate[row * N + col] = 1 / (1 + expf((-1) * (value_z_left + value_z_right)));
+    R_gate[row * N + col] = 1 / (1 + expf((-1) * (value_r_left + value_r_right)));
+    __syncthreads();
+    DType r_elementwise_in = 0;
+    for (int k = 0; k < K; ++k)
+    {
+      int index_left = row * K + k;
+      int index_right = k * N + col;
+      r_elementwise_in += U_c[index_left] * (R_gate[index_right] * in[index_right]);
+    }
+    candidate[row * N + col] = tanh(value_c_left + r_elementwise_in);
+  }
+}
+
+
+template <typename DType>
+__global__ void ggnn_out_warp(size_t n, int len, const float *in, float *update, float *can, float *out)
+{
+  const int thread_id = BLOCK_SIZE * blockIdx.x + threadIdx.x; // global thread index
+  const int thread_lane = threadIdx.x & (WARP_SIZE - 1);       // thread index within the warp
+  const int warp_id = thread_id / WARP_SIZE;                   // global warp index
+  const int warp_lane = threadIdx.x / WARP_SIZE;               // warp index within the CTA
+  const int num_warps = (BLOCK_SIZE / WARP_SIZE) * gridDim.x;  // total number of active warps
+  const int num_threads = gridDim.x * BLOCK_SIZE;              // total number of threads
+
+  for (int src = warp_id; src < n; src += num_warps)
+  {
+    auto start = src * len;
+
+    for (int i = 0; i < len; i += WARP_SIZE)
+    {
+      auto feat_idx = start + thread_lane + i;
+      out[feat_idx] = (1 - update[feat_idx]) * in[feat_idx] + update[feat_idx] * can[feat_idx];
+    }
+  }
+}
+
+template <typename DType>
+__global__ void elementwise_kernel(const DType *A, const DType *B, DType *C, int x, int y, bool minusA = false, bool minusB = false)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    float a = minusA ? (1 - A[i * y + j]) : A[i * y + j];
+    float b = minusB ? (1 - B[i * y + j]) : B[i * y + j];
+    C[i * y + j] = a * b;
+  }
+}
+
+// A - M x K matrix
+// B - K x N matrix
+template <typename DType>
+__global__ void matmul_kernel(DType *A, DType *B, DType *C, int M, int K, int N, bool transpose_A = false, bool transpose_B = false)
+{
+  int row = blockIdx.y * blockDim.y + threadIdx.y;
+  int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (row < M && col < N)
+  {
+    DType value = 0;
+    for (int k = 0; k < K; ++k)
+    {
+      int index_A = transpose_A ? k * M + row : row * K + k;
+      int index_B = transpose_B ? col * K + k : k * N + col;
+      value += A[index_A] * B[index_B];
+    }
+    C[row * N + col] = value;
+  }
+}
+
+// ∂L/∂h_v^{t-1} = grad_in ⊙ (1 - z_v) + (grad_in ⊙ z_v) ⊙ ((1 - c_v^2) ⊙ temp)
+template <typename DType>
+__global__ void ggnn_backward_compute_dL_dHv(const DType *grad_in, DType *z_v, DType *c_v, DType *temp, DType *grad_out, int x, int y)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    grad_out[i * y + j] = (grad_in[i * y + j] * (1 - z_v[i * y + j])) + (grad_in[i * y + j] * z_v[i * y + j]) * ((1 - (c_v[i * y + j] * c_v[i * y + j])) * temp[i * y + j]);
+  }
+}
+
+template <typename DType>
+__global__ void ggnn_backward_compute_dL_Uc_left(DType *dL_dCv, DType *Cv, DType *dL_Uc_left, int x, int y)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    dL_Uc_left[i * y + j] = dL_dCv[i * y + j] * (1 - (Cv[i * y + j] * Cv[i * y + j]));
+  }
+}
+
+template <typename DType>
+__global__ void ggnn_backward_compute_dL_Rv(DType *dL_dCv, const DType *Cv, DType *dL_dRv_right, DType *dL_dRv, int x, int y)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    dL_dRv[i * y + j] = dL_dCv[i * y + j] * (1 - (Cv[i * y + j] * Cv[i * y + j])) * dL_dRv_right[i * y + j];
+  }
+}
+
+template <typename DType>
+__global__ void ggnn_backward_compute_dL_Rv_left(DType *dL_dRv, const DType *Rv, DType *dL_dRv_left, int x, int y)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    dL_dRv_left[i * y + j] = dL_dRv[i * y + j] * Rv[i * y + j] * (1 - Rv[i * y + j]);
+  }
+}
+
+template <typename DType>
+__global__ void ggnn_backward_compute_dL_Zv(const DType *grad_in, const DType *feat_in, DType *Cv, DType *dL_dZv, int x, int y)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    dL_dZv[i * y + j] = grad_in[i * y + j] * (-feat_in[i * y + j] * Cv[i * y + j]);
+  }
+}
+
+template <typename DType>
+__global__ void ggnn_backward_compute_dL_Zv_left(DType *dL_dZv, DType *Zv, DType *dL_dZv_left, int x, int y)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (i < x && j < y)
+  {
+    dL_dZv_left[i * y + j] = dL_dZv[i * y + j] * Zv[i * y + j] * (1 - Zv[i * y + j]);
+  }
+}
