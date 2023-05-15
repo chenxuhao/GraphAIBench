@@ -1,5 +1,7 @@
 #include "cgr_decoder.cuh"
 
+#define RESIDUAL_SEGMENT_LEN 32
+
 template <typename T>
 __device__ vidType cgr_decoder_gpu<T>::decode() {
   vidType degree = 0;

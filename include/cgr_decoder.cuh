@@ -47,10 +47,12 @@ class cgr_decoder_gpu {
     CgrReaderGPU<T> reader;
     T *in_ptr;
     T *out_ptr;
+    int res_seg_len; // number of residuals in a segment
   public:
-    __device__ cgr_decoder_gpu(T id, T *in, OFFSET_TYPE off, T* out = NULL) {
+    __device__ cgr_decoder_gpu(T id, T *in, OFFSET_TYPE off, T* out = NULL, int rlen = 256) {
       in_ptr = in;
       out_ptr = out;
+      res_seg_len = rlen;
       #ifdef WORD_ALIGHED 
         reader.init(id, in, off*32); // transform word offset to bit offset
       #elif BYTE_ALIGHED 
