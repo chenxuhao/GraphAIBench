@@ -100,7 +100,7 @@ template <typename T>
 vidType cgr_decoder<T>::decode() {
   //std::cout << "decode() vertex " << get_id() << " in_ptr=" << in_ptr << " out_ptr=" << out_ptr << " offset=" << get_offset() << "\n";
   vidType num = 0;
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   num = decode_intervals();
 #endif
   num = decode_residuals(num, out_ptr);

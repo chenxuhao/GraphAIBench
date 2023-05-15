@@ -52,7 +52,7 @@ inline __device__ void GraphGPUCompressed::decode_unary_warp(vidType v, vidType*
 inline __device__ vidType GraphGPUCompressed::warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res) {
   cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v]);
   vidType degree = 0;
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   degree += decoder.decode_intervals_warp(adj, num_itv);
 #endif
   num_res = decoder.decode_residuals_warp(adj+num_itv*2);
@@ -74,12 +74,12 @@ inline __device__ vidType GraphGPUCompressed::intersect_num_warp_compressed(vidT
   assert(num_itv_v > 0 || deg_v == num_res_v); // if num_itv_v == 0, then deg_v == num_res_v
   auto v_residuals = adj_v + num_itv_v*2;
   cgr_decoder_gpu u_decoder(u, d_colidx_compressed, d_rowptr_compressed[u]);
-  #if USE_INTERVAL
+  #ifdef USE_INTERVAL
   auto deg_u = u_decoder.decode_intervals_warp(adj_u, num_itv_u);
   #endif
   auto u_residuals = adj_u + num_itv_u*2;
   auto num_res_u = u_decoder.decode_residuals_warp(u_residuals);
-  #if USE_INTERVAL
+  #ifdef USE_INTERVAL
   num += intersect_num_itv_itv(num_itv_v, adj_v, num_itv_u, adj_u);
   num += intersect_num_itv_res(num_itv_v, adj_v, num_res_u, u_residuals);
   num += intersect_num_itv_res(num_itv_u, adj_u, num_res_v, v_residuals);
@@ -132,12 +132,12 @@ inline __device__ vidType GraphGPUCompressed::intersect_num_warp_compressed(vidT
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   vidType num = 0;
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   __shared__ vidType num_itv_v[WARPS_PER_BLOCK], num_itv_u[WARPS_PER_BLOCK];
 #endif
   __shared__ vidType num_res_v[WARPS_PER_BLOCK], num_res_u[WARPS_PER_BLOCK];
   if (thread_lane == 0) {
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
     num_itv_v[warp_lane] = 0;
     num_itv_u[warp_lane] = 0;
 #endif
@@ -147,7 +147,7 @@ inline __device__ vidType GraphGPUCompressed::intersect_num_warp_compressed(vidT
   __syncwarp();
   cgr_decoder_gpu v_decoder(v, d_colidx_compressed, d_rowptr_compressed[v]);
   cgr_decoder_gpu u_decoder(u, d_colidx_compressed, d_rowptr_compressed[u]);
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   __shared__ vidType v_begins[WARPS_PER_BLOCK][32], v_ends[WARPS_PER_BLOCK][32];
   __shared__ vidType u_begins[WARPS_PER_BLOCK][32], u_ends[WARPS_PER_BLOCK][32];
   auto n_items = v_decoder.decode_intervals_warp(v_begins[warp_lane], v_ends[warp_lane]);
@@ -164,7 +164,7 @@ inline __device__ vidType GraphGPUCompressed::intersect_num_warp_compressed(vidT
   degree = u_decoder.decode_residuals_warp(u_residuals);
   if (thread_lane == 0) num_res_u[warp_lane] = degree;
 
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   // compare v_itv and u_itv
   num += intersect_num_itv_itv(num_itv_v[warp_lane], v_begins[warp_lane], v_ends[warp_lane],
       num_itv_u[warp_lane], u_begins[warp_lane], u_ends[warp_lane]);
@@ -189,7 +189,7 @@ inline __device__ vidType GraphGPUCompressed::intersect_num_warp_compressed(vidT
   //int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   vidType num = 0, num_itv_u = 0, num_res_u = 0;
   cgr_decoder_gpu decoder(u, d_colidx_compressed, d_rowptr_compressed[u]);
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   auto deg_u = decoder.decode_intervals_warp(adj_u, num_itv_u);
   num += intersect_num_itv_res(num_itv_u, adj_u, deg_v, adj_v);
 #endif
