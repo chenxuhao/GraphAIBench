@@ -92,7 +92,6 @@ extern int max_iters;    // maximum number of iterations
 #define ZETA_K 2
 #define MIN_ITV_LEN 4
 #define INTERVAL_SEGMENT_LEN 256
-#define RESIDUAL_SEGMENT_LEN 256
 #define MAX_NUM_ITV_PER_NODE 32
 #define MAX_NUM_ITV_PER_SECTION 8
 

@@ -68,6 +68,7 @@ vidType cgr_decoder<T>::decode_intervals(VertexList &itv_begin, VertexList &itv_
   return num;
 }
 
+//#define res_seg_len 256
 template <typename T>
 vidType cgr_decoder<T>::decode_residuals(T offset, T* out_res_ptr) {
   vidType num = offset;
@@ -89,8 +90,8 @@ vidType cgr_decoder<T>::decode_residuals(T offset, T* out_res_ptr) {
       out_res_ptr[num++] = residual;
     }
     //std::cout << "]\n";
-    residual_offset += RESIDUAL_SEGMENT_LEN;
-    reader.inc_offset(RESIDUAL_SEGMENT_LEN);
+    residual_offset += res_seg_len;
+    reader.inc_offset(res_seg_len);
   }
   return num;
 }
@@ -99,7 +100,7 @@ template <typename T>
 vidType cgr_decoder<T>::decode() {
   //std::cout << "decode() vertex " << get_id() << " in_ptr=" << in_ptr << " out_ptr=" << out_ptr << " offset=" << get_offset() << "\n";
   vidType num = 0;
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
   num = decode_intervals();
 #endif
   num = decode_residuals(num, out_ptr);

@@ -273,6 +273,7 @@ void Compressor::print_stats() {
 void printusage() {
   cout << "./compressor -s name-of-scheme <input_path> <output_path> [-z zeta_k(3)]"
        <<                                                          " [-i use_interval]"
+       <<                                                          " [-r residual_segment_length]"
        <<                                                          " [-p permutate_bytes]"
        <<                                                          " [-d degree_threshold(32)]"
        <<                                                          " [-a alignment(0)]\n";
@@ -281,9 +282,10 @@ void printusage() {
 int main(int argc,char *argv[]) {
   int zeta_k = 3, use_interval = 0, permutate = 0, degree_threshold = 32;
   int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
+  int res_seg_len = 256; // number of bits in a residual segment
   std::string scheme = "cgr";
   int c;
-  while ((c = getopt(argc, argv, "s:z:ipa:d:h")) != -1) {
+  while ((c = getopt(argc, argv, "s:z:ir:pa:d:h")) != -1) {
     switch (c) {
       case 's':
         scheme = optarg;
@@ -296,6 +298,9 @@ int main(int argc,char *argv[]) {
       case 'i':
         use_interval = 1;
         //std::cout << "use_interval: " << use_interval << "\n";
+        break;
+      case 'r':
+        res_seg_len = atoi(optarg);
         break;
       case 'p':
         permutate = 1;
@@ -342,7 +347,7 @@ int main(int argc,char *argv[]) {
 
   unary_encoder *encoder = NULL;
   if (scheme == "cgr") {
-    encoder = new cgr_encoder(g.V(), zeta_k, use_interval);
+    encoder = new cgr_encoder(g.V(), zeta_k, use_interval, res_seg_len);
   } else if (scheme == "hybrid") {
     encoder = new hybrid_encoder(g.V(), zeta_k, use_interval, degree_threshold);
   }

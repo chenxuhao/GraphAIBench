@@ -155,7 +155,7 @@ class GraphGPUCompressed : public GraphGPU {
   inline __device__ vidType warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res) {
     cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v]);
     vidType degree = 0;
-#if USE_INTERVAL
+#ifdef USE_INTERVAL
     degree += decoder.decode_intervals_warp(adj, num_itv);
 #endif
     num_res = decoder.decode_residuals_warp(adj+num_itv*2);
@@ -231,12 +231,12 @@ class GraphGPUCompressed : public GraphGPU {
     assert(num_itv_v > 0 || deg_v == num_res_v); // if num_itv_v == 0, then deg_v == num_res_v
     auto v_residuals = adj_v + num_itv_v*2;
     cgr_decoder_gpu u_decoder(u, d_colidx_compressed, d_rowptr_compressed[u]);
-    #if USE_INTERVAL
+    #ifdef USE_INTERVAL
     auto deg_u = u_decoder.decode_intervals_warp(adj_u, num_itv_u);
     #endif
     auto u_residuals = adj_u + num_itv_u*2;
     auto num_res_u = u_decoder.decode_residuals_warp(u_residuals);
-    #if USE_INTERVAL
+    #ifdef USE_INTERVAL
     num += intersect_num_itv_itv(num_itv_v, adj_v, num_itv_u, adj_u);
     num += intersect_num_itv_res(num_itv_v, adj_v, num_res_u, u_residuals);
     num += intersect_num_itv_res(num_itv_u, adj_u, num_res_v, v_residuals);
