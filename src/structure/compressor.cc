@@ -1,15 +1,16 @@
 #include "compressor.hh"
-#include "codecfactory.h"
 #include "scan.h"
 #include "cgr_encoder.hh"
+#include "vbyte_encoder.hh"
 #include "hybrid_encoder.hh"
 
 #define CHECKPOINT 50000000
 
-using namespace SIMDCompressionLib;
+//#include "codecfactory.h"
+//using namespace SIMDCompressionLib;
 
 void Compressor::write_compressed_graph() {
-  if (scheme != "hybrid")
+  if (scheme == "cgr")
     write_compressed_edges_to_disk();
   std::cout << "Computing the row pointers\n";
   compute_ptrs();
@@ -192,6 +193,8 @@ void Compressor::compress(bool pre_encode) {
     std::cout << "graph file cannot create!" << std::endl;
     exit(1);
   }
+  std::string vbyte_scheme = "streamvbyte";
+  vbyte_encoder vb_encoder(vbyte_scheme);
 
   std::cout << "Start encoding\n"; 
   t.Start();
@@ -207,14 +210,14 @@ void Compressor::compress(bool pre_encode) {
     // encode the neighbor list
     if (do_vbyte) {
       if (buffer.size() < deg + 1024) buffer.resize(deg + 1024);
-      size_t outsize = buffer.size();
-      std::string vbyte_scheme = "streamvbyte";
-      shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(vbyte_scheme);
-      if (schemeptr.get() == NULL) exit(1);
-      schemeptr->encodeArray(g->adj_ptr(v), deg, buffer.data(), outsize);
-      osizes[v] = static_cast<vidType>(outsize);
+      //size_t outsize = buffer.size();
+      //shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(vbyte_scheme);
+      //if (schemeptr.get() == NULL) exit(1);
+      //schemeptr->encodeArray(g->adj_ptr(v), deg, buffer.data(), outsize);
+      //osizes[v] = static_cast<vidType>(outsize);
+      osizes[v] = vb_encoder.encode(deg, g->N(v).data(), buffer.data(), scheme != "hybrid");
     } else { // unary encoding
-      osizes[v] = encoder->encode(v, g->get_degree(v), g->N(v).data());
+      osizes[v] = encoder->encode(v, deg, g->N(v).data());
     }
 
     // write to disk

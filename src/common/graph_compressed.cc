@@ -1,6 +1,6 @@
 #include "graph.h"
 #include "cgr_decoder.hh"
-#include "codecfactory.h"
+#include "vbyte_decoder.hh"
 #include <endian.h>
 
 // Intel CPU uses little endian
@@ -8,7 +8,8 @@
 # error "File I/O is not implemented for this system: wrong endianness."
 #endif
 
-using namespace SIMDCompressionLib;
+//#include "codecfactory.h"
+//using namespace SIMDCompressionLib;
 
 template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string scheme, bool permutated) {
   // read meta information
@@ -126,11 +127,13 @@ template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* out, std::string scheme) {
   assert(v >= 0 && v < V());
   auto start = vertices_compressed[v];
-  auto length = vertices_compressed[v+1] - start;
+  //auto length = vertices_compressed[v+1] - start;
   auto in = &edges_compressed[start];
-  shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
   size_t deg = 0;
-  schemeptr->decodeArray(in, length, out, deg);
+  vbyte_decoder decoder(scheme);
+  deg = decoder.decode(in, out);
+  //shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
+  //schemeptr->decodeArray(in, length, out, deg);
   assert(deg <= max_degree);
   return vidType(deg);
 }
