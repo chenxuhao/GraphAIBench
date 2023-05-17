@@ -94,17 +94,17 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string 
 }
 
 template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* ptr, std::string scheme) {
-  //std::cout << "Debug: v = " << v << "\n";
+vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* out, std::string scheme) {
   auto degree = read_degree(v);
   if (degree == 0) return 0;
-  //std::cout << "hybrid degree: " << degree << "\n";
   if (degree > degree_threshold) { // vbyte
-    //std::cout << "v = " << v << " degree: " << degree << " vbyte decoding\n";
-    decode_vertex_vbyte(v, ptr, scheme);
+    //decode_vertex_vbyte(v, out, scheme);
+    auto start = vertices_compressed[v];
+    auto in = &edges_compressed[start];
+    vbyte_decoder decoder(scheme);
+    decoder.decode(degree, in, out);
   } else { // unary
-    //std::cout << "v = " << v << " degree: " << degree << " unary decoding\n";
-    decode_vertex_unary(v, ptr, degree);
+    decode_vertex_unary(v, out, degree);
   }
   return degree;
 }
@@ -127,11 +127,11 @@ template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* out, std::string scheme) {
   assert(v >= 0 && v < V());
   auto start = vertices_compressed[v];
-  //auto length = vertices_compressed[v+1] - start;
   auto in = &edges_compressed[start];
   size_t deg = 0;
   vbyte_decoder decoder(scheme);
   deg = decoder.decode(in, out);
+  //auto length = vertices_compressed[v+1] - start;
   //shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
   //schemeptr->decodeArray(in, length, out, deg);
   assert(deg <= max_degree);
