@@ -1,5 +1,6 @@
 #include "VertexSet.h"
 #include "cgr_decoder.hh"
+//#define USE_INTERVAL
 
 template <typename T>
 vidType cgr_decoder<T>::decode_intervals() {
@@ -61,9 +62,9 @@ vidType cgr_decoder<T>::decode_intervals(VertexList &itv_begin, VertexList &itv_
 template <typename T>
 vidType cgr_decoder<T>::decode_residuals(T offset, T* out_res_ptr) {
   vidType num = offset;
-  //printf("decoding residuls for vertex %d\n", get_id());
   // decode the number of segments
   auto segment_cnt = decode_segment_cnt();
+  //printf("decoding residuls for vertex %d, segment_cnt %d\n", id_, segment_cnt);
   // for each segment
   for (T i = 0; i < segment_cnt; i++) {
     auto off = this->get_offset();
@@ -71,7 +72,7 @@ vidType cgr_decoder<T>::decode_residuals(T offset, T* out_res_ptr) {
     auto num_res = this->decode_gamma();
     // decode the first residual in the segment
     T x = this->decode_residual_code();
-    T value = (x & 1) ? get_id() - (x >> 1) - 1 : get_id() + (x >> 1);
+    T value = (x & 1) ? id_ - (x >> 1) - 1 : id_ + (x >> 1);
     out_res_ptr[num++] = value;
     // decode the rest of residuals in the segment
     for (T j = 1; j < num_res; j++) {

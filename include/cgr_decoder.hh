@@ -1,7 +1,6 @@
 #pragma once
 #include "unary_decoder.hh"
 #define ALIGHEMENT 1
-//#define USE_INTERVAL
 
 template <typename T = vidType>
 class cgr_decoder : public UnaryDecoder<T> {
@@ -18,8 +17,9 @@ class cgr_decoder : public UnaryDecoder<T> {
     vidType decode_intervals();
     vidType decode_intervals(VertexList &itv_begin, VertexList &itv_end);
     vidType decode_residuals(T offset, T* out_res_ptr);
-    T get_id() { return id_; }
-    T decode_segment_cnt() {
+    inline T get_id() { return id_; }
+  private:
+    inline T decode_segment_cnt() {
       T segment_cnt = this->decode_gamma() + 1;
       if (segment_cnt == 1 && (this->cur() & 0x80000000)) {
         this->global_offset += 1;
