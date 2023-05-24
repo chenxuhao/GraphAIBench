@@ -1,11 +1,7 @@
-# GraphAIBench
+# Graph Neural Networks
 
-GraphAIBench is a C++ implemented Benchmark Suite for Graph Neural Networks (GNN).
-
-GraphAIBench is parallelized using OpenMP and CUDA, same as [DGL](https://github.com/dmlc/dgl/), but runs much faster than DGL. 
+This is a parallel implementation of GNNs using OpenMP and CUDA. 
 Please see [1] for evaluation details.
-
-Therefore, compared to DGL and [PyG](https://github.com/pyg-team/pytorch_geometric), GraphAIBench is better suited for evaluating specialized hardware design or low-level library (e.g. SpMM) implementations for GNNs.
 
 [1] Loc Hoang, Xuhao Chen, Hochan Lee, Roshan Dathathri, Gurbinder Gill, Keshav Pingali.
 Efficient Distribution for Deep Learning on Large Graphs, GNNSys 2021
@@ -32,7 +28,7 @@ To compile for GPU, you need CUDA toolkit installed.
 m clean; m -j USE_GPU=1 gpu_train_gcn
 ```
 
-## Dataset
+## Datasets
 
 Please see an example dataset in inputs/tester.
 
@@ -99,6 +95,20 @@ GPU trainning using GrapgSAGE model On PPI dataset:
 ./gpu_train_sage ppi 200 36 sigmoid
 ```
 
+## Supported GNN Model Architectures ##
+
+- [x] Graph Convolutional Networks (GCN)
+- [x] GraghSAGE (SAGE)
+- [x] Graph Attension Networks (GAT)
+- [x] Gated Graph Neural Networks (GGNN)
+
+|             |    OpenMP          |      CUDA          |
+|-------------|-------------------:|-------------------:|
+|     GCN     | :heavy_check_mark: | :heavy_check_mark: |
+|     SAGE    | :heavy_check_mark: | :heavy_check_mark: |
+|     GAT     | :heavy_check_mark: | :heavy_check_mark: |
+|     GGNN    | :heavy_check_mark: | :heavy_check_mark: |
+
 ## Publications ##
 
 ```
@@ -114,7 +124,9 @@ GPU trainning using GrapgSAGE model On PPI dataset:
 
 ## Developers ##
 
-* `Xuhao Chen`, Research Scientist, MIT, cxh@mit.edu
+* [Xuhao Chen](https://chenxuhao.github.io/), MIT
+* [Loc Hoang](https://www.cs.utexas.edu/~loc/), KatanaGraph
+* [Adrian Scridon](), Simon Fraser University
 
 ## License ##
 
