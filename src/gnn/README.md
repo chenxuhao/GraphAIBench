@@ -30,8 +30,6 @@ m clean; m -j USE_GPU=1 gpu_train_gcn
 
 ## Datasets
 
-Please see an example dataset in inputs/tester.
-
 Currently available datasets (please contact the author for access):
 
 Single-class datasets:
@@ -66,6 +64,9 @@ This is the input graph (in CSR format).
 #### `_mask.txt`
 
 1D array of type bool. It stores the mask for each vertex (train/val/test).
+
+Please see an example dataset in inputs/tester.
+More datasets are available [here](https://www.dropbox.com/sh/cc59e7sw4gv5q0k/AAC9JybvjTknupwXOpUrx6Fza?dl=0).
 
 ## Run
 
