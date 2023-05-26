@@ -2,6 +2,9 @@
 #include "net.h"
 std::map<char,double> time_ops;
 
+void init_timers();
+void print_timers();
+
 int main(int argc, char* argv[]) {
   if (argc <= 4 || (argc>9 && argc!=13)) {
     std::cout << "Usage: ./train data num_epochs num_threads type_loss "
@@ -25,6 +28,20 @@ int main(int argc, char* argv[]) {
   #endif
   model.load_data(argc, argv);
   model.construct_network();
+  init_timers();
+  double t1 = omp_get_wtime();
+  model.train();
+  double t2 = omp_get_wtime();
+  std::cout << "Total training time (validation time included): " << t2-t1 << " seconds\n";
+
+  // Testing
+  double tt1 = omp_get_wtime();
+  auto test_acc = model.evaluate("test");
+  double tt2 = omp_get_wtime();
+  std::cout << "Test accuracy: " << test_acc << "  test time: " << tt2-tt1 << " seconds\n";
+}
+
+void init_timers() {
   time_ops[OP_DENSEMM]  = 0.;
   time_ops[OP_SPARSEMM] = 0.;
   time_ops[OP_RELU]     = 0.;
@@ -38,11 +55,9 @@ int main(int argc, char* argv[]) {
   time_ops[OP_TRANSPOSE]= 0.;
   time_ops[OP_SAMPLE]   = 0.;
   time_ops[OP_COPY]     = 0.;
-  double t1 = omp_get_wtime();
-  model.train();
-  double t2 = omp_get_wtime();
-  std::cout << "Total training time (validation time included): " << t2-t1 << " seconds\n";
-  
+}
+
+void print_timers() {
   std::cout << "--------------------\n";
   std::cout << "AGGR time: "   << time_ops[OP_SPARSEMM] << "\n";
   std::cout << "LINEAR time: " << time_ops[OP_DENSEMM]  << "\n";
@@ -58,11 +73,4 @@ int main(int argc, char* argv[]) {
   std::cout << "SAMPLE time: " << time_ops[OP_SAMPLE]   << "\n";
   std::cout << "COPY time: "   << time_ops[OP_COPY]     << "\n";
   std::cout << "--------------------\n";
-  
-  // Testing
-  double tt1 = omp_get_wtime();
-  auto test_acc = model.evaluate("test");
-  double tt2 = omp_get_wtime();
-  std::cout << "Test accuracy: " << test_acc << "  test time: " << tt2-tt1 << " seconds\n";
 }
-

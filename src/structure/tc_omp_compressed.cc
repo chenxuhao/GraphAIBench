@@ -91,9 +91,10 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
   } else if (scheme == "cgr") { // cgr graph
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {
-      auto adj_u = g.N_cgr(u, 1);
+      auto adj_u = g.N_cgr(u);
       for (auto v : adj_u) {
-        auto num = (uint64_t)g.intersect_num_compressed(adj_u, v);
+        auto adj_v = g.N_cgr(v);
+        auto num = (uint64_t)intersection_num(adj_u, adj_v);
         counter += num;
       }
     }
@@ -104,7 +105,7 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
       auto adj_u = g.N_hybrid(u, vbyte_scheme);
       for (auto v : adj_u) {
         auto adj_v = g.N_hybrid(v, vbyte_scheme);
-       auto num = (uint64_t)intersection_num(adj_u, adj_v);
+        auto num = (uint64_t)intersection_num(adj_u, adj_v);
         counter += num;
       }
     }

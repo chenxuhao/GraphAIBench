@@ -1,6 +1,6 @@
 #include "graph.h"
 #include "cgr_decoder.hh"
-#include "codecfactory.h"
+#include "vbyte_decoder.hh"
 #include <endian.h>
 
 // Intel CPU uses little endian
@@ -8,7 +8,8 @@
 # error "File I/O is not implemented for this system: wrong endianness."
 #endif
 
-using namespace SIMDCompressionLib;
+//#include "codecfactory.h"
+//using namespace SIMDCompressionLib;
 
 template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string scheme, bool permutated) {
   // read meta information
@@ -93,25 +94,25 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string 
 }
 
 template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* ptr, std::string scheme) {
-  //std::cout << "Debug: v = " << v << "\n";
+vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* out, std::string scheme) {
   auto degree = read_degree(v);
   if (degree == 0) return 0;
-  //std::cout << "hybrid degree: " << degree << "\n";
   if (degree > degree_threshold) { // vbyte
-    //std::cout << "v = " << v << " degree: " << degree << " vbyte decoding\n";
-    decode_vertex_vbyte(v, ptr, scheme);
+    //decode_vertex_vbyte(v, out, scheme);
+    auto start = vertices_compressed[v];
+    auto in = &edges_compressed[start];
+    vbyte_decoder decoder(scheme);
+    decoder.decode(degree, in, out);
   } else { // unary
-    //std::cout << "v = " << v << " degree: " << degree << " unary decoding\n";
-    decode_vertex_unary(v, ptr, degree);
+    decode_vertex_unary(v, out, degree);
   }
   return degree;
 }
 
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* out, vidType degree) {
-  auto offset = vertices_compressed[v] * 32; // transform word-offset to bit-offset
   auto in = &edges_compressed[0];
+  auto offset = vertices_compressed[v] * 32; // transform word-offset to bit-offset
   UnaryDecoder decoder(in, offset);
   // decode the first element
   vidType x = decoder.decode_residual_code();
@@ -126,58 +127,24 @@ template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* out, std::string scheme) {
   assert(v >= 0 && v < V());
   auto start = vertices_compressed[v];
-  auto length = vertices_compressed[v+1] - start;
   auto in = &edges_compressed[start];
-  shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
   size_t deg = 0;
-  schemeptr->decodeArray(in, length, out, deg);
+  vbyte_decoder decoder(scheme);
+  deg = decoder.decode(in, out);
+  //auto length = vertices_compressed[v+1] - start;
+  //shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(scheme);
+  //schemeptr->decodeArray(in, length, out, deg);
   assert(deg <= max_degree);
   return vidType(deg);
 }
 
 template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
-  std::cout << "Decompressing the graph (format=" << scheme << ")\n";
-  Timer t;
-  t.Start();
-  vertices = new eidType[n_vertices+1];
-  edges = new vidType[n_edges];
-  vertices[0] = 0;
-  eidType offset = 0;
-
-  if (scheme == "hybrid") {
-  } else if (scheme == "cgr") {
-#if 0
-  degrees.resize(n_vertices);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v++) {
-    VertexSet adj(v);
-    degrees[v] = decode_vertex(v, adj.data());
-  }
-  parallel_prefix_sum<vidType,eidType>(degrees, vertices);
-  #pragma omp parallel for
-  for (vidType v = 0; v < n_vertices; v++) {
-    auto offset = vertices[v];
-    auto deg = decode_vertex(v, &edges[offset]);
-    std::sort(edges+offset, edges+offset+deg);
-  }
-#else 
-    for (vidType v = 0; v < n_vertices; v++) {
-      offset += decode_vertex(v, &edges[offset]);
-      vertices[v+1] = offset;
-      std::sort(edges+vertices[v], edges+offset);
-    }
-#endif
-  } else {
-    // VByte format
-    for (vidType v = 0; v < n_vertices; v++) {
-      auto deg = decode_vertex_vbyte(v, &edges[offset], scheme);
-      offset += deg;
-      vertices[v+1] = offset;
-    }
-  }
-  t.Stop();
-  std::cout << "Graph decompressed time: " << t.Seconds() << "\n";
+vidType GraphT<map_vertices, map_edges>::decode_vertex_cgr(vidType v, vidType* out) {
+  auto in = &edges_compressed[0];
+  auto offset = vertices_compressed[v];
+  //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << "\n";
+  cgr_decoder decoder(v, in, offset, out);
+  return decoder.decode();
 }
 
 template<bool map_vertices, bool map_edges>
@@ -203,36 +170,64 @@ VertexSet GraphT<map_vertices, map_edges>::N_vbyte(vidType vid, std::string sche
   return adj;
 }
 
-template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex(vidType v, vidType* out) {
-  auto in = &edges_compressed[0];
-  auto off = vertices_compressed[v];
-  //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << "\n";
-  cgr_decoder decoder(v, in, off, out);
-  return decoder.decode();
-}
-
-template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices, map_edges>::decode_vertex(vidType v, VertexSet& adj, bool need_order) {
-  assert(v >= 0);
-  assert(v < n_vertices);
-  vidType deg = decode_vertex(v, adj.data());
-  assert(deg <= max_degree);
-  adj.adjust_size(deg);
-  if (need_order) adj.sort();
-}
-
 // TODO: this method does not work for now
 template<bool map_vertices, bool map_edges>
-VertexSet GraphT<map_vertices, map_edges>::N_cgr(vidType vid, bool need_order) {
+VertexSet GraphT<map_vertices, map_edges>::N_cgr(vidType vid) {
   assert(vid >= 0);
   assert(vid < n_vertices);
   VertexSet adj(vid);
-  vidType deg = decode_vertex(vid, adj.data());
+  vidType deg = decode_vertex_cgr(vid, adj.data());
   assert(deg <= max_degree);
   adj.adjust_size(deg);
-  if (need_order) adj.sort();
+#ifdef USE_INTERVAL
+  adj.sort();
+#endif
   return adj;
+}
+
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::decompress(std::string scheme) {
+  std::cout << "Decompressing the graph (format=" << scheme << ")\n";
+  Timer t;
+  t.Start();
+  vertices = new eidType[n_vertices+1];
+  edges = new vidType[n_edges];
+  vertices[0] = 0;
+  eidType offset = 0;
+
+  if (scheme == "hybrid") {
+  } else if (scheme == "cgr") {
+#if 0
+  degrees.resize(n_vertices);
+  #pragma omp parallel for
+  for (vidType v = 0; v < n_vertices; v++) {
+    VertexSet adj(v);
+    degrees[v] = decode_vertex_cgr(v, adj.data());
+  }
+  parallel_prefix_sum<vidType,eidType>(degrees, vertices);
+  #pragma omp parallel for
+  for (vidType v = 0; v < n_vertices; v++) {
+    auto offset = vertices[v];
+    auto deg = decode_vertex_cgr(v, &edges[offset]);
+    std::sort(edges+offset, edges+offset+deg);
+  }
+#else 
+    for (vidType v = 0; v < n_vertices; v++) {
+      offset += decode_vertex_cgr(v, &edges[offset]);
+      vertices[v+1] = offset;
+      std::sort(edges+vertices[v], edges+offset);
+    }
+#endif
+  } else {
+    // VByte format
+    for (vidType v = 0; v < n_vertices; v++) {
+      auto deg = decode_vertex_vbyte(v, &edges[offset], scheme);
+      offset += deg;
+      vertices[v+1] = offset;
+    }
+  }
+  t.Stop();
+  std::cout << "Graph decompressed time: " << t.Seconds() << "\n";
 }
 
 template <bool map_vertices, bool map_edges>

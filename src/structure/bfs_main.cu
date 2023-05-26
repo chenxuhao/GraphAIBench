@@ -1,4 +1,4 @@
-#include "cgr_decompressor.cuh"
+#include "cgr_decoder.cuh"
 #include "bfs_gcgt.cuh"
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>

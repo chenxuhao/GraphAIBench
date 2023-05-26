@@ -22,7 +22,7 @@ class UnaryDecoderGPU {
 
     __device__ vidType cur() {
       eidType chunk = global_offset / 32;
-      //if (threadIdx.x == 0) printf("v %d chunk=%ld, global_offset=%ld\n", node, chunk, global_offset);
+      //if (threadIdx.x == 0) printf("chunk=%ld, global_offset=%ld\n", chunk, global_offset);
       vidType buf_hi = word_array[chunk];
       vidType buf_lo = word_array[chunk + 1];
       vidType offset = global_offset % 32;

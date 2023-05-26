@@ -9,8 +9,8 @@ class cgr_encoder : public unary_encoder {
 
   int _min_itv_len; // minimum length of an interval
   int _max_itv_len; // maximum length of an interval
-  int _itv_seg_len; // number of intervals in a segment
-  int _res_seg_len; // number of residuals in a segment
+  int _itv_seg_len; // number of bits in an interval segment
+  int _res_seg_len; // number of bits in a  residual segment
 
   int max_num_itv_per_node;            // max number of intervals in a vertex's adjlist
   int max_num_res_per_node;            // max number of residuals in a vertex's adjlist
@@ -28,10 +28,10 @@ public:
   explicit cgr_encoder(vidType n, 
                        int zeta_k,
                        bool use_itv,
+                       int res_seg_len,
                        bool add_deg = false,
-                       int min_itv_len = MIN_ITV_LEN, 
-                       int itv_seg_len = INTERVAL_SEGMENT_LEN,
-                       int res_seg_len = RESIDUAL_SEGMENT_LEN)
+                       int min_itv_len = 4, 
+                       int itv_seg_len = 32)
           : unary_encoder(zeta_k),
             total_num(n),
             use_interval(use_itv),
@@ -51,6 +51,7 @@ public:
     residuals.resize(total_num);
     bit_arrays.resize(total_num);
     std::cout << "CGR encoder: zeta_k = " << this->_zeta_k << ", "
+              << "residual segment length = " << this->_res_seg_len << ", "
               << (use_interval?"interval enabled, ":"interval disabled, ")
               << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
   }
