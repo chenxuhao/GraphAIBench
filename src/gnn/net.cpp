@@ -92,6 +92,7 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
   }
   // full_graph->print_graph();
 
+
   if (arch != gnn_arch::SAGE) full_graph->add_selfloop();
 #ifdef CSR_SEGMENTING
   full_graph->segmenting(dim_hid);
@@ -145,6 +146,12 @@ void Model<gconv_layer>::load_data(int argc, char* argv[]) {
     // }
     // ---------
   }
+
+  for(size_t i = 0; i < 10; i++){
+    printf("labels[%d] = %i\n", i, labels[i]);
+  }
+
+  exit(0);
 
 
   // for sampling

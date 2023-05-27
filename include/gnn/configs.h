@@ -1,10 +1,8 @@
 #pragma once
+#include <cstdlib> 
+#include <iostream>
 
-const std::string path =
-    // "/jet/home/xhchen/datasets/Learning/"; // path to the input dataset
-    "/home/adrian/Documents/git/GraphAIBench/inputs/"; // path to the input dataset
-//    "/h2/xchen/datasets/Learning/"; // path to the input dataset
-//    "/ocean/projects/cie170003p/shared/Learning/"; // path to the input dataset
+const std::string path = std::getenv("DATASET_PATH");
 
 #define NUM_DATASETS 13
 const std::string dataset_names[NUM_DATASETS] = {
