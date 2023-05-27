@@ -38,3 +38,11 @@ cpu_train
 gpu_train_*
 cpu_train_*
 train_*
+
+.vscode
+
+env.sh
+.prettierignore
+inputs/reddit
+inputs/ogbn-products
+inputs/pubmed

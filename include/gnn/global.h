@@ -58,10 +58,13 @@
 #define WARP_SIZE 32
 #define MAX_NUM_CLASSES 128
 #define WARPS_PER_BLOCK (BLOCK_SIZE / WARP_SIZE)
-#define USE_CUSPARSE
+#define ENABLE_GPU
+// #define USE_CUSPARSE
+#define USE_GGNN
 
+ 
 enum class net_phase { TRAIN, TEST, VAL };
-enum class gnn_arch { GCN, GAT, SAGE };
+enum class gnn_arch { GCN, GAT, SAGE, GGNN };
 typedef float float_t;
 typedef float t_data;             // use this type to denote all the values (e.g., weights, feature values, ...)
 typedef int t_idx;                // use this type to denote all the indices (e.g., index of V, index of E, ...)

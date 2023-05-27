@@ -1,5 +1,4 @@
 #export LD_LIBRARY_PATH=/usr/local/OpenBLAS/build/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/usr/local/cuda-11.3/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 export KMP_AFFINITY=scatter
 export KMP_LIBRARY=turnaround
 export KMP_BLOCKTIME=0
@@ -23,4 +22,4 @@ export GCC_HOME=/usr/lib/gcc/x86_64-linux-gnu/8
 export CILK_HOME=/home/cxh/OpenCilk/build
 export CILK_CLANG=/home/cxh/OpenCilk/build/lib/clang/14.0.6
 
-export DATASET_PATH=/home/adrian/Documents/git/GraphAIBench/inputs/
+export DATASET_PATH=/home/cxh/datasets

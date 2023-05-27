@@ -1,4 +1,4 @@
-#include "util.h"
+#include "timer.h"
 #include "aggregator.h"
 #include "graph_operations.h"
 

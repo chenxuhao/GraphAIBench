@@ -1,6 +1,7 @@
 DEBUG ?= 0
 USE_GPU ?= 0
 ENABLE_TILING ?= 0
+CUDA_HOME = /usr/local/cuda
 CXX=g++
 NVCC=nvcc
 IDIR=../../include/gnn
@@ -52,7 +53,7 @@ else
 	CFLAGS += -I${OPENBLAS_DIR}/include -L$(OPENBLAS_DIR)/lib -lopenblas
 endif
 
-GNN_LAYER_CUOBJS = gcn_layer.cu.o gcn_aggregator.cu.o gat_layer.cu.o gat_aggregator.cu.o sage_layer.cu.o sage_aggregator.cu.o
+GNN_LAYER_CUOBJS = gcn_layer.cu.o gcn_aggregator.cu.o gat_layer.cu.o gat_aggregator.cu.o sage_layer.cu.o sage_aggregator.cu.o ggnn_layer.cu.o ggnn_aggregator.cu.o
 GNN_LAYER_CXXOBJS = gcn_layer.o gcn_aggregator.o gat_layer.o gat_aggregator.o sage_layer.o sage_aggregator.o
 LAYER_CUOBJS = softmax_loss_layer.cu.o sigmoid_loss_layer.cu.o
 LAYER_CXXOBJS = softmax_loss_layer.o sigmoid_loss_layer.o
@@ -104,6 +105,9 @@ gpu_train_sage: train.cpp $(OBJ)
 	$(NVCC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CUFLAGS) $(LIBS) -lgomp
 
 gpu_train_gat: train.cpp $(OBJ)
+	$(NVCC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CUFLAGS) $(LIBS) -lgomp
+
+gpu_train_ggnn: train.cpp $(OBJ)
 	$(NVCC) train.cpp -o $(BIN_DIR)/$@ $(OBJ) $(CUFLAGS) $(LIBS) -lgomp
 
 .PHONY: clean

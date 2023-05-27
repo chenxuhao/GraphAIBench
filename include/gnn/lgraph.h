@@ -118,7 +118,9 @@ public:
   }
 
   index_t* row_start_host_ptr() { return &rowptr_[0]; }
+  index_t*& row_host_ptr() { return *&rowptr_; }
   index_t* edge_dst_host_ptr() { return &colidx_[0]; }
+  index_t*& edge_host_ptr() { return *&colidx_; }
   index_t getEdgeDstHost(index_t eid) { return colidx_[eid]; }
   index_t edge_begin_host(index_t vid) { return rowptr_[vid]; }
   index_t edge_end_host(index_t vid) { return rowptr_[vid + 1]; }
