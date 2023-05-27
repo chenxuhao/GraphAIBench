@@ -8,7 +8,7 @@ Please see [1] for evaluation details.
 ## Table of Contents  
 
 [Build](#build)  
-[Datasets a](#datasets)  
+[Datasets](#datasets)  
 [Run](#run)  
 [Supported GNN Model Architectures](#supported-gnn-model-architectures)      
 [Performance Evaluation: Convergence Speed](#performance-evaluation-convergence-speed)   
@@ -156,9 +156,9 @@ GGNNs, proposed by Li et al. [5], are a form of recurrent graph neural networks 
 |--------|--------------|---------|-------------|
 ||$\psi( ... )$|$\oplus(...)$|$\phi(...)$|
 | GCNs   |  $\frac{1}{\sqrt{d_id_j}}h_j$ |  $\sum_{j \in N(i)} \psi(h_j)$| $W \times (\oplus)$ |
-| GATs   | $\frac{exp(\sigma(\vec{a}^T[W\vec{h}_i] \|\| W\vec{h}_j]))}{\sum_{k \in N_i}exp(\sigma(\vec{a}^T[W\vec{h}_i \|\| W\vec{h}_k]))}$ | $ W \times (\sum_{j \in N(j)} \psi(h_i,h_j))$ | $\sigma(\oplus h_i)$ |
+| GATs   | ![equation](https://latex.codecogs.com/svg.image?%20%5Cfrac%7Bexp(%5Csigma(%5Cvec%7Ba%7D%5ET%20%5BW%20%5Cvec%7Bh%7D_i%20%5D%20%7C%7C%20W%5Cvec%7Bh%7Dj%5D))%7D%7B%5Csum%7Bk%20%5Cin%20N_i%7Dexp(%5Csigma(%5Cvec%7Ba%7D%5ET%20%5BW%5Cvec%7Bh%7D_i%20%7C%7C%20W%5Cvec%7Bh%7D_k%5D))%7D) | ![equation](https://latex.codecogs.com/svg.image?W%20%5Ctimes%20%5Csum_%7Bj%20%5Cin%20N(j)%7D%20%5Cpsi(h_i,h_j)%20) | $\sigma(\oplus h_i)$ |
 |SAGE-GCN| $\frac{1}{d_i}h_j$ |$\sum_{j \in N^{*}(i)} \psi(h_j)$| $W \times (\oplus)$ |
-| GG-NNs | $h_v^{(1)} = [x_v^T,0]^T$ | $a_v^{(t)} = \sum_{v^\prime \in IN(v)} f(h_{v^\prime}^{(t-1)},l_{(v^\prime,v)}) + \sum_{v^\prime \in OUT(v)} f(h_{v^\prime}^{(t-1)},l_{(v,v^\prime)}) $ <br> where <br> $ f(h_{v^\prime}^{(t-1)},l_{(v^\prime,v)}) = A^{(l_{(v,v^\prime)})} h_{v^\prime}^{(t-1)} + b^{(l_{(v,v^\prime)})}$ | $z_v^t = \sigma(W^z a_v^{(t)} + U^z h_v^{(t-1)} )$ <br> $r_v^t = \sigma(W^r a_v^{(t)} + U^r h_v^{(t-1)} )$ <br> $\tilde{h_v^{(t)}} = tanh(W a_v^{(t)} + U(r_v^t \odot h_v^{(t-1)}))$ <br> $h_v^{(t)} = (1 - z_v^t) \odot h_v^{(t-1)} + z_v^t \odot \tilde{h_v^{(t)}}$ |
+| GG-NNs | $h_v^{(1)} = \[x_v^T,0\]^T$ | ![equation](https://latex.codecogs.com/svg.image?a_v%5E%7B(t)%7D%20=%20%5Csum_%7Bv%5E%5Cprime%20%5Cin%20IN(v)%7D%20f(h_%7Bv%5E%5Cprime%7D%5E%7B(t-1)%7D,l_%7B(v%5E%5Cprime,v)%7D)%20&plus;%20%5Csum_%7Bv%5E%5Cprime%20%5Cin%20OUT(v)%7D%20f(h_%7Bv%5E%5Cprime%7D%5E%7B(t-1)%7D,l_%7B(v,v%5E%5Cprime)%7D)%20$%20%5C%5C%5C%5C%20where%20%5C%5C%5C%5C%20$%20f(h_%7Bv%5E%5Cprime%7D%5E%7B(t-1)%7D,l_%7B(v%5E%5Cprime,v)%7D)%20=%20A%5E%7B(l_%7B(v,v%5E%5Cprime)%7D)%7D%20h_%7Bv%5E%5Cprime%7D%5E%7B(t-1)%7D%20&plus;%20b%5E%7B(l_%7B(v,v%5E%5Cprime)%7D)%7D) | $z_v^t = \sigma(W^z a_v^{(t)} + U^z h_v^{(t-1)} )$ <br> $r_v^t = \sigma(W^r a_v^{(t)} + U^r h_v^{(t-1)} )$ <br> $\tilde{h_v^{(t)}} = tanh(W a_v^{(t)} + U(r_v^t \odot h_v^{(t-1)}))$ <br> $h_v^{(t)} = (1 - z_v^t) \odot h_v^{(t-1)} + z_v^t \odot \tilde{h_v^{(t)}}$ |
 
 <a name="performance-evaluation-convergence-speed"></a>
 
