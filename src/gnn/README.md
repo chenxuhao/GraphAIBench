@@ -47,20 +47,10 @@ m clean; m -j USE_GPU=1 gpu_train_gcn
 
 Currently available datasets (please contact the author for access):
 
-Single-class datasets:
-
--   tester
 -   cora
--   citeseer
+-   ogbn-products
 -   pubmed
 -   reddit
--   flickr
-
-Multi-class datasets:
-
--   ppi
--   yelp
--   amazon
 
 The datasets are stored in binary format, as explained below:
 
