@@ -220,15 +220,16 @@ public:
   void decode_vertex_cgr(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex_cgr(vidType v, vidType* out_ptr);
   vidType decode_vertex_vbyte(vidType v, vidType* out_ptr, std::string scheme);
-  vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme);
+  vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme, bool use_segment);
   void decode_vertex_unary(vidType v, vidType* out_ptr, vidType degree);
+  void decode_vertex_unary_segmented(vidType v, vidType* out, vidType degree);
   void set_degree_threshold(vidType deg) { degree_threshold = deg; }
   VertexSet N_cgr(vidType v);                                                // get the CGR compressed neighbor list of vertex v
-  VertexSet N_hybrid(vidType v, std::string scheme);                         // get the CGR compressed neighbor list of vertex v
   VertexSet N_vbyte(vidType v, std::string scheme);                          // get the VByte compressed neighbor list of vertex v
+  VertexSet N_hybrid(vidType v, std::string scheme, bool use_segment=false); // get the hybrid compressed neighbor list of vertex v
   VertexSet get_interval_neighbors(vidType v);                               // get the interval neighbors in a CGR graph
-  const eidType* rowptr_compressed() const { return vertices_compressed; }   // get row pointers array
-  const uint32_t* colidx_compressed() const { return &edges_compressed[0]; } // get column indices array
+  const eidType* rowptr_compressed() const { return vertices_compressed; }   // get compressed row pointers array
+  const uint32_t* colidx_compressed() const { return &edges_compressed[0]; } // get compressed column indices array
   size_t get_compressed_colidx_length() const { return edges_compressed.size(); }
   vidType intersect_num_compressed(vidType v, vidType u);
   vidType intersect_num_compressed(vidType v, vidType u, vidType up);

@@ -5,6 +5,7 @@ typedef std::vector<size_type> large_list;
 class cgr_encoder : public unary_encoder {
   vidType total_num; // total number of arrays to compress
   bool use_interval; // use interval or not
+  bool use_segment;  // use segment or not
   bool add_degree;   // attach the degree or not
 
   int _min_itv_len; // minimum length of an interval
@@ -28,13 +29,15 @@ public:
   explicit cgr_encoder(vidType n, 
                        int zeta_k,
                        bool use_itv,
-                       int res_seg_len,
+                       bool use_seg = true,
                        bool add_deg = false,
+                       int res_seg_len = 256,
                        int min_itv_len = 4, 
                        int itv_seg_len = 32)
           : unary_encoder(zeta_k),
             total_num(n),
             use_interval(use_itv),
+            use_segment(use_seg),
             add_degree(add_deg),
             _min_itv_len(min_itv_len),
             _max_itv_len(min_itv_len),
@@ -53,6 +56,7 @@ public:
     std::cout << "CGR encoder: zeta_k = " << this->_zeta_k << ", "
               << "residual segment length = " << this->_res_seg_len << ", "
               << (use_interval?"interval enabled, ":"interval disabled, ")
+              << (use_segment?"segment enabled, ":"segment disabled, ")
               << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
   }
   size_t encode(vidType id, vidType length, vidType *in);
@@ -66,7 +70,8 @@ protected:
   //void encode_intervals(size_type id, size_type length, vidType *in);
   void intervalize(size_type id, size_type length, vidType *in);
   void encode_intervals(const size_type v);
-  void encode_residuals(const size_type v);
+  size_t encode_residuals(const size_type v);               // return number of words
+  size_t encode_unary(vidType v, vidType deg, vidType *in); // return number of words
   void append_segment(bits &bit_array, size_type cnt, bits &cur_seg, size_type align);
   void set_min_itv_len(int _min_itv_len) { cgr_encoder::_min_itv_len = _min_itv_len; }
   void set_itv_seg_len(int _itv_seg_len) { cgr_encoder::_itv_seg_len = _itv_seg_len; }

@@ -74,11 +74,14 @@ vidType cgr_decoder<T>::decode_residuals(T offset, T* out_res_ptr) {
     T x = this->decode_residual_code();
     T value = (x & 1) ? id_ - (x >> 1) - 1 : id_ + (x >> 1);
     out_res_ptr[num++] = value;
+    //printf("adj[0]=%d ", value);
     // decode the rest of residuals in the segment
     for (T j = 1; j < num_res; j++) {
       value += this->decode_residual_code() + 1;
       out_res_ptr[num++] = value;
+      //printf("adj[%d]=%d ", j, value);
     }
+    //printf("\n");
     this->set_offset(off+res_seg_len);
   }
   return num;

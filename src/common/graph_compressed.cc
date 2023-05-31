@@ -94,7 +94,7 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string 
 }
 
 template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* out, std::string scheme) {
+vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* out, std::string scheme, bool use_segment) {
   auto degree = read_degree(v);
   if (degree == 0) return 0;
   if (degree > degree_threshold) { // vbyte
@@ -104,7 +104,10 @@ vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType
     vbyte_decoder decoder(scheme);
     decoder.decode(degree, in, out);
   } else { // unary
-    decode_vertex_unary(v, out, degree);
+    if (use_segment)
+      decode_vertex_unary_segmented(v, out, degree);
+    else
+      decode_vertex_unary(v, out, degree);
   }
   return degree;
 }
@@ -148,12 +151,26 @@ vidType GraphT<map_vertices, map_edges>::decode_vertex_cgr(vidType v, vidType* o
 }
 
 template<bool map_vertices, bool map_edges>
-VertexSet GraphT<map_vertices, map_edges>::N_hybrid(vidType vid, std::string scheme) {
+void GraphT<map_vertices, map_edges>::decode_vertex_unary_segmented(vidType v, vidType* out, vidType degree) {
+  auto in = &edges_compressed[0];
+  auto offset = vertices_compressed[v] * 32;
+  //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << " degree = " << degree << "\n";
+  cgr_decoder decoder(v, in, offset, out);
+  auto deg = decoder.decode();
+  //if (deg != degree) {
+  //  std::cout << "deg = " << deg << "\n";
+  //  exit(1);
+  //}
+  //assert(deg == degree);
+}
+
+template<bool map_vertices, bool map_edges>
+VertexSet GraphT<map_vertices, map_edges>::N_hybrid(vidType vid, std::string scheme, bool use_segment) {
   assert(vid >= 0);
   assert(vid < V());
   VertexSet adj(vid);
   vidType deg = 0;
-  deg = decode_vertex_hybrid(vid, adj.data(), scheme);
+  deg = decode_vertex_hybrid(vid, adj.data(), scheme, use_segment);
   adj.adjust_size(deg);
   return adj;
 }

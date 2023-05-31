@@ -102,9 +102,9 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
     std::string vbyte_scheme = "streamvbyte";
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {
-      auto adj_u = g.N_hybrid(u, vbyte_scheme);
+      auto adj_u = g.N_hybrid(u, vbyte_scheme, 1);
       for (auto v : adj_u) {
-        auto adj_v = g.N_hybrid(v, vbyte_scheme);
+        auto adj_v = g.N_hybrid(v, vbyte_scheme, 1);
         auto num = (uint64_t)intersection_num(adj_u, adj_v);
         counter += num;
       }

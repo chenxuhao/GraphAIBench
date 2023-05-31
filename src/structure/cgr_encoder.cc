@@ -30,14 +30,18 @@ size_t cgr_encoder::encode(vidType id, vidType length, vidType *in) {
     //encode_intervals(id, length, in);
     encode_intervals(id);
   } else {
-    residuals[id].assign(in, in+length);
+    if (use_segment) residuals[id].assign(in, in+length);
   }
-  encode_residuals(id);
+  size_t nwords = 0;
+  if (use_segment) nwords = encode_residuals(id);
+  else nwords = encode_unary(id, length, in);
 
   interval_left[id].clear();
   interval_len[id].clear();
   residuals[id].clear();
-  return (bit_arrays[id].size() - 1)/8 + 1; // number of bits --> number of bytes
+  //auto nbytes = (bit_arrays[id].size() - 1)/8 + 1; // number of bits --> number of bytes
+  //return use_segment ? nbytes : nwords;
+  return nwords;
 }
 
 //void cgr_encoder::encode_intervals(size_type id, size_type length, vidType *in) {
@@ -125,7 +129,7 @@ void cgr_encoder::encode_intervals(const size_type v) {
   }
 }
 
-void cgr_encoder::encode_residuals(const size_type v) {
+size_t cgr_encoder::encode_residuals(const size_type v) {
   auto &bit_arr = bit_arrays[v];
   auto &res = residuals[v];
 
@@ -178,6 +182,7 @@ void cgr_encoder::encode_residuals(const size_type v) {
   } else {
     bit_arr.insert(bit_arr.end(), cur_seg.begin(), cur_seg.end());
   }
+  return (bit_arr.size() - 1)/32 + 1; // number of bits --> number of words
 }
 
 void cgr_encoder::append_segment(bits &bit_array, size_type cnt, bits &cur_seg, size_type align) {
@@ -187,5 +192,20 @@ void cgr_encoder::append_segment(bits &bit_array, size_type cnt, bits &cur_seg, 
   assert(align == 0 or buf.size() <= size_t(align));
   while (buf.size() < size_t(align)) buf.emplace_back(false);
   bit_array.insert(bit_array.end(), buf.begin(), buf.end());
+}
+
+size_t cgr_encoder::encode_unary(vidType v, vidType deg, vidType *in) {
+  //printf("unary encoding vertex %d: degree=%d\n", v, deg);
+  if (deg == 0) return 0;
+  auto &bit_array = bit_arrays[v];
+  bit_array.clear();
+  int64_t value = int_2_nat(int64_t(in[0]) - int64_t(v));
+  append_zeta(bit_array, value);
+  for (vidType i = 1; i < deg; i++) {
+    value = int64_t(in[i]) - int64_t(in[i - 1]) - 1;
+    append_zeta(bit_array, value);
+  }
+  assert(bit_array.size() > 0);
+  return (bit_arrays[v].size() - 1)/32 + 1; // number of bits --> number of words
 }
 
