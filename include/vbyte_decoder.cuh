@@ -43,18 +43,15 @@ __device__ uint32_t extract(const T *in, size_t offset, size_t bit) {
 }
 
 template <bool delta = true>
-__device__ vidType decode_streamvbyte_warp(size_t length, const uint32_t *in, uint32_t *out) {
-  assert(length != 0);
-  ++in;
-  uint32_t count = *in; // number of elements to decompress
-  if (count == 0) return 0;
-  uint8_t *keyPtr = (uint8_t *)in + 4; // full list of keys is next
+__device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint32_t *out) {
+  if (count == 0) return;
+  uint8_t *keyPtr = (uint8_t *)in; // full list of keys is next
   uint32_t keyLen = ((count + 3) / 4); // 2-bits per key (rounded up)
   uint8_t *dataPtr = keyPtr + keyLen;  // data starts at end of keys
 
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
-  int num_rounds = (int(count) - 1) / WARP_SIZE + 1;
+  int num_rounds  = (int(count) - 1) / WARP_SIZE + 1;
   typedef cub::WarpScan<uint32_t> WarpScan;
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
   uint32_t base = 0;
@@ -83,6 +80,13 @@ __device__ vidType decode_streamvbyte_warp(size_t length, const uint32_t *in, ui
       if (i < count) out[i] = val;
     }
   }
+}
+
+template <bool delta = true>
+__device__ vidType decode_streamvbyte_warp1(const uint32_t *in, uint32_t *out) {
+  uint32_t count = *in; // number of elements to decompress
+  ++in;
+  decode_streamvbyte_warp<delta>(count, in, out);
   return vidType(count);
 }
 

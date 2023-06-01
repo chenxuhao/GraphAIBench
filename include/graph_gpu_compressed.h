@@ -1,3 +1,5 @@
+#pragma once
+
 #include "graph_gpu.h"
 #include "cgr_decoder.cuh"
 #include "vbyte_decoder.cuh"
@@ -25,9 +27,7 @@ class GraphGPUCompressed : public GraphGPU {
   }
   void init(Graph &hg);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
-  //inline __device__ vidType decode_cgr_warp(vidType v, vidType *adj);
-  inline __device__ vidType warp_decompress(vidType v, vidType *adj) { return decode_cgr_warp(v, adj); }
-  //inline __device__ vidType warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res);
+  inline __device__ vidType warp_decompress(vidType v, vidType *adj) { return decode_cgr_warp<true>(v, adj); }
   inline __device__ vidType* cta_decompress(vidType v, vidType *buf1, vidType *buf2, vidType &degree);
   inline __device__ vidType intersect_num_warp_compressed(vidType v, vidType u, vidType *v_residuals, vidType *u_residuals);
   inline __device__ vidType intersect_num_warp_compressed(vidType u, vidType *adj_u, vidType deg_v, vidType *adj_v);
@@ -41,14 +41,50 @@ class GraphGPUCompressed : public GraphGPU {
     return intersect_num_cta(adj_v, v_degree, adj_u, u_degree);
   }
   // decompress CGR format to an (unordered/ordered) vertex set using a warp
+  template <bool use_segment>
   inline __device__ vidType decode_cgr_warp(vidType v, vidType *adj) {
-    cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v], adj);
-    vidType degree = decoder.decode();
-    #ifdef NEED_SORT
-    adj = warp_sort(degree, adj, buf); // need a buffer for sorting the vertex set
-    #endif
+    vidType degree = 0;
+    if (use_segment) {
+      cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v], adj, 1, use_segment);
+      degree = decoder.decode();
+      #ifdef NEED_SORT
+      adj = warp_sort(degree, adj, buf); // need a buffer for sorting the vertex set
+      #endif
+    } else {
+      degree = decode_unary_warp_naive(v, adj);
+    }
     return degree;
   }
+  template <int align_bits>
+  inline __device__ vidType decode_unary_segmented_warp(vidType v, vidType *adj) {
+    cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v], adj, align_bits);
+    return decoder.decode();
+  }
+  // decode residuals without segment
+  inline __device__ vidType decode_unary_warp_naive(vidType v, vidType* out) {
+    int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+    vidType degree = 0;
+    auto begin = d_rowptr_compressed[v];
+    auto end = d_rowptr_compressed[v+1];
+    if (begin == end) return 0;
+    auto in = &d_colidx_compressed[0];
+    if (thread_lane == 0) {
+      UnaryDecoderGPU decoder(in, begin);
+      // decode the first element
+      vidType x = decoder.decode_residual_code();
+      out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+      // decode the rest of elements one-by-one
+      vidType i = 1;
+      while (decoder.get_offset() < end) {
+        out[i] = out[i-1] + decoder.decode_residual_code() + 1;
+        i++;
+      }
+      degree = i;
+    }
+    degree = __shfl_sync(FULL_MASK, degree, 0);
+    return degree;
+  }
+  // for hybrid scheme where the degree is known
   inline __device__ void decode_unary_warp_naive(vidType v, vidType* out, vidType degree) {
     int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
     if (thread_lane == 0) {
@@ -68,88 +104,68 @@ class GraphGPUCompressed : public GraphGPU {
     int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
     int warp_lane   = threadIdx.x / WARP_SIZE;
     eidType offset = d_rowptr_compressed[v] * 32; // transform word-offset to bit-offset
-    auto in = &d_colidx_compressed[0];
-    __shared__ int64_t length[WARPS_PER_BLOCK];
-    vidType val = 0;
     // decode the first element
+    UnaryDecoderGPU decoder1(d_colidx_compressed, offset);
     if (thread_lane == 0) {
-      UnaryDecoderGPU decoder(in, offset);
-      val = decoder.decode_residual_code();
+      vidType val = decoder1.decode_residual_code();
       out[0] = (val & 1) ? v - (val >> 1) - 1 : v + (val >> 1);
-      length[warp_lane] = decoder.get_offset() - offset;
     }
+    offset = __shfl_sync(FULL_MASK, decoder1.get_offset(), 0);;
     if (degree == 1) return;
-    __syncwarp();
-    assert(length[warp_lane] > 0);
-    if (length[warp_lane] > 36) printf("length=%ld\n", length[warp_lane]);
-    offset += length[warp_lane];
-    int64_t num_bits = d_rowptr_compressed[v+1] * 32 - offset;
-    assert(num_bits > 0);
+    //__syncwarp();
  
     // decode the rest of elements in parallel
-    int nrounds = (num_bits - 1) / WARP_SIZE + 1;
+    //offset += length[warp_lane];
+    //int64_t num_bits = d_rowptr_compressed[v+1] * 32 - offset;
+    //assert(num_bits > 0);
+    //int nrounds = (num_bits - 1) / WARP_SIZE + 1;
     int num_decoded = 1;
-    __shared__ int poss[BLOCK_SIZE];
-    __shared__ int flags[BLOCK_SIZE];
-    __shared__ int64_t prefix_offset[WARPS_PER_BLOCK];
+    __shared__ int poss[BLOCK_SIZE]; // position is the bit offset, range in [0, 31]
+    __shared__ int flags[BLOCK_SIZE]; // whether it is valid
+    //__shared__ int64_t prefix_offset[WARPS_PER_BLOCK];
     typedef cub::WarpScan<vidType> WarpScan;
     __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
     int shm_off = warp_lane * WARP_SIZE;
-    int prefix = out[0];
     // each round processes 32 bits of data
-    for (int i = 0; i < nrounds; i ++) {
+    //for (int i = 0; i < nrounds; i ++) {
+    while (true) {
       // each thread takes one bit to start decoding; some are invalid
-      UnaryDecoderGPU decoder(in, offset+thread_lane);
-      assert (offset < int64_t(117185093)*32);
-      //if (offset > int64_t(117185093)*32);
-      //  printf("v %d word_offset=%ld, bit_offset=%ld\n", v, (offset+thread_lane)/32, offset+thread_lane);
-      val = decoder.decode_residual_code() + 1;
-      assert(decoder.get_offset() > offset);
-      //if (thread_lane == 0 && decoder.get_offset() - offset >= 32)
-      //  printf("v %d round %d thread_lane=%d, old_offset=%ld, new_offset=%ld, num_decoded=%d\n", v, i, thread_lane, offset, decoder.get_offset(), num_decoded);
-      //assert(thread_lane != 0 || decoder.get_offset() - offset < 32);
+      UnaryDecoderGPU decoder(d_colidx_compressed, offset+thread_lane);
+      vidType val = decoder.decode_residual_code() + 1;
       poss[threadIdx.x] = decoder.get_offset() - offset;
       flags[threadIdx.x] = thread_lane ? 0 : 1;
       __syncwarp();
-      int flag = flags[threadIdx.x]; // whether it is valid
-      int pos = poss[threadIdx.x]; // position is the bit offset, range in [0, 31]
       bool is_active = true;
       // find all valid starting bits within 32 bits
       do {
-        if (pos < WARP_SIZE) {
-          if (flag) flags[shm_off+pos] = 1;
-          poss[threadIdx.x] = pos<32 ? poss[shm_off+pos] : WARP_SIZE;
+        if (poss[threadIdx.x] < WARP_SIZE) {
+          if (flags[threadIdx.x]) flags[shm_off+poss[threadIdx.x]] = 1;
+          poss[threadIdx.x] = poss[threadIdx.x]<32 ? poss[shm_off+poss[threadIdx.x]] : WARP_SIZE;
         }
-        flag = flags[threadIdx.x];
-        pos = poss[threadIdx.x];
-        is_active = flag && pos < WARP_SIZE;
+        is_active = flags[threadIdx.x] && poss[threadIdx.x] < WARP_SIZE;
       } while (__any_sync(0xFFFFFFFF, is_active)); // active thread?
-      int valid_index = 0; // index to valid elements (i.e. flag==1)
-      int total = 0; // number of elements decoded in this round
-      //WarpScan(temp_storage[warp_lane]).ExclusiveSum(flag, valid_index, total);
-      unsigned mask = __ballot_sync(0xFFFFFFFF, flag);
-      // Note that flag[0] = 1, so __popc >= 1
-      valid_index = __popc(mask << (WARP_SIZE-thread_lane-1)) - 1;
-      total = __popc(mask);
+      unsigned mask = __ballot_sync(0xFFFFFFFF, flags[threadIdx.x]);
+      // Note that flags[0] = 1, so __popc >= 1
+      int valid_index = __popc(mask << (WARP_SIZE-thread_lane-1)) - 1; // index to valid elements (i.e. flag==1)
+      int total = __popc(mask); // total number of valid elements decoded in this round
+      auto last_valid = 31 - __clz(mask); // mask is definitely not zero
 
       // write valid elements back
-      if (!flag) val = 0;
-      if (thread_lane == 0) val += prefix;
+      if (!flags[threadIdx.x]) val = 0;
+      if (thread_lane == 0) val += out[num_decoded-1];
       vidType out_val = 0;
       WarpScan(temp_storage[warp_lane]).InclusiveSum(val, out_val);
       // delta coding
-      if (flag && valid_index+num_decoded < degree)
+      if (flags[threadIdx.x] && valid_index+num_decoded < degree)
         out[valid_index+num_decoded] = out_val;
-      //if (flag) out[num_decoded[warp_lane]+valid_index] = out_val + prefix;
-      //if (thread_lane == 0) num_decoded[warp_lane] += __popc(mask);
       if (total + num_decoded >= degree) break;
       num_decoded += total;
-      prefix = out[num_decoded-1];
       // update the offset based on the last valid element
-      if (thread_lane == 31 - __clz(mask)) // mask is definitely not zero
-        prefix_offset[warp_lane] = decoder.get_offset();
-      __syncwarp();
-      offset = prefix_offset[warp_lane];
+      //if (thread_lane == last_valid)
+      //  prefix_offset[warp_lane] = decoder.get_offset();
+      //__syncwarp();
+      //offset = prefix_offset[warp_lane];
+      offset = __shfl_sync(FULL_MASK, decoder.get_offset(), last_valid);
     }
   }
   inline __device__ vidType warp_decompress(vidType v, vidType *adj, vidType &num_itv, vidType &num_res) {
@@ -169,19 +185,42 @@ class GraphGPUCompressed : public GraphGPU {
     auto length = d_rowptr_compressed[v+1] - start;
     vidType degree = 0;
     if constexpr (scheme == 0) {
-      degree = decode_streamvbyte_warp<delta>(length, &d_colidx_compressed[start], adj);
+      degree = decode_streamvbyte_warp1<delta>(&d_colidx_compressed[start], adj);
     } else {
       degree = decode_varintgb_warp<delta,pack_size>(length, &d_colidx_compressed[start], adj);
     }
     return degree;
   }
+  // decompress VByte format to an ordered vertex set using a warp
+  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
+  inline __device__ void decode_vbyte_warp(vidType v, vidType *adj, vidType degree) {
+    auto start = d_rowptr_compressed[v];
+    if constexpr (scheme == 0) {
+      decode_streamvbyte_warp<delta>(degree, &d_colidx_compressed[start], adj);
+    } else {
+      //decode_varintgb_warp<delta,pack_size>(&d_colidx_compressed[start], adj);
+    }
+  }
+  // decompress VByte format to an ordered vertex set using a warp
+  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
+  inline __device__ void decode_vbyte_warp(vidType v, vidType degree, vidType *adj) {
+    auto start = d_rowptr_compressed[v];
+    decode_streamvbyte_warp<delta>(degree, &d_colidx_compressed[start], adj);
+  }
+  template <bool use_segment = true>
   inline __device__ vidType decode_hybrid_warp(vidType v, vidType *adj) {
+    assert(v < num_vertices);
     auto degree = read_degree(v);
     if (degree == 0) return 0;
     if (degree > degree_threshold) {
-      decode_vbyte_warp<0,true>(v, adj);
+      decode_vbyte_warp<0,true>(v, adj, degree);
     } else {
-      decode_unary_warp(v, adj, degree);
+      if constexpr (use_segment) {
+        decode_unary_segmented_warp<32>(v, adj); // word_aligned
+      } else {
+        //decode_unary_warp(v, adj, degree);
+        decode_unary_warp_naive(v, adj, degree);
+      }
     }
     return degree;
   }

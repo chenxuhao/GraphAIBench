@@ -48,18 +48,21 @@ class cgr_decoder_gpu {
     T *in_ptr;
     T *out_ptr;
     int res_seg_len; // number of residuals in a segment
+    bool segmented;
   public:
-    __device__ cgr_decoder_gpu(T id, T *in, OFFSET_TYPE off, T* out = NULL, int rlen = 256) {
+    __device__ cgr_decoder_gpu(T id, T *in, OFFSET_TYPE off, T* out=NULL, int align_bits=1, bool use_segment=true, int rlen=256) {
       in_ptr = in;
       out_ptr = out;
       res_seg_len = rlen;
-      #ifdef WORD_ALIGHED 
-        reader.init(id, in, off*32); // transform word offset to bit offset
-      #elif BYTE_ALIGHED 
-        reader.init(id, in, off*8); // transform byte offset to bit offset
-      #else
-        reader.init(id, in, off);
-      #endif
+      segmented = use_segment;
+      reader.init(id, in, off*align_bits);
+      //#ifdef WORD_ALIGHED 
+      //  reader.init(id, in, off*32); // transform word offset to bit offset
+      //#elif BYTE_ALIGHED 
+      //  reader.init(id, in, off*8); // transform byte offset to bit offset
+      //#else
+      //  reader.init(id, in, off);
+      //#endif
     }
     __device__ vidType decode();
     __device__ T get_id() { return reader.get_id(); }
@@ -69,6 +72,7 @@ class cgr_decoder_gpu {
     __device__ vidType decode_intervals_warp(vidType *adj_out, vidType &total_num_itvs);
     __device__ vidType decode_intervals_warp(vidType *begins, vidType *ends);
     __device__ void decode_residuals_cta(vidType *adj_out, vidType *num_neighbors);
+    //__device__ vidType decode_residuals_segmented_warp(vidType *adj_out);
     __device__ vidType decode_residuals_warp(vidType *adj_out);
     __device__ void decode_intervals(SMem *smem, vidType *adj_out, vidType *out_len);
     __device__ void decode_residuals(SMem *smem, vidType *ptr, vidType *out_len);

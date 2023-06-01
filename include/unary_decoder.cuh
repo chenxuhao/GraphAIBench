@@ -8,6 +8,35 @@ class UnaryDecoderGPU {
     T *word_array;
     OFFSET_TYPE global_offset;
 
+    inline __device__ vidType cur() {
+      eidType chunk = global_offset / 32;
+      //if (threadIdx.x == 0) printf("chunk=%ld, global_offset=%ld\n", chunk, global_offset);
+      vidType buf_hi = word_array[chunk];
+      vidType buf_lo = word_array[chunk + 1];
+      vidType offset = global_offset % 32;
+      return __funnelshift_l(buf_lo, buf_hi, offset);
+    }
+
+    inline __device__ vidType decode_unary() {
+      vidType tmp = cur();
+      vidType x = __clz(tmp);
+      global_offset += x;
+      return x + 1;
+    }
+
+    inline __device__ vidType decode_int(vidType len) {
+      vidType x = cur() >> (32 - len);
+      global_offset += len;
+      return x;
+    }
+
+    inline __device__ vidType decode_zeta() {
+      vidType h = decode_unary();
+      global_offset++;
+      vidType x = decode_int(h * ZETA_K);
+      return x - 1;
+    }
+
   public:
     __device__ UnaryDecoderGPU(T *g, OFFSET_TYPE off) : 
       word_array(g), global_offset(off) {
@@ -20,38 +49,9 @@ class UnaryDecoderGPU {
       return (x & 1) ? node - (x >> 1) - 1 : node + (x >> 1);
     }
 
-    __device__ vidType cur() {
-      eidType chunk = global_offset / 32;
-      //if (threadIdx.x == 0) printf("chunk=%ld, global_offset=%ld\n", chunk, global_offset);
-      vidType buf_hi = word_array[chunk];
-      vidType buf_lo = word_array[chunk + 1];
-      vidType offset = global_offset % 32;
-      return __funnelshift_l(buf_lo, buf_hi, offset);
-    }
-
-    __device__ vidType decode_unary() {
-      vidType tmp = cur();
-      vidType x = __clz(tmp);
-      global_offset += x;
-      return x + 1;
-    }
-
-    __device__ vidType decode_int(vidType len) {
-      vidType x = cur() >> (32 - len);
-      global_offset += len;
-      return x;
-    }
-
-    __device__ vidType decode_gamma() {
+    inline __device__ vidType decode_gamma() {
       vidType h = decode_unary();
       return this->decode_int(h) - 1;
-    }
-
-    __device__ vidType decode_zeta() {
-      vidType h = decode_unary();
-      global_offset++;
-      vidType x = decode_int(h * ZETA_K);
-      return x - 1;
     }
 
     __device__ vidType decode_residual_code() {

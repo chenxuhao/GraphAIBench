@@ -1,6 +1,6 @@
 #include "cgr_decoder.cuh"
 
-#define RESIDUAL_SEGMENT_LEN 32
+#define RESIDUAL_SEGMENT_LEN 256
 
 template <typename T>
 __device__ vidType cgr_decoder_gpu<T>::decode() {
@@ -8,7 +8,10 @@ __device__ vidType cgr_decoder_gpu<T>::decode() {
 #ifdef USE_INTERVAL
   degree += decode_intervals_warp(out_ptr);
 #endif
-  degree += decode_residuals_warp(out_ptr+degree);
+  //if (segmented)
+  //  degree += decode_residuals_segmented_warp(out_ptr+degree);
+  //else
+    degree += decode_residuals_warp(out_ptr+degree);
   return degree;
 }
 
