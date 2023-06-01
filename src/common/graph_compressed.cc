@@ -113,20 +113,6 @@ vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType
 }
 
 template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* out, vidType degree) {
-  auto in = &edges_compressed[0];
-  auto offset = vertices_compressed[v] * 32; // transform word-offset to bit-offset
-  UnaryDecoder decoder(in, offset);
-  // decode the first element
-  vidType x = decoder.decode_residual_code();
-  out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
-  // decode the rest of elements
-  for (vidType i = 1; i < degree; i++) {
-    out[i] = out[i-1] + decoder.decode_residual_code() + 1;
-  }
-}
-
-template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* out, std::string scheme) {
   assert(v >= 0 && v < V());
   auto start = vertices_compressed[v];
@@ -145,9 +131,47 @@ template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_cgr(vidType v, vidType* out) {
   auto in = &edges_compressed[0];
   auto offset = vertices_compressed[v];
-  //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << "\n";
   cgr_decoder decoder(v, in, offset, out);
   return decoder.decode();
+}
+
+// not word-aligned
+template<bool map_vertices, bool map_edges>
+vidType GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* out) {
+  auto in = &edges_compressed[0];
+  auto begin = vertices_compressed[v];
+  auto end = vertices_compressed[v+1];
+  //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << " begin = " << begin << " end = " << end << "\n";
+  if (begin == end) return 0;
+  UnaryDecoder decoder(in, begin);
+  // decode the first element
+  vidType x = decoder.decode_residual_code();
+  out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+  //std::cout << "\t out[0] = " << out[0] << " ";
+  // decode the rest of elements
+  vidType i = 1;
+  while (decoder.get_offset() < end) {
+    out[i] = out[i-1] + decoder.decode_residual_code() + 1;
+    //std::cout << "out[" << i << "] = " << out[i] << " ";
+    i++;
+  }
+  //std::cout << "\n";
+  return i;
+}
+
+// word-aligned
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::decode_vertex_unary(vidType v, vidType* out, vidType degree) {
+  auto in = &edges_compressed[0];
+  auto offset = vertices_compressed[v] * 32; // transform word-offset to bit-offset
+  UnaryDecoder decoder(in, offset);
+  // decode the first element
+  vidType x = decoder.decode_residual_code();
+  out[0] = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+  // decode the rest of elements
+  for (vidType i = 1; i < degree; i++) {
+    out[i] = out[i-1] + decoder.decode_residual_code() + 1;
+  }
 }
 
 template<bool map_vertices, bool map_edges>
@@ -189,11 +213,20 @@ VertexSet GraphT<map_vertices, map_edges>::N_vbyte(vidType vid, std::string sche
 
 // TODO: this method does not work for now
 template<bool map_vertices, bool map_edges>
-VertexSet GraphT<map_vertices, map_edges>::N_cgr(vidType vid) {
+VertexSet GraphT<map_vertices, map_edges>::N_cgr(vidType vid, bool use_segment) {
   assert(vid >= 0);
   assert(vid < n_vertices);
   VertexSet adj(vid);
-  vidType deg = decode_vertex_cgr(vid, adj.data());
+  vidType deg = 0;
+  if (use_segment) {
+    deg = decode_vertex_cgr(vid, adj.data());
+  } else {
+#ifdef USE_INTERVAL
+    std::cout << "non-segmented interval not supported yet!\n";
+    exit(1);
+#endif
+    deg = decode_vertex_unary(vid, adj.data());
+  }
   assert(deg <= max_degree);
   adj.adjust_size(deg);
 #ifdef USE_INTERVAL

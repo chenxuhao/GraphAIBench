@@ -221,10 +221,11 @@ public:
   vidType decode_vertex_cgr(vidType v, vidType* out_ptr);
   vidType decode_vertex_vbyte(vidType v, vidType* out_ptr, std::string scheme);
   vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme, bool use_segment);
+  vidType decode_vertex_unary(vidType v, vidType* out_ptr);
   void decode_vertex_unary(vidType v, vidType* out_ptr, vidType degree);
   void decode_vertex_unary_segmented(vidType v, vidType* out, vidType degree);
   void set_degree_threshold(vidType deg) { degree_threshold = deg; }
-  VertexSet N_cgr(vidType v);                                                // get the CGR compressed neighbor list of vertex v
+  VertexSet N_cgr(vidType v, bool use_segment=false);                        // get the CGR compressed neighbor list of vertex v
   VertexSet N_vbyte(vidType v, std::string scheme);                          // get the VByte compressed neighbor list of vertex v
   VertexSet N_hybrid(vidType v, std::string scheme, bool use_segment=false); // get the hybrid compressed neighbor list of vertex v
   VertexSet get_interval_neighbors(vidType v);                               // get the interval neighbors in a CGR graph

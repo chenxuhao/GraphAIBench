@@ -21,35 +21,21 @@ void Compressor::compute_ptrs() {
   Timer t;
   t.Start();
   rowptr.resize(g->V()+1);
-#if 0
-  buffer.resize(g->V());
-  #pragma omp parallel for
-  for (vidType i = 0; i < g->V(); i++)
-    buffer[i] = encoder->get_compressed_size(i).size();
-  parallel_prefix_sum<vidType,eidType>(degrees, rowptr.data());
-#else
-  if (use_unary) {
-    rowptr[0] = 0;
-    if (scheme == "hybrid") {
-      assert(word_aligned);
-      //std::cout << "Use byte pointers for the hybrid scheme\n";
-      //#pragma omp parallel for
-      for (vidType i = 0; i < g->V(); i++)
-        rowptr[i+1] = rowptr[i] + osizes[i];
-    } else { // CGR
-      for (vidType i = 0; i < g->V(); i++) {
-        auto length = encoder->get_compressed_bits_size(i);
-        if (byte_aligned && length > 0)
-          length = ((length-1)/8 + 1);
-        if (word_aligned && length > 0)
-          length = ((length-1)/32 + 1);
-        rowptr[i+1] = length + rowptr[i];
-      }
+  rowptr[0] = 0;
+  if (!word_aligned) {
+    assert (scheme == "cgr");
+    #pragma omp parallel for
+    for (vidType i = 0; i < g->V(); i++) {
+      auto length = encoder->get_compressed_bits_size(i);
+      if (byte_aligned && length > 0)
+        length = ((length-1)/8 + 1);
+      if (word_aligned && length > 0)
+        length = ((length-1)/32 + 1);
+      osizes[i] = length;
     }
-  } else {
-    parallel_prefix_sum<vidType,eidType>(osizes, rowptr.data());
   }
-#endif
+  //for (vidType i = 0; i < g->V(); i++) rowptr[i+1] = rowptr[i] + osizes[i];
+  parallel_prefix_sum<vidType,eidType>(osizes, rowptr.data());
   t.Stop();
   std::cout << "Computing row pointers time: " << t.Seconds() << "\n";
 }
@@ -341,6 +327,12 @@ int main(int argc,char *argv[]) {
 
   bool use_unary = (scheme == "cgr" || scheme == "hybrid");
   std::cout << "Using the " << scheme << " compression scheme\n";
+  if (scheme == "vbyte") {
+    if (alignment != 2) {
+      std::cout << "vbyte scheme must be word-aligned\n";
+      exit(1);
+    }
+  }
   if (scheme == "hybrid") {
     if (!permutate) {
       std::cout << "hybrid scheme must be permutated\n";

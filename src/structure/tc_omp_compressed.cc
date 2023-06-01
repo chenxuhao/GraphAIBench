@@ -3,7 +3,7 @@
 
 using namespace SIMDCompressionLib;
 
-void TCSolver(Graph &g, uint64_t &total, std::string scheme = "decomp");
+void TCSolver(Graph &g, uint64_t &total, std::string scheme, bool segmented);
 
 void printusage(std::string bin) {
   std::cout << "Try " << bin << " -s name-of-scheme(cgr) -i ../../inputs/mico/dag-streamvbyte [-o (oriented)] [-p (permutated)]\n";
@@ -14,9 +14,10 @@ int main(int argc,char *argv[]) {
   std::string filename = "";
   bool permutated = false;
   bool oriented = false;
+  bool segmented = false;
   vidType degree_threshold = 32;
   int c;
-  while ((c = getopt(argc, argv, "s:i:opd:h")) != -1) {
+  while ((c = getopt(argc, argv, "s:i:opgd:h")) != -1) {
     switch (c) {
       case 's':
         schemename = optarg;
@@ -29,6 +30,9 @@ int main(int argc,char *argv[]) {
         break;
       case 'p':
         permutated = true;
+        break;
+      case 'g':
+        segmented = true;
         break;
       case 'd':
         degree_threshold = atoi(optarg);
@@ -60,12 +64,12 @@ int main(int argc,char *argv[]) {
   g.print_meta_data();
 
   uint64_t total = 0;
-  TCSolver(g, total, schemename);
+  TCSolver(g, total, schemename, segmented);
   std::cout << "total_num_triangles = " << total << "\n";
   return 0;
 }
 
-void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
+void TCSolver(Graph &g, uint64_t &total, std::string scheme, bool segmented) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -91,9 +95,9 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
   } else if (scheme == "cgr") { // cgr graph
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {
-      auto adj_u = g.N_cgr(u);
+      auto adj_u = g.N_cgr(u, segmented);
       for (auto v : adj_u) {
-        auto adj_v = g.N_cgr(v);
+        auto adj_v = g.N_cgr(v, segmented);
         auto num = (uint64_t)intersection_num(adj_u, adj_v);
         counter += num;
       }
@@ -102,9 +106,9 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme) {
     std::string vbyte_scheme = "streamvbyte";
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {
-      auto adj_u = g.N_hybrid(u, vbyte_scheme, 1);
+      auto adj_u = g.N_hybrid(u, vbyte_scheme, segmented);
       for (auto v : adj_u) {
-        auto adj_v = g.N_hybrid(v, vbyte_scheme, 1);
+        auto adj_v = g.N_hybrid(v, vbyte_scheme, segmented);
         auto num = (uint64_t)intersection_num(adj_u, adj_v);
         counter += num;
       }
