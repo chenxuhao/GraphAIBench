@@ -1,6 +1,6 @@
 #pragma once
 #include "common.h"
-using OFFSET_TYPE = uint64_t;
+using OFFSET_TYPE = int64_t;
 
 template<typename T = vidType>
 static T decode_first_num(T node, T x) {

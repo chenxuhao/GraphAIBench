@@ -1,7 +1,6 @@
 #include "graph.h"
-#include "codecfactory.h"
-
-using namespace SIMDCompressionLib;
+//#include "codecfactory.h"
+//using namespace SIMDCompressionLib;
 
 void TCSolver(Graph &g, uint64_t &total, std::string scheme, bool segmented);
 

@@ -4,12 +4,12 @@ CGOBJS = graph_compressed.o cgr_decoder.o vbyte_decoder.o
 CGCUOBJS = graph_gpu_compressed.o cgr_decoder_gpu.o
 NVFLAGS += -dc
 CXXFLAGS += -Wno-narrowing
-LIBS += $(SIMDCAI_LIB)
-INCLUDES += -I./gpu_kernels $(SIMDCAI_INC)
+#LIBS += $(SIMDCAI_LIB)
+INCLUDES += -I./gpu_kernels #$(SIMDCAI_INC)
 all: compressor tc_omp_compressed tc_gpu_compressed
 
-compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o hybrid_encoder.o 
-	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o unary_encoder.o cgr_encoder.o vbyte_encoder.o hybrid_encoder.o $(OBJS) -o $@ $(LIBS)
+compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o unary_encoder.o cgr_encoder.o vbyte_encoder.o $(OBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 tc_omp_compressed: tc_omp_compressed.o $(OBJS) $(CGOBJS)

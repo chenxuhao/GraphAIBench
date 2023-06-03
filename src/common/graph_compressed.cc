@@ -180,11 +180,7 @@ void GraphT<map_vertices, map_edges>::decode_vertex_unary_segmented(vidType v, v
   auto offset = vertices_compressed[v] * 32;
   //std::cout << "decoding vertex " << v << " in_ptr=" << in << " out_ptr=" << out << " degree = " << degree << "\n";
   cgr_decoder decoder(v, in, offset, out);
-  auto deg = decoder.decode();
-  //if (deg != degree) {
-  //  std::cout << "deg = " << deg << "\n";
-  //  exit(1);
-  //}
+  decoder.decode();
   //assert(deg == degree);
 }
 

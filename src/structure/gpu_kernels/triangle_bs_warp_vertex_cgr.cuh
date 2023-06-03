@@ -1,6 +1,6 @@
 // vertex parallel: each warp takes one vertex
 template <bool use_segment>
-__global__  void //__launch_bounds__(BLOCK_SIZE, 8)
+__global__  void //__launch_bounds__(BLOCK_SIZE, 5)
 triangle_bs_warp_vertex_cgr(vidType begin, vidType end, GraphTy g, vidType *buffer, AccType *total) {
   __shared__ typename BlockReduce::TempStorage temp_storage;
   int thread_id   = blockIdx.x * blockDim.x + threadIdx.x;

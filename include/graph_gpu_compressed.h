@@ -44,8 +44,8 @@ class GraphGPUCompressed : public GraphGPU {
   template <bool use_segment>
   inline __device__ vidType decode_cgr_warp(vidType v, vidType *adj) {
     vidType degree = 0;
-    if (use_segment) {
-      cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v], adj, 1, use_segment);
+    if constexpr (use_segment) {
+      cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v], adj);
       degree = decoder.decode();
       #ifdef NEED_SORT
       adj = warp_sort(degree, adj, buf); // need a buffer for sorting the vertex set

@@ -165,7 +165,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
   if (scheme == "unary") {
     refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_unary);
   } else if (scheme == "hybrid") {
-    refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_hybrid);
+    refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_hybrid<use_segment>);
   } else if (scheme == "streamvbyte") {
     refine_kernel_config(nthreads, nblocks, triangle_bs_warp_vertex_vbyte<0,true>);
   } else {
@@ -192,7 +192,7 @@ void triangle_count_vbyte(Graph &g, uint64_t &total, std::string scheme) {
     triangle_bs_warp_vertex_unary<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
   } else if (scheme == "hybrid") {
     std::cout << "launching hybrid kernel\n";
-    triangle_bs_warp_vertex_hybrid<<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
+    triangle_bs_warp_vertex_hybrid<use_segment><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
   } else if (scheme == "streamvbyte") {
     std::cout << "launching streamvbyte kernel\n";
     triangle_bs_warp_vertex_vbyte<0,true><<<nblocks, nthreads>>>(0, g.V(), gg, buffer, d_total);
