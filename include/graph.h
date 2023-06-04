@@ -220,7 +220,7 @@ public:
   void decode_vertex_cgr(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex_cgr(vidType v, vidType* out_ptr);
   vidType decode_vertex_vbyte(vidType v, vidType* out_ptr, std::string scheme);
-  vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme, bool use_segment);
+  vidType decode_vertex_hybrid(vidType v, vidType* out_ptr, std::string scheme, bool use_segment, bool reverse);
   vidType decode_vertex_unary(vidType v, vidType* out_ptr);
   void decode_vertex_unary(vidType v, vidType* out_ptr, vidType degree);
   void decode_vertex_unary_segmented(vidType v, vidType* out, vidType degree);

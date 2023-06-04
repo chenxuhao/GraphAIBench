@@ -51,7 +51,7 @@ public:
       if (align == 2) word_aligned = true;
       if (use_permutate) assert(word_aligned);
   }
-  void compress(bool pre_encode=true);
+  void compress(bool pre_encode, bool reverse);
   void write_compressed_graph();
   void write_degrees();
   void print_stats();

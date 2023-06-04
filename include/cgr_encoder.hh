@@ -27,14 +27,15 @@ class cgr_encoder : public unary_encoder {
 
 public:
   explicit cgr_encoder(vidType n, 
-                       int zeta_k,
-                       bool use_itv,
+                       int zeta_k = 2,
+                       size_type pre_encode_num = 1024*1024*16,
+                       bool use_itv = false,
                        bool use_seg = true,
                        bool add_deg = false,
                        int res_seg_len = 256,
                        int min_itv_len = 4, 
                        int itv_seg_len = 32)
-          : unary_encoder(zeta_k),
+          : unary_encoder(zeta_k, pre_encode_num),
             total_num(n),
             use_interval(use_itv),
             use_segment(use_seg),

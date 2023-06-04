@@ -1,6 +1,4 @@
 #include "graph.h"
-//#include "codecfactory.h"
-//using namespace SIMDCompressionLib;
 
 void TCSolver(Graph &g, uint64_t &total, std::string scheme, bool segmented);
 
@@ -112,7 +110,6 @@ void TCSolver(Graph &g, uint64_t &total, std::string scheme, bool segmented) {
         counter += num;
       }
     }
- 
   } else { // vbyte graph
     #pragma omp parallel for reduction(+ : counter) schedule(dynamic, 1)
     for (vidType u = 0; u < g.V(); u ++) {

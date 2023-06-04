@@ -8,8 +8,7 @@
 # error "File I/O is not implemented for this system: wrong endianness."
 #endif
 
-//#include "codecfactory.h"
-//using namespace SIMDCompressionLib;
+#define HYBRID_REVERSE
 
 template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string scheme, bool permutated) {
   // read meta information
@@ -94,10 +93,11 @@ template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string 
 }
 
 template<bool map_vertices, bool map_edges>
-vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* out, std::string scheme, bool use_segment) {
+vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType* out, std::string scheme, bool use_segment, bool reverse) {
   auto degree = read_degree(v);
   if (degree == 0) return 0;
-  if (degree > degree_threshold) { // vbyte
+  bool do_vbyte = reverse ? degree <= degree_threshold : degree > degree_threshold;
+  if (do_vbyte) { // vbyte
     //decode_vertex_vbyte(v, out, scheme);
     auto start = vertices_compressed[v];
     auto in = &edges_compressed[start];
@@ -190,7 +190,11 @@ VertexSet GraphT<map_vertices, map_edges>::N_hybrid(vidType vid, std::string sch
   assert(vid < V());
   VertexSet adj(vid);
   vidType deg = 0;
-  deg = decode_vertex_hybrid(vid, adj.data(), scheme, use_segment);
+#ifdef HYBRID_REVERSE
+  deg = decode_vertex_hybrid(vid, adj.data(), scheme, use_segment, true);
+#else
+  deg = decode_vertex_hybrid(vid, adj.data(), scheme, use_segment, false);
+#endif
   adj.adjust_size(deg);
   return adj;
 }

@@ -2,12 +2,9 @@
 #include "scan.h"
 #include "cgr_encoder.hh"
 #include "vbyte_encoder.hh"
-#include "hybrid_encoder.hh"
+//#include "hybrid_encoder.hh"
 
 #define CHECKPOINT 50000000
-
-//#include "codecfactory.h"
-//using namespace SIMDCompressionLib;
 
 void Compressor::write_compressed_graph() {
   if (scheme == "cgr")
@@ -34,7 +31,6 @@ void Compressor::compute_ptrs() {
       osizes[i] = length;
     }
   }
-  //for (vidType i = 0; i < g->V(); i++) rowptr[i+1] = rowptr[i] + osizes[i];
   parallel_prefix_sum<vidType,eidType>(osizes, rowptr.data());
   t.Stop();
   std::cout << "Computing row pointers time: " << t.Seconds() << "\n";
@@ -119,12 +115,11 @@ void Compressor::write_compressed_edges_to_disk() {
 }
 
 void Compressor::permutate_bytes_by_word(std::vector<unsigned char> &buf) {
-  //std::cout << "Permutating bytes in every word\n";
   auto num_bytes = buf.size();
   auto res_bytes = num_bytes % 4;
   assert(res_bytes == 0); // only does this when word aligned
   auto num_words = (num_bytes-res_bytes)/4 + (res_bytes?1:0);
-  #pragma omp parallel for
+  //#pragma omp parallel for
   for (size_t i = 0; i < num_words; i++) {
     auto j = i*4;
     auto temp = buf[j];
@@ -135,6 +130,7 @@ void Compressor::permutate_bytes_by_word(std::vector<unsigned char> &buf) {
     buf[j+2] = temp;
   }
 }
+
 void Compressor::write_degrees() {
   Timer t;
   t.Start();
@@ -147,17 +143,13 @@ void Compressor::write_degrees() {
   }
   std::vector<vidType> degrees(g->V());
   for (vidType v = 0; v < g->V(); v++) degrees[v] = g->get_degree(v);
-
-  //for (int i = 0; i < 10; i++)
-  //  std::cout << "Debug: degrees[" << i << "]=" << degrees[i] << "\n";
- 
   outfile.write(reinterpret_cast<const char*>(degrees.data()), (g->V())*sizeof(vidType));
   outfile.close();
   t.Stop();
   std::cout << "Writing degrees time: " << t.Seconds() << "\n";
 }
 
-void Compressor::compress(bool pre_encode) {
+void Compressor::compress(bool pre_encode, bool reverse) {
   if (byte_aligned) std::cout << "Byte alignment enabled for each adj list\n";
   if (word_aligned) std::cout << "Word alignment enabled for each adj list\n";
   Timer t;
@@ -191,16 +183,11 @@ void Compressor::compress(bool pre_encode) {
       std::cout << "(" << v/CHECKPOINT << " * " << CHECKPOINT << ") vertices compressed\n";
     auto deg = g->get_degree(v);
     if (deg == 0) trivial_count ++;
-    bool do_vbyte = !use_unary || (scheme == "hybrid" && deg > degree_threshold);
+    bool do_vbyte = !use_unary || (scheme == "hybrid" && (reverse? deg <= degree_threshold : deg > degree_threshold));
 
     // encode the neighbor list
     if (do_vbyte) {
       if (buffer.size() < deg + 1024) buffer.resize(deg + 1024);
-      //size_t outsize = buffer.size();
-      //shared_ptr<IntegerCODEC> schemeptr = CODECFactory::getFromName(vbyte_scheme);
-      //if (schemeptr.get() == NULL) exit(1);
-      //schemeptr->encodeArray(g->adj_ptr(v), deg, buffer.data(), outsize);
-      //osizes[v] = static_cast<vidType>(outsize);
       osizes[v] = vb_encoder.encode(deg, g->N(v).data(), buffer.data(), scheme != "hybrid");
     } else { // unary encoding
       osizes[v] = encoder->encode(v, deg, g->N(v).data());
@@ -269,29 +256,29 @@ void printusage() {
 }
 
 int main(int argc,char *argv[]) {
-  int zeta_k = 3, use_interval = 0, use_segment = 0, permutate = 0, degree_threshold = 32;
+  int zeta_k = 2, permutate = 0, degree_threshold = 32;
   int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
-  int res_seg_len = 256; // number of bits in a residual segment
+  bool reverse = false; // reverse hybrid scheme: low-degree vbyte; high-degree unary
+  bool use_interval = false; // use interval for CGR format
+  bool use_segment = false;
   std::string scheme = "cgr";
   int c;
-  while ((c = getopt(argc, argv, "s:z:igr:pa:d:h")) != -1) {
+  while ((c = getopt(argc, argv, "s:z:igrpa:d:h")) != -1) {
     switch (c) {
       case 's':
         scheme = optarg;
-        //std::cout << "scheme: " << scheme << "\n";
         break;
       case 'z':
         zeta_k = atoi(optarg);
-        //std::cout << "zeta_k: " << zeta_k << "\n";
         break;
       case 'i':
-        use_interval = 1;
+        use_interval = true;
         break;
       case 'g':
-        use_segment = 1;
+        use_segment = true;
         break;
       case 'r':
-        res_seg_len = atoi(optarg);
+        reverse = true;
         break;
       case 'p':
         permutate = 1;
@@ -301,7 +288,6 @@ int main(int argc,char *argv[]) {
         break;
       case 'd':
         degree_threshold = atoi(optarg);
-        //std::cout << "degree_threshold: " << degree_threshold << "\n";
         break;
       case 'h':
         printusage();
@@ -345,16 +331,13 @@ int main(int argc,char *argv[]) {
     std::cout << "degree_threshold = " << degree_threshold << "\n";
   }
 
+  bool pre_encode = g.V() > 1000000;
   unary_encoder *encoder = NULL;
-  //if (scheme == "cgr") {
   if (use_unary)
-    encoder = new cgr_encoder(g.V(), zeta_k, use_interval, use_segment, false, res_seg_len);
-  //} else if (scheme == "hybrid") {
-  //  encoder = new hybrid_encoder(g.V(), zeta_k, use_interval, degree_threshold);
-  //}
+    encoder = new cgr_encoder(g.V(), zeta_k, pre_encode, use_interval, use_segment);
   Compressor compressor(scheme, argv[optind+1], use_unary, &g, encoder, permutate, degree_threshold, alignment);
   std::cout << "start compression ...\n";
-  compressor.compress();
+  compressor.compress(pre_encode, reverse);
   compressor.print_stats();
   std::cout << "writing compressed graph to disk ...\n";
   compressor.write_compressed_graph();

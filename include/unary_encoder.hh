@@ -6,15 +6,15 @@ using bits = std::vector<bool>;
 
 class unary_encoder {
 protected:
-  const size_type PRE_ENCODE_NUM = 1024 * 1024 * 16;
   int _zeta_k;
+  size_type PRE_ENCODE_NUM;
   std::vector<bits> gamma_code;
   std::vector<bits> zeta_code;
   std::vector<bits> bit_arrays; // compressed bit arrays
   std::vector<std::vector<uint32_t>> word_arrays; // compressed word arrays
 
 public:
-  explicit unary_encoder(int zeta_k) : _zeta_k(zeta_k) {}
+  explicit unary_encoder(int zeta_k, size_type num=0) : _zeta_k(zeta_k), PRE_ENCODE_NUM(num) {}
   void pre_encoding();
 
   virtual size_t encode(vidType id, vidType length, vidType *in) = 0;
