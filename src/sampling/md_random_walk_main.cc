@@ -6,7 +6,6 @@
 #include "samplegraph.h"
 #include "sampling_utils.h"
 #include <random>
-std::mt19937 gen(time(nullptr));
 using namespace std;
 
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step);
@@ -49,11 +48,11 @@ int main(int argc, char* argv[]) {
       if (sampling_type() == Individual) {
         for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
           int i = gen() % root_size;
-          vidType t = sample_g.get_transits()[i];
+          vector<vidType> t = {sample_g.get_transits()[i]};
           vector<vidType> t_edges = sample_g.prev_edges(1, i);
           vidType new_t = sample_next(&sample_g, t, t_edges, step);
-          parent_map[t].insert(new_t);
-          if (!is_directed()) { parent_map[new_t].insert(t); }
+          parent_map[t[0]].insert(new_t);
+          if (!is_directed()) { parent_map[new_t].insert(t[0]); }
         }
       }
       else if (sampling_type() == Collective) {;

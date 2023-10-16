@@ -1,13 +1,14 @@
 // Copyright 2020 MIT
 // Authors: Xuhao Chen <cxh@mit.edu>
+#pragma once
 #include "utils.h"
 #include "graph.h"
 #include "samplegraph.h"
 #include "sampling_utils.h"
 #include <random>
-std::mt19937 gen(time(nullptr));
-std::default_random_engine generator;
-std::uniform_real_distribution<float> distribution(0.0,1.0);
+// std::mt19937 gen(time(nullptr));
+// std::default_random_engine generator;
+// std::uniform_real_distribution<float> distribution(0.0,1.0);
 
 
 /**

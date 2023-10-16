@@ -50,7 +50,7 @@ public:
 
     // root functions only for multidimensional random walks
     std::vector<vidType> get_transits() {
-        int step = transits_order.size() - i;
+        int step = transits_order.size() - 1;
         if (step < 0) return transits_order[0];
         return transits_order[step];
     }
@@ -76,4 +76,4 @@ public:
     // std::vector<vidType> get_transits() {return transits_order[transits_order.size() - 1];}
     // std::vector<vidType> get_transit_edges() {return transits_order[transits_order.size() - 2];}
     // int get_steps_taken() {return steps_taken;}
-}
+};
