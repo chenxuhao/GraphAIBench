@@ -57,10 +57,10 @@ int main(int argc, char* argv[]) {
           if (!is_directed()) { parent_map[old_t[0]].insert(new_t); }
         }
       }
-      else if (sampling_type() == Collective) {
-        for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
-          ;
-        }
+      else if (sampling_type() == Collective) {;
+        // for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
+        //   ;
+        // }
       }
       sample_g.add_transits(new_transits);
     }
@@ -99,3 +99,4 @@ int main(int argc, char* argv[]) {
   //   cout << sub_g.colidx()[i] << endl;
   // }
   return 0;
+};

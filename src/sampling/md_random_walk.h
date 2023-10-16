@@ -13,10 +13,10 @@ std::uniform_real_distribution<float> distribution(0.0,1.0);
  *
 */
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
-    vidType t = s->prev_vertex(2, 0);
-    vector<vidType> t_edges = s->prev_edges(2, 0);
-    float p = 2.0, q = 0.5;
-    return rejection_smpl(transits[0], src_edges, t, t_edges, p, q);
+    int e_idx = gen() % src_edges.size();
+    vidType v = src_edges[e_idx];
+    s->replace_root(transits[0], v);
+    return v;
 }
 
 /**
@@ -30,6 +30,7 @@ inline int steps() {
  * For given step, return number of samples to take. Step of -1 for original sapmle transits
 */
 inline int sample_size(int step) {
+    if (step == -1) return 4;
     return 1;
 }
 

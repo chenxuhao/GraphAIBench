@@ -49,7 +49,12 @@ public:
     }
 
     void add_transits(std::vector<vidType> new_ts) { transits_order.push_back(new_ts); }
-
+    std::vector<vidType> get_roots() { return transits_order[0]; }
+    void replace_root(vidType old_r, vidType new_r) {
+        int i = transits_order[0].find(old_r);
+        transits_order[0][i - transits_order[0].begin()] = new_r;
+    }
     // std::vector<vidType> get_transits() {return transits_order[transits_order.size() - 1];}
     // std::vector<vidType> get_transit_edges() {return transits_order[transits_order.size() - 2];}
     // int get_steps_taken() {return steps_taken;}
+}
