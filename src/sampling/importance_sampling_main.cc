@@ -2,7 +2,7 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
-#include "node2vec.h"
+#include "importance_sampling.h"
 #include "samplegraph.h"
 #include "sampling_utils.h"
 using namespace std;
@@ -44,25 +44,26 @@ int main(int argc, char* argv[]) {
     // continue sampling for defined number of steps
     for (int step = 0; step < steps(); step++) {
       vector<vidType> new_transits;
-      if (sampling_type() == Individual) {
-        for (int t_idx = 0; t_idx < sample_size(step) * sample_size(step-1); t_idx++) {
-          int old_t_idx = t_idx % sample_size(step-1);
-          vector<vidType> old_t = {sample_g.prev_vertex(1, old_t_idx)};
+      if (sampling_type() == Collective) {
+        for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
+          int old_t_idx = t_idx % sample_size(step - 1);
+          vector<vidType> old_t = sample_g.get_transits();
           vector<vidType> old_t_edges = sample_g.prev_edges(1, old_t_idx);
           // cout << "Old transit: " << old_t[0] << endl;
           // for (auto e: old_t_edges) cout << "Old transit edge: " << e << endl;
           vidType new_t = sample_next(&sample_g, old_t, old_t_edges, step);
           new_transits.push_back(new_t);
-          parent_map[old_t[0]].insert(new_t);
-          if (!is_directed()) { parent_map[new_t].insert(old_t[0]); }
         }
       }
-      else if (sampling_type() == Collective) {;
+      else if (sampling_type() == Individual) {;
         // for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
         //   ;
         // }
       }
       sample_g.add_transits(new_transits);
+    }
+    for (auto p: sample_g.get_edges()) {
+        parent_map[p.first].insert(p.second.begin(), p.second.end());
     }
   }
   cout << "Finished sampling" << endl;

@@ -10,9 +10,7 @@ enum SamplingType {
 
 class Sample {
 protected:
-    // std::vector<vidType> vertices;
-    // std::vector<eidType> edges;
-    // std::vector<std::unordered_map<vidType, vidType>> transits; parent mapping only needed for collective
+    std::unordered_map<vidType, std::set<vidType>> edges; // parent mapping only for importance sampling
     std::vector<std::vector<vidType>> transits_order;
     // int steps_taken;
     Graph* g;
@@ -49,11 +47,32 @@ public:
     }
 
     void add_transits(std::vector<vidType> new_ts) { transits_order.push_back(new_ts); }
-    std::vector<vidType> get_roots() { return transits_order[0]; }
-    void replace_root(vidType old_r, vidType new_r) {
-        int i = transits_order[0].find(old_r);
-        transits_order[0][i - transits_order[0].begin()] = new_r;
+
+    // root functions only for multidimensional random walks
+    std::vector<vidType> get_transits() {
+        int step = transits_order.size() - i;
+        if (step < 0) return transits_order[0];
+        return transits_order[step];
     }
+
+    Graph* get_graph() { return g; }
+
+    void replace_root(vidType old_r, vidType new_r) {
+        std::vector<vidType> new_roots;
+        for (auto r: get_transits()) {
+            if (r == old_r) new_roots.push_back(new_r);
+            else new_roots.push_back(r);
+        }
+        transits_order.push_back(new_roots);
+    }
+
+    // only for importance sampling
+    void add_edge(vidType parent, vidType v) {
+        edges[parent].insert(v);
+    }
+
+    std::unordered_map<vidType, std::set<vidType>> get_edges() { return edges; }
+
     // std::vector<vidType> get_transits() {return transits_order[transits_order.size() - 1];}
     // std::vector<vidType> get_transit_edges() {return transits_order[transits_order.size() - 2];}
     // int get_steps_taken() {return steps_taken;}

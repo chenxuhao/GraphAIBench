@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
   vector<vidType> col_idxs(cptrs, cptrs + g.E());
 
   Graph sub_g;
-  map<vidType, set<vidType>> parent_map;   // maps node to set of parents
+  map<vidType, set<vidType>> parent_map;   // maps parent to children
 
   int root_size = sample_size(-1);
   // create number of samples
@@ -49,11 +49,11 @@ int main(int argc, char* argv[]) {
       if (sampling_type() == Individual) {
         for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
           int i = gen() % root_size;
-          vidType t = sample_g.get_roots()[i];
+          vidType t = sample_g.get_transits()[i];
           vector<vidType> t_edges = sample_g.prev_edges(1, i);
           vidType new_t = sample_next(&sample_g, t, t_edges, step);
-          parent_map[new_t].insert(t);
-          if (!is_directed()) { parent_map[t].insert(new_t); }
+          parent_map[t].insert(new_t);
+          if (!is_directed()) { parent_map[new_t].insert(t); }
         }
       }
       else if (sampling_type() == Collective) {;

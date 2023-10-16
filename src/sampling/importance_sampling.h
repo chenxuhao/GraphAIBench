@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "graph.h"
 #include "samplegraph.h"
+#include "sampling_utils.h"
 #include <random>
 std::mt19937 gen(time(nullptr));
 std::default_random_engine generator;
@@ -13,9 +14,13 @@ std::uniform_real_distribution<float> distribution(0.0,1.0);
  *
 */
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
-    int e_idx = gen() % src_edges.size();
-    vidType v = src_edges[e_idx];
-    s->replace_root(transits[0], v);
+    vidType v = gen() % s->get_graph()->num_vertices();
+    for (auto trn: transits) {
+        if (s->get_graph()->is_connected(v, trn)) {
+            s->add_edge(trn, v);
+            if (!is_directed()) s->add_edge(v, trn);
+        }
+    }
     return v;
 }
 
@@ -30,8 +35,7 @@ inline int steps() {
  * For given step, return number of samples to take. Step of -1 for original sapmle transits
 */
 inline int sample_size(int step) {
-    if (step == -1) return 4;
-    return 1;
+    return 2;
 }
 
 
@@ -51,12 +55,12 @@ inline bool unique(int step) {
  * Type of transit sampling
 */
 inline SamplingType sampling_type() {
-    return Individual;
+    return Collective;
 }
 
 /**
  * Returns transit vertex for a sample at a given step and position
 */
 inline vidType step_transits(int step, Sample* s, int transit_idx) {
-    return s->get_transits()[transit_idx];
+    return s->prev_vertex(1, transit_idx);
 }

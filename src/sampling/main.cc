@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
   vector<vidType> col_idxs(cptrs, cptrs + g.E());
 
   Graph sub_g;
-  map<vidType, set<vidType>> parent_map;   // maps node to set of parents
+  map<vidType, set<vidType>> parent_map;   // maps parent to children
 
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
@@ -53,8 +53,8 @@ int main(int argc, char* argv[]) {
           // for (auto e: old_t_edges) cout << "Old transit edge: " << e << endl;
           vidType new_t = sample_next(&sample_g, old_t, old_t_edges, step);
           new_transits.push_back(new_t);
-          parent_map[new_t].insert(old_t[0]);
-          if (!is_directed()) { parent_map[old_t[0]].insert(new_t); }
+          parent_map[old_t[0]].insert(new_t);
+          if (!is_directed()) { parent_map[new_t].insert(old_t[0]); }
         }
       }
       else if (sampling_type() == Collective) {;
