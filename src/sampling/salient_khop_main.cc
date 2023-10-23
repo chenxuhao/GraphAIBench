@@ -2,7 +2,7 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
-#include "khop.h"
+#include "salient_khop.h"
 using namespace std;
 
 inline std::vector<uint32_t> get_initial_sample(uint64_t seeds_size, uint64_t graph_size);

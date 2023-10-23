@@ -2,20 +2,11 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
+#include "sampling_utils.h"
 #include "node2vec.h"
 #include "samplegraph.h"
-#include "sampling_utils.h"
 using namespace std;
 
-inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step);
-inline bool is_directed();
-inline int steps();
-inline int sample_size(int step);
-inline int num_samples();
-// inline bool unique(int step); assuming always false for now
-inline SamplingType sampling_type();
-inline vidType step_transits(int step, Sample* s, int transit_idx);
-inline vector<vidType> get_initial_transits(uint64_t seeds_size, uint64_t graph_size);
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
@@ -39,6 +30,7 @@ int main(int argc, char* argv[]) {
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
     std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample_g(inits, &g);
 
     // continue sampling for defined number of steps

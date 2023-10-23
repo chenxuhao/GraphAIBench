@@ -41,6 +41,7 @@ int main(int argc, char* argv[]) {
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
     std::vector<vidType> inits = get_initial_transits(root_size, g.V());
+    for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample_g(inits, &g);
 
     // continue sampling for defined number of steps

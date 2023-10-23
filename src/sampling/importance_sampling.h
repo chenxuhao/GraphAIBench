@@ -16,12 +16,15 @@
 */
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
     vidType v = gen() % s->get_graph()->num_vertices();
+    // bool connected = false;
     for (auto trn: transits) {
         if (s->get_graph()->is_connected(v, trn)) {
             s->add_edge(trn, v);
+            // connected = true;
             if (!is_directed()) s->add_edge(v, trn);
         }
     }
+    // if (connected) return v;
     return v;
 }
 
