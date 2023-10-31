@@ -7,33 +7,27 @@
 #include "samplegraph.h"
 using namespace std;
 
-void OMP_Sample(Graph &g);
-int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    cout << "Usage: " << argv[0] << " <graph>"
-              << "[num_gpu(1)] [chunk_size(1024)]\n";
-    cout << "Example: " << argv[0] << " ../inputs/cora/graph\n";
-    exit(1);
+
+void OMP_Sample(Graph &g) {
+  int num_threads = 1;
+  #pragma omp parallel
+  {
+    num_threads = omp_get_num_threads();
   }
-
-
-  // create graph and retrieve node/edge data
-  Graph g(argv[1], 0, 0, 0, 0, 0);
-  eidType* rptrs = g.rowptr();
-  vector<eidType> row_ptrs(rptrs, rptrs + g.V());
-  row_ptrs.push_back(g.E());
-  vidType* cptrs = g.colidx();
-  vector<vidType> col_idxs(cptrs, cptrs + g.E());
+  std::cout << "OpenMP Graph Sampling (" << num_threads << " threads)\n";
 
   Graph sub_g;
   map<vidType, set<vidType>> parent_map;   // maps parent to children
 
+  omp_lock_t parentlock;
+
+  omp_init_lock(&parentlock);
+
   Timer t;
   t.Start();
-  // create number of samples
+  #pragma omp parallel for schedule(dynamic, 1)
   for (int s = 0; s < num_samples(); s++) {
     std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
-    // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample_g(inits, &g);
 
     // continue sampling for defined number of steps
@@ -44,12 +38,12 @@ int main(int argc, char* argv[]) {
           int old_t_idx = t_idx % sample_size(step-1);
           vector<vidType> old_t = {sample_g.prev_vertex(1, old_t_idx)};
           vector<vidType> old_t_edges = sample_g.prev_edges(1, old_t_idx);
-          // cout << "Old transit: " << old_t[0] << endl;
-          // for (auto e: old_t_edges) cout << "Old transit edge: " << e << endl;
           vidType new_t = sample_next(&sample_g, old_t, old_t_edges, step);
           new_transits.push_back(new_t);
+          omp_set_lock(&parentlock);
           parent_map[old_t[0]].insert(new_t);
           if (!is_directed()) { parent_map[new_t].insert(old_t[0]); }
+          omp_unset_lock(&parentlock);
         }
       }
       else if (sampling_type() == Collective) {;
@@ -61,6 +55,7 @@ int main(int argc, char* argv[]) {
     }
   }
   t.Stop();
+  omp_destroy_lock(&parentlock);
 
   cout << "Finished sampling in " << t.Seconds() << " sec" << endl;
   // for (auto p: parent_map) cout << p.first << ": " << p.second.size() << endl;
@@ -84,18 +79,5 @@ int main(int argc, char* argv[]) {
       sub_g.constructEdge(offset++, new_id_map[e]);
     }
   }
-  cout << "New sampled subgraph: |V| " << sub_g.V() << " |E| " << sub_g.E() << endl;
-  // for (auto m: new_id_map) cout << m.first << " " << m.second << endl;
-  // cout << "nv: " << sub_g.num_vertices() << ", ne: " << sub_g.num_edges() << endl;
-  // cout << "VERTICES:" << endl;
-  // for (int i = 0; i <= sub_g.num_vertices(); i++) {
-  //   cout << sub_g.rowptr()[i] << endl;
-  // }
-  // cout << "EDGES:" << endl;
-  // for (int i = 0; i < sub_g.num_edges(); i++) {
-  //   cout << sub_g.colidx()[i] << endl;
-  // }
-
-  OMP_Sample(g);
-  return 0;
+  return;
 };

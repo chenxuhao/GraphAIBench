@@ -62,7 +62,7 @@ inline int sample_size(int step) {
 
 
 inline int num_samples() {
-    return 2;
+    return 32;
 }
 
 

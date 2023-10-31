@@ -6,9 +6,9 @@
 #include "samplegraph.h"
 #include <random>
 
-std::mt19937 gen(time(nullptr));
-std::default_random_engine generator;
-std::uniform_real_distribution<float> distribution(0.0,1.0);
+static std::mt19937 gen(time(nullptr));
+static std::default_random_engine generator;
+static std::uniform_real_distribution<float> distribution(0.0,1.0);
 
 /**
  * Creates the initial seeds.
