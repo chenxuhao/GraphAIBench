@@ -2,8 +2,11 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
+// #include <cilk/cilk.h>
+// #include <cilk/cilk_api.h>
+// #include <omp.h>
 #include "sampling_utils.h"
-#include "khop.h"
+#include "node2vec.h"
 #include "samplegraph.h"
 using namespace std;
 
@@ -26,6 +29,19 @@ int main(int argc, char* argv[]) {
 
   Graph sub_g;
   map<vidType, set<vidType>> parent_map;   // maps parent to children
+
+  // int world_rank, world_size;
+
+  // MPI_Init(NULL, NULL); // initialize MPI library
+
+  // MPI_Comm_size(MPI_COMM_WORLD, &size); // get number of processes
+  // MPI_Comm_rank(MPI_COMM_WORLD, &rank); // get my process id
+
+  // int num_tasks = num_samples();
+  // int ntasks_per_rank = num_tasks / world_size + (num_tasks % world_size != 0); // ceiling division
+  // int begin = ntasks_per_rank * world_rank;
+  // int end = ntasks_per_rank * (world_rank+1);
+  // if (end > num_tasks) end = num_tasks;
 
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
@@ -57,6 +73,8 @@ int main(int argc, char* argv[]) {
       sample_g.add_transits(new_transits);
     }
   }
+
+  // MPI_Finalize();
 
   cout << "Finished sampling" << endl;
   for (auto p: parent_map) cout << p.first << ": " << p.second.size() << endl;

@@ -1,4 +1,5 @@
 include ../common.mk
+# INCLUDES+=-I$(CILK_CLANG)/include
 #OBJS += verifier.o
 all: $(OBJS) sample_omp_base
 
