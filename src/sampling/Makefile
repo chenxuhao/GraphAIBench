@@ -2,8 +2,8 @@ include ../common.mk
 #OBJS += verifier.o
 all: $(OBJS) sample_omp_base
 
-sample_gpu_base: gpu_base.o $(OBJS)
-	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)
+node2vec_gpu_base: node2vec_gpu_base.o $(OBJS)
+	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) node2vec_gpu_base.o -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 sample_gpu_warp: gpu_warp.o $(OBJS)
