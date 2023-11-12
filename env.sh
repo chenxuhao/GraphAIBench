@@ -1,5 +1,6 @@
 #export LD_LIBRARY_PATH=/usr/local/OpenBLAS/build/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/usr/local/cuda-11.3/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+# export LD_LIBRARY_PATH=/usr/local/cuda-11.3/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=/sw/spack/delta-2022-03/apps/cuda/11.6.1-gcc-11.2.0-vglutoe/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 export KMP_AFFINITY=scatter
 export KMP_LIBRARY=turnaround
 export KMP_BLOCKTIME=0
@@ -23,4 +24,4 @@ export GCC_HOME=/usr/lib/gcc/x86_64-linux-gnu/8
 export CILK_HOME=/home/cxh/OpenCilk/build
 export CILK_CLANG=/home/cxh/OpenCilk/build/lib/clang/14.0.6
 
-export DATASET_PATH=/home/adrian/Documents/git/GraphAIBench/inputs/
+export DATASET_PATH=/u/qlao/repos/GraphAIBench/inputs/
