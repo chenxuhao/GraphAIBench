@@ -15,6 +15,8 @@
  * 
 */
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
+    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
     int idx = gen() % src_edges.size();
     return src_edges[idx];
 }

@@ -2,30 +2,17 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
+#include "cilk.h"
+#include "cilk_api.h"
 #include "sampling_utils.h"
 #include "khop.h"
 #include "samplegraph.h"
 using namespace std;
 
 
-// void OMP_Sample(Graph &g);
-// void CILK_Sample(Graph &g);
-int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    cout << "Usage: " << argv[0] << " <graph>"
-              << "[num_gpu(1)] [chunk_size(1024)]\n";
-    cout << "Example: " << argv[0] << " ../inputs/cora/graph\n";
-    exit(1);
-  }
-
-
-  // create graph and retrieve node/edge data
-  Graph g(argv[1], 0, 0, 0, 0, 0);
-  eidType* rptrs = g.rowptr();
-  vector<eidType> row_ptrs(rptrs, rptrs + g.V());
-  row_ptrs.push_back(g.E());
-  vidType* cptrs = g.colidx();
-  vector<vidType> col_idxs(cptrs, cptrs + g.E());
+void CILK_Sample(Graph &g) {
+  int num_threads = __cilkrts_get_nworkers();
+  std::cout << "Cilk Graph Sampling (" << num_threads << " threads)\n";
 
   Graph sub_g;
   vector<Sample> samples;
@@ -50,12 +37,12 @@ int main(int argc, char* argv[]) {
   for (int step = 0; step < steps(); step++) {
     step_count *= sample_size(step);
     if (sampling_type() == Individual) {
-      // sample every new transit in the step for every sample group
-      for (int idx = 0; idx < step_count * num_samples(); idx++) {
+      // sample every new transit in the step for every sample group in parallel
+      #pragma grainsize = 1
+      cilk_for (int idx = 0; idx < step_count * num_samples(); idx++) {
         int t_idx = idx % step_count;
         Sample* sample_g = &samples[idx / step_count]; 
         int old_t_idx = t_idx / sample_size(step);
-        cout << "sample idx: " << idx / step_count << ", t_idx: " << t_idx << ", old_t_idx: " << old_t_idx << endl;
         vector<vidType> old_t = {sample_g->prev_vertex(1, old_t_idx)};
         if (old_t[0] == (numeric_limits<uint32_t>::max)()) {
           sample_g->write_transit(t_idx, (numeric_limits<uint32_t>::max)());
@@ -80,18 +67,6 @@ int main(int argc, char* argv[]) {
   }
   t.Stop();
 
-  // for (auto& s: samples) {
-  //   cout << "NEW SAMPLE~~~~~~~~~~~~~~~~~~" << endl;
-  //   vector<vector<vidType>> t_order = s.get_transits_order();
-  //   for (uint step = 0; step < t_order.size(); step++) {
-  //     cout << "[ ";
-  //     vector<vidType> layer = t_order[step];
-  //     for (uint l = 0; l < layer.size(); l++) {
-  //       cout << layer[l] << " ";
-  //     }
-  //     cout << "]" << endl;
-  //   }
-  // }
 
   map<vidType, set<vidType>> parent_map;   // maps parent to children
   for (auto sample_g: samples) {
@@ -121,6 +96,8 @@ int main(int argc, char* argv[]) {
   eidType offsets = 0;
   unordered_map<vidType, vidType> new_id_map;
   for (auto old_n: parent_map) { new_id_map[old_n.first] = new_idx++; }
+  // for (auto m: new_id_map) cout << m.first << " " << m.second << endl;
+  // cout << "EDGES: " << endl;
   for (auto old_n: parent_map) {
     offsets += old_n.second.size();
     sub_g.fixEndEdge(new_id_map[old_n.first], offsets);
@@ -131,23 +108,5 @@ int main(int argc, char* argv[]) {
     }
   }
   cout << "New sampled subgraph: |V| " << sub_g.V() << " |E| " << sub_g.E() << endl;
-  // cout << "old idx to new idx mapping" << endl;
-  // cout << "{ ";
-  // for (auto m: new_id_map) cout << m.first << ": " << m.second << ", ";
-  // cout << "}" << endl;
-  // cout << "nv: " << sub_g.num_vertices() << ", ne: " << sub_g.num_edges() << endl;
-  // cout << "rowptrs: [ ";
-  // for (int i = 0; i <= sub_g.num_vertices(); i++) {
-  //   cout << sub_g.rowptr()[i] << " ";
-  // }
-  // cout << "]" << endl;
-  // cout << "colptrs: [ ";
-  // for (int i = 0; i < sub_g.num_edges(); i++) {
-  //   cout << sub_g.colidx()[i] << " ";
-  // }
-  // cout << "]" << endl;
-
-  // OMP_Sample(g);
-  // CILK_Sample(g);
-  return 0;
+  return;
 };
