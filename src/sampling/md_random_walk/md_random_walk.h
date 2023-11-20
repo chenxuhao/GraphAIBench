@@ -17,7 +17,7 @@
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
     int e_idx = gen() % src_edges.size();
     vidType v = src_edges[e_idx];
-    s->replace_root(transits[0], v);
+    s->copy_transits();
     return v;
 }
 
