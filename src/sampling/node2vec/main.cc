@@ -7,7 +7,8 @@
 #include "samplegraph.h"
 using namespace std;
 
-void OMP_Sample(Graph &g);
+// void OMP_Sample(Graph &g);
+void CILK_Sample(Graph &g);
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     cout << "Usage: " << argv[0] << " <graph>"
@@ -26,7 +27,7 @@ int main(int argc, char* argv[]) {
   vector<vidType> col_idxs(cptrs, cptrs + g.E());
 
   Graph sub_g;
-  map<vidType, set<vidType>> parent_map;   // maps parent to children
+  vector<Sample> samples;
 
   Timer t;
   t.Start();
@@ -34,33 +35,78 @@ int main(int argc, char* argv[]) {
   for (int s = 0; s < num_samples(); s++) {
     std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
-    Sample sample_g(inits, &g);
-
-    // continue sampling for defined number of steps
+    Sample sample(inits, &g);
+    int step_count = sample_size(-1);
     for (int step = 0; step < steps(); step++) {
-      vector<vidType> new_transits;
-      if (sampling_type() == Individual) {
-        for (int t_idx = 0; t_idx < sample_size(step) * sample_size(step-1); t_idx++) {
-          int old_t_idx = t_idx % sample_size(step-1);
-          vector<vidType> old_t = {sample_g.prev_vertex(1, old_t_idx)};
-          vector<vidType> old_t_edges = sample_g.prev_edges(1, old_t_idx);
-          // cout << "Old transit: " << old_t[0] << endl;
-          // for (auto e: old_t_edges) cout << "Old transit edge: " << e << endl;
-          vidType new_t = sample_next(&sample_g, old_t, old_t_edges, step);
-          new_transits.push_back(new_t);
-          parent_map[old_t[0]].insert(new_t);
-          if (!is_directed()) { parent_map[new_t].insert(old_t[0]); }
+      step_count *= sample_size(step);
+      sample.allocate_layer(step_count);
+    }
+    samples.push_back(sample);
+  }
+
+  // sample for defined number of steps
+  int step_count = sample_size(-1);
+  for (int step = 0; step < steps(); step++) {
+    step_count *= sample_size(step);
+    if (sampling_type() == Individual) {
+      // sample every new transit in the step for every sample group
+      for (int idx = 0; idx < step_count * num_samples(); idx++) {
+        int t_idx = idx % step_count;
+        Sample* sample_g = &samples[idx / step_count]; 
+        int old_t_idx = t_idx / sample_size(step);
+        vector<vidType> old_t = {sample_g->prev_vertex(1, old_t_idx)};
+        if (old_t[0] == (numeric_limits<uint32_t>::max)()) {
+          sample_g->write_transit(t_idx, (numeric_limits<uint32_t>::max)());
+          continue;
         }
+        vector<vidType> old_t_edges = sample_g->prev_edges(1, old_t_idx);
+        vidType new_t = (numeric_limits<uint32_t>::max)();
+        if (old_t_edges.size() != 0) { 
+          new_t = sample_next(sample_g, old_t, old_t_edges, step);
+        }
+        sample_g->write_transit(t_idx, new_t);
       }
-      else if (sampling_type() == Collective) {;
-        // for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
-        //   ;
-        // }
-      }
-      sample_g.add_transits(new_transits);
+    }
+    else if (sampling_type() == Collective) {;
+      // for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
+      //   ;
+      // }
+    }
+    for (auto& s: samples) { 
+      s.increment_filled_layer();
     }
   }
   t.Stop();
+
+  // for (auto& s: samples) {
+  //   cout << "NEW SAMPLE~~~~~~~~~~~~~~~~~~" << endl;
+  //   vector<vector<vidType>> t_order = s.get_transits_order();
+  //   for (uint step = 0; step < t_order.size(); step++) {
+  //     cout << "[ ";
+  //     vector<vidType> layer = t_order[step];
+  //     for (uint l = 0; l < layer.size(); l++) {
+  //       cout << layer[l] << " ";
+  //     }
+  //     cout << "]" << endl;
+  //   }
+  // }
+
+  map<vidType, set<vidType>> parent_map;   // maps parent to children
+  for (auto sample_g: samples) {
+    int step_count = sample_size(-1);
+    vector<vector<vidType>> t_order = sample_g.get_transits_order();
+    for (int step = 0; step < steps(); step++) {
+      step_count *= sample_size(step);
+      for (int t_idx = 0; t_idx < step_count; t_idx++) {
+        int old_t_idx = t_idx / sample_size(step);
+        vidType parent = t_order[step][old_t_idx];
+        vidType child = t_order[step+1][t_idx];
+        if (parent == (numeric_limits<uint32_t>::max)() || child == (numeric_limits<uint32_t>::max)()) { continue; }
+        parent_map[t_order[step][old_t_idx]].insert(t_order[step+1][t_idx]);
+        if (!is_directed()) { parent_map[t_order[step+1][t_idx]].insert(t_order[step][old_t_idx]); }
+      }
+    }
+  }
 
   cout << "Finished sampling in " << t.Seconds() << " sec" << endl;
   // for (auto p: parent_map) cout << p.first << ": " << p.second.size() << endl;
@@ -96,6 +142,7 @@ int main(int argc, char* argv[]) {
   //   cout << sub_g.colidx()[i] << endl;
   // }
 
-  OMP_Sample(g);
+  // OMP_Sample(g);
+  CILK_Sample(g);
   return 0;
 };

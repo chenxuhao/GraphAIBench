@@ -40,6 +40,8 @@ inline vidType rejection_smpl(vidType v, vector<vidType> v_edges, vidType t, vec
  * 
 */
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
+    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
     vidType t = s->prev_vertex(2, 0);
     vector<vidType> t_edges = s->prev_edges(2, 0);
     float p = 2.0, q = 0.5;
@@ -50,7 +52,7 @@ inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> 
  * Number of steps in the random walk
 */
 inline int steps() {
-    return 3;
+    return 1;
 }
 
 /**

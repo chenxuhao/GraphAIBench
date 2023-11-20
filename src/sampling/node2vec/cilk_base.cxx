@@ -2,20 +2,17 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
-#include <omp.h>
+#include "cilk.h"
+#include "cilk_api.h"
 #include "sampling_utils.h"
 #include "node2vec.h"
 #include "samplegraph.h"
 using namespace std;
 
 
-void OMP_Sample(Graph &g) {
-  int num_threads = 1;
-  #pragma omp parallel
-  {
-    num_threads = omp_get_num_threads();
-  }
-  std::cout << "OpenMP Graph Sampling (" << num_threads << " threads)\n";
+void CILK_Sample(Graph &g) {
+  int num_threads = __cilkrts_get_nworkers();
+  std::cout << "Cilk Graph Sampling (" << num_threads << " threads)\n";
 
   Graph sub_g;
   vector<Sample> samples;
@@ -41,8 +38,8 @@ void OMP_Sample(Graph &g) {
     step_count *= sample_size(step);
     if (sampling_type() == Individual) {
       // sample every new transit in the step for every sample group in parallel
-      #pragma omp parallel for schedule(dynamic, 1)
-      for (int idx = 0; idx < step_count * num_samples(); idx++) {
+      #pragma grainsize = 1
+      cilk_for (int idx = 0; idx < step_count * num_samples(); idx++) {
         int t_idx = idx % step_count;
         Sample* sample_g = &samples[idx / step_count]; 
         int old_t_idx = t_idx / sample_size(step);
@@ -69,6 +66,7 @@ void OMP_Sample(Graph &g) {
     }
   }
   t.Stop();
+
 
   map<vidType, set<vidType>> parent_map;   // maps parent to children
   for (auto sample_g: samples) {
