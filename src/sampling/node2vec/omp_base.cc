@@ -9,7 +9,7 @@
 using namespace std;
 
 
-void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<uint_fast32_t>> &random_inits) {
+void OMP_Sample(Graph &g) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -22,7 +22,7 @@ void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vec
 
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
-    std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V(), random_inits[s]);
+    vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample(inits, &g);
     int step_count = sample_size(-1);

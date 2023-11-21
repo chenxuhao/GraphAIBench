@@ -11,10 +11,17 @@
 // std::uniform_real_distribution<float> distribution(0.0,1.0);
 
 
+inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
+    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
+    int idx = gen() % src_edges.size();
+    return src_edges[idx];
+}
+
 /**
  * 
 */
-inline tuple<vidType, uint_fast32_t> sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+inline tuple<vidType, uint_fast32_t> sample_next_store(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
     if (transits[0] == (numeric_limits<uint32_t>::max)()) { return {(numeric_limits<uint32_t>::max)(), 0}; }
     if (src_edges.size() == 0) { return {(numeric_limits<uint32_t>::max)(), 0}; }
     uint_fast32_t rand_idx = gen();

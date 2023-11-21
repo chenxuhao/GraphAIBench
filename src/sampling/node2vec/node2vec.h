@@ -31,6 +31,7 @@ inline vidType rejection_smpl(vidType v, vector<vidType> v_edges, vidType t, vec
     float y = distribution(generator) * Q_v;
     while (y > P_d[e]) {
         x = distribution(generator) * v_edges.size();
+        e = floor(x);
         y = distribution(generator) * Q_v;
     }
     return v_edges[e];
@@ -39,7 +40,7 @@ inline vidType rejection_smpl(vidType v, vector<vidType> v_edges, vidType t, vec
 /**
  * 
 */
-inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step, uint_fast32_t random_n) {
+inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
     if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
     if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
     vidType t = s->prev_vertex(2, 0);
@@ -87,31 +88,4 @@ inline SamplingType sampling_type() {
 */
 inline vidType step_transits(int step, Sample* s, int transit_idx) {
     return s->prev_vertex(1, transit_idx);
-}
-
-
-inline vector<vector<uint_fast32_t>> generate_randoms() {
-    vector<vector<uint_fast32_t>> random_nums;
-    int num_steps = sample_size(-1);
-    for (int step = 0; step < steps(); step++) {
-        num_steps *= sample_size(step);
-        vector<uint_fast32_t> per_step;
-        for (int idx = 0; idx < num_steps * num_samples(); idx++) {
-            per_step.push_back(gen());
-        }
-        random_nums.push_back(per_step);
-    }
-    return random_nums;
-}
-
-inline vector<vector<uint_fast32_t>> generate_init_randoms() {
-    vector<vector<uint_fast32_t>> init_rands;
-    for (int s = 0; s < num_samples(); s++) {
-        vector<uint_fast32_t> per_sample;
-        for (int n = 0; n < sample_size(-1); n++) {
-            per_sample.push_back(gen());
-        }
-        init_rands.push_back(per_sample);
-    }
-    return init_rands;
 }
