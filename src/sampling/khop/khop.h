@@ -14,10 +14,18 @@
 /**
  * 
 */
-inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+inline tuple<vidType, uint_fast32_t> sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return {(numeric_limits<uint32_t>::max)(), 0}; }
+    if (src_edges.size() == 0) { return {(numeric_limits<uint32_t>::max)(), 0}; }
+    uint_fast32_t rand_idx = gen();
+    int idx = rand_idx % src_edges.size();
+    return {src_edges[idx], rand_idx};
+}
+
+inline vidType sample_next_fixed(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step, uint_fast32_t rand_idx) {
     if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
     if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
-    int idx = gen() % src_edges.size();
+    int idx = rand_idx % src_edges.size();
     return src_edges[idx];
 }
 
@@ -32,7 +40,9 @@ inline int steps() {
  * For given step, return number of samples to take. Step of -1 for original sapmle transits
 */
 inline int sample_size(int step) {
-    if (step == -1) return 3;
+    // if (step == -1) return 100;
+    // return 25;
+    if (step == -1) return 2;
     return 2;
 }
 
@@ -62,3 +72,4 @@ inline SamplingType sampling_type() {
 inline vidType step_transits(int step, Sample* s, int transit_idx) {
     return s->prev_vertex(1, transit_idx);
 }
+

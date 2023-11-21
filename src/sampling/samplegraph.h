@@ -12,29 +12,42 @@ class Sample {
 protected:
     std::unordered_map<vidType, std::set<vidType>> edges; // parent mapping only for importance sampling
     std::vector<std::vector<vidType>> transits_order;
-    // int steps_taken;
+    int filled_layers;
     Graph* g;
 
 public:
     Sample(std::vector<vidType> inits, Graph* graph) {
         transits_order.push_back(inits);
-        // std::unordered_map<vidType, vidType> inits_map;
         g = graph;
-        // steps_taken = 0;
-        // node should never be a parent of itself, so this is default check
-        // for (auto t: inits) inits_map[t] = t;
-        // transits.push_back(inits_map);
+        filled_layers = 1;
     };
 
+    void allocate_layer(int num_transits) {
+        std::vector<vidType> layer(num_transits, 0);
+        transits_order.push_back(layer);
+    }
+
+    void increment_filled_layer() {
+        filled_layers++;
+    }
+
+    int get_layer_count() {
+        return filled_layers;
+    }
+
+    void write_transit(int pos, vidType t_value) {
+        transits_order[filled_layers][pos] = t_value;
+    }
+
     vidType prev_vertex(int i, int pos) {
-        int step = transits_order.size() - i;
+        int step = filled_layers - i;
         if (step < 0) return prev_vertex(1, pos);
-        int transit = transits_order[step][pos];
+        vidType transit = transits_order[step][pos];
         return transit;
     }
 
     std::vector<vidType> prev_edges(int i, int pos) {
-        int step = transits_order.size() - i;
+        int step = filled_layers - i;
         if (step < 0) return prev_edges(1, pos);
         int transit = transits_order[step][pos];
         eidType edge_begin = g->edge_begin(transit);
@@ -46,24 +59,23 @@ public:
         return edges;
     }
 
-    void add_transits(std::vector<vidType> new_ts) { transits_order.push_back(new_ts); }
+    // void add_transits(std::vector<vidType> new_ts) { transits_order.push_back(new_ts); }
 
     // root functions only for multidimensional random walks
     std::vector<vidType> get_transits() {
-        int step = transits_order.size() - 1;
+        int step = filled_layers - 1;
         if (step < 0) return transits_order[0];
         return transits_order[step];
     }
 
     Graph* get_graph() { return g; }
 
-    void replace_root(vidType old_r, vidType new_r) {
+    void copy_transits() {
+        int idx = 0;
         std::vector<vidType> new_roots;
         for (auto r: get_transits()) {
-            if (r == old_r) new_roots.push_back(new_r);
-            else new_roots.push_back(r);
+            write_transit(idx++, r);
         }
-        transits_order.push_back(new_roots);
     }
 
     // only for importance sampling
@@ -72,7 +84,7 @@ public:
     }
 
     std::unordered_map<vidType, std::set<vidType>> get_edges() { return edges; }
-
+    std::vector<std::vector<vidType>> get_transits_order() { return transits_order; }
     // std::vector<vidType> get_transits() {return transits_order[transits_order.size() - 1];}
     // std::vector<vidType> get_transit_edges() {return transits_order[transits_order.size() - 2];}
     // int get_steps_taken() {return steps_taken;}
