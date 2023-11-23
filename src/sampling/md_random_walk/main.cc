@@ -9,6 +9,9 @@ using namespace std;
 
 void OMP_Sample(Graph &g);
 // void CILK_Sample(Graph &g);
+// CHECK FIXED RANDOMS
+// void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<uint_fast32_t>> &random_ts, vector<vector<vidType>> &random_inits);
+// void CILK_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<uint_fast32_t>> &random_ts, vector<vector<vidType>> &random_inits);
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     cout << "Usage: " << argv[0] << " <graph>"
@@ -26,14 +29,19 @@ int main(int argc, char* argv[]) {
   vidType* cptrs = g.colidx();
   vector<vidType> col_idxs(cptrs, cptrs + g.E());
 
+  // CHECK FIXED RANDOMS
+  // vector<vector<uint_fast32_t>> random_nums;
+  // vector<vector<vidType>> random_inits;
+  // vector<vector<uint_fast32_t>> random_ts;
+
   Graph sub_g;
   vector<Sample> samples;
 
-  Timer t;
-  t.Start();
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
-    std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    // CHECK FIXED RANDOMS
+    // random_inits.push_back(inits);
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample(inits, &g);
     int step_count = sample_size(-1);
@@ -44,11 +52,20 @@ int main(int argc, char* argv[]) {
     samples.push_back(sample);
   }
 
+  Timer t;
+  t.Start();
   // sample for defined number of steps
   for (int step = 0; step < steps(); step++) {
     if (sampling_type() == Individual) {
       // sample every new transit in the step for every sample group
+      // CHECK FIXED RANDOMS
+      // allocate_transits(random_nums, step_count * num_samples());
+      // allocate_transits(random_ts, step_count * num_samples());
       for (int idx = 0; idx < num_samples(); idx++) {
+        // CHECK FIXED RANDOMS
+        // uint_fast32_t random_t = gen();
+        // random_ts[step][idx] = random_t;
+        // int t_idx = random_t % sample_size(-1);
         int t_idx = gen() % sample_size(-1);
         Sample* sample_g = &samples[idx]; 
         int old_t_idx = t_idx;
@@ -60,6 +77,10 @@ int main(int argc, char* argv[]) {
         vector<vidType> old_t_edges = sample_g->prev_edges(1, old_t_idx);
         vidType new_t = (numeric_limits<uint32_t>::max)();
         if (old_t_edges.size() != 0) { 
+          // CHECK FIXED RANDOMS
+          // uint_fast32_t rand_idx;
+          // tie(new_t, rand_idx) = sample_next_store(sample_g, old_t, old_t_edges, step);
+          // random_nums[step][idx] = rand_idx;
           new_t = sample_next(sample_g, old_t, old_t_edges, step);
         }
         sample_g->write_transit(t_idx, new_t);
@@ -148,5 +169,8 @@ int main(int argc, char* argv[]) {
 
   OMP_Sample(g);
   // CILK_Sample(g);
+  // CHECK FIXED RANDOMS
+  // OMP_Sample(g, random_nums, random_ts, random_inits);
+  // CILK_Sample(g, random_nums, random_ts, random_inits);
   return 0;
 };

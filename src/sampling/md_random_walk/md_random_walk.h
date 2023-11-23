@@ -15,7 +15,25 @@
  *
 */
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
     int e_idx = gen() % src_edges.size();
+    vidType v = src_edges[e_idx];
+    s->copy_transits();
+    return v;
+}
+
+inline tuple<vidType, uint_fast32_t> sample_next_store(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    if (src_edges.size() == 0) { return {(numeric_limits<uint32_t>::max)(), 0}; }
+    uint_fast32_t rand_idx = gen();
+    int e_idx = rand_idx % src_edges.size();
+    vidType v = src_edges[e_idx];
+    s->copy_transits();
+    return {v, rand_idx};
+}
+
+inline vidType sample_next_fixed(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step, uint_fast32_t rand_idx) {
+    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
+    int e_idx = rand_idx % src_edges.size();
     vidType v = src_edges[e_idx];
     s->copy_transits();
     return v;

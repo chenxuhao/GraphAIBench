@@ -11,6 +11,8 @@ using namespace std;
 
 
 void CILK_Sample(Graph &g) {
+// CHECK FIXED RANDOMS
+// void CILK_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<uint_fast32_t>> &random_ts, vector<vector<vidType>> &random_inits) {
   int num_threads = __cilkrts_get_nworkers();
   std::cout << "Cilk Graph Sampling (" << num_threads << " threads)\n";
 
@@ -21,7 +23,9 @@ void CILK_Sample(Graph &g) {
   t.Start();
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
-    std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    // CHECK FIXED RANDOMS
+    // vector<vidType> inits = random_inits[s];
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample(inits, &g);
     int step_count = sample_size(-1);
@@ -38,6 +42,8 @@ void CILK_Sample(Graph &g) {
       // sample every new transit in the step for every sample group
       #pragma grainsize = 1;
       cilk_for (int idx = 0; idx < num_samples(); idx++) {
+        // CHECK FIXED RANDOMS
+        // int t_idx = random_ts[step][idx] % sample_size(-1);
         int t_idx = gen() % sample_size(-1);
         Sample* sample_g = &samples[idx]; 
         int old_t_idx = t_idx;
@@ -50,6 +56,9 @@ void CILK_Sample(Graph &g) {
         vidType new_t = (numeric_limits<uint32_t>::max)();
         if (old_t_edges.size() != 0) { 
           new_t = sample_next(sample_g, old_t, old_t_edges, step);
+          // CHECK FIXED RANDOMS
+          // uint_fast32_t rand_n = random_nums[step][idx];
+          // new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);
         }
         sample_g->write_transit(t_idx, new_t);
       }

@@ -10,6 +10,8 @@ using namespace std;
 
 
 void OMP_Sample(Graph &g) {
+// CHECK FIXED RANDOMS
+// void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<uint_fast32_t>> &random_ts, vector<vector<vidType>> &random_inits) {
   int num_threads = 1;
   #pragma omp parallel
   {
@@ -24,7 +26,9 @@ void OMP_Sample(Graph &g) {
   t.Start();
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
-    std::vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    // CHECK FIXED RANDOMS
+    // std::vector<vidType> inits = random_inits[s];
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample(inits, &g);
     int step_count = sample_size(-1);
@@ -40,6 +44,8 @@ void OMP_Sample(Graph &g) {
       // sample every new transit in the step for every sample group
       #pragma omp parallel for schedule(dynamic, 1)
       for (int idx = 0; idx < num_samples(); idx++) {
+        // CHECK FIXED RANDOMS
+        // int t_idx = random_ts[step][idx] % sample_size(-1);
         int t_idx = gen() % sample_size(-1);
         Sample* sample_g = &samples[idx]; 
         int old_t_idx = t_idx;
@@ -51,6 +57,9 @@ void OMP_Sample(Graph &g) {
         vector<vidType> old_t_edges = sample_g->prev_edges(1, old_t_idx);
         vidType new_t = (numeric_limits<uint32_t>::max)();
         if (old_t_edges.size() != 0) { 
+          // CHECK FIXED RANDOMS
+          // uint_fast32_t rand_n = random_nums[step][idx];
+          // new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);
           new_t = sample_next(sample_g, old_t, old_t_edges, step);
         }
         sample_g->write_transit(t_idx, new_t);
