@@ -17,14 +17,25 @@
 inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
     vidType v = gen() % s->get_graph()->num_vertices();
     // bool connected = false;
-    for (auto trn: transits) {
-        if (s->get_graph()->is_connected(v, trn)) {
-            s->add_edge(trn, v);
-            // connected = true;
-            if (!is_directed()) s->add_edge(v, trn);
-        }
-    }
+    // for (auto trn: transits) {
+    //     if (s->get_graph()->is_connected(v, trn)) {
+    //         s->add_edge(trn, v);
+    //         // connected = true;
+    //         if (!is_directed()) s->add_edge(v, trn);
+    //     }
+    // }
     // if (connected) return v;
+    return v;
+}
+
+inline tuple<vidType, uint_fast32_t> sample_next_store(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
+    uint_fast32_t rand_idx = gen();
+    vidType v = rand_idx % s->get_graph()->num_vertices();
+    return {v, rand_idx};
+}
+
+inline vidType sample_next_fixed(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step, uint_fast32_t rand_idx) {
+    vidType v = rand_idx % s->get_graph()->num_vertices();
     return v;
 }
 

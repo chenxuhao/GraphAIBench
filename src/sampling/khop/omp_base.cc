@@ -21,8 +21,6 @@ void OMP_Sample(Graph &g) {
   Graph sub_g;
   vector<Sample> samples;
 
-  Timer t;
-  t.Start();
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
     vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
@@ -38,6 +36,8 @@ void OMP_Sample(Graph &g) {
     samples.push_back(sample);
   }
 
+  Timer t;
+  t.Start();
   // sample for defined number of steps
   int step_count = sample_size(-1);
   for (int step = 0; step < steps(); step++) {

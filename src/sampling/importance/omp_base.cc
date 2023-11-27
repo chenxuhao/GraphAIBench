@@ -2,45 +2,30 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
+#include <omp.h>
 #include "sampling_utils.h"
 #include "importance_sampling.h"
 #include "samplegraph.h"
 using namespace std;
 
-
-// void OMP_Sample(Graph &g);
-// void CILK_Sample(Graph &g);
+// void OMP_Sample(Graph &g) {
 // CHECK FIXED RANDOMS
-void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits);
-// void CILK_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits);
-int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    cout << "Usage: " << argv[0] << " <graph>"
-              << "[num_gpu(1)] [chunk_size(1024)]\n";
-    cout << "Example: " << argv[0] << " ../inputs/cora/graph\n";
-    exit(1);
+void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits) {
+  int num_threads = 1;
+  #pragma omp parallel
+  {
+    num_threads = omp_get_num_threads();
   }
-
-  // create graph and retrieve node/edge data
-  Graph g(argv[1], 0, 0, 0, 0, 0);
-  eidType* rptrs = g.rowptr();
-  vector<eidType> row_ptrs(rptrs, rptrs + g.V());
-  row_ptrs.push_back(g.E());
-  vidType* cptrs = g.colidx();
-  vector<vidType> col_idxs(cptrs, cptrs + g.E());
-
-  // CHECK FIXED RANDOMS
-  vector<vector<uint_fast32_t>> random_nums;
-  vector<vector<vidType>> random_inits;
+  std::cout << "OpenMP Graph Sampling (" << num_threads << " threads)\n";
 
   Graph sub_g;
   vector<Sample> samples;
 
   // create number of samples
   for (int s = 0; s < num_samples(); s++) {
-    vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
+    // vector<vidType> inits = get_initial_transits(sample_size(-1), g.V());
     // CHECK FIXED RANDOMS
-    random_inits.push_back(inits);
+    std::vector<vidType> inits = random_inits[s];
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample(inits, &g);
     for (int step = 0; step < steps(); step++) {
@@ -57,8 +42,6 @@ int main(int argc, char* argv[]) {
         //;
     }
     else if (sampling_type() == Collective) {;
-      // CHECK FIXED RANDOMS
-      allocate_transits(random_nums, sample_size(step) * num_samples());
       for (int idx = 0; idx < sample_size(step) * num_samples(); idx++) {
         int t_idx = idx % sample_size(step);
         Sample* sample_g = &samples[idx / sample_size(step)]; 
@@ -66,10 +49,8 @@ int main(int argc, char* argv[]) {
         vector<vidType> old_t_edges = {};
         // vidType new_t = sample_next(sample_g, old_t, old_t_edges, step);
         // CHECK FIXED RANDOMS
-        uint_fast32_t rand_idx;
-        vidType new_t;
-        tie(new_t, rand_idx) = sample_next_store(sample_g, old_t, old_t_edges, step);
-        random_nums[step][idx] = rand_idx;
+        uint_fast32_t rand_n = random_nums[step][idx];
+        vidType new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);
         sample_g->write_transit(t_idx, new_t);
       }
     }
@@ -94,16 +75,18 @@ int main(int argc, char* argv[]) {
 
   map<vidType, set<vidType>> parent_map;   // maps parent to children
   for (auto sample_g: samples) {
+    int step_count = sample_size(-1);
     vector<vector<vidType>> t_order = sample_g.get_transits_order();
     for (int step = 0; step < steps(); step++) {
-      for (auto child: t_order[step+1]) {
-        for (auto parent: t_order[step]) {
-          if (parent == child) { continue; }
-          if (sample_g.get_graph()->is_connected(child, parent)) {
-            parent_map[parent].insert(child);
-            if (!is_directed()) { parent_map[child].insert(parent); }
-          }
-        }
+      step_count *= sample_size(step);
+      for (int t_idx = 0; t_idx < step_count; t_idx++) {
+        int old_t_idx = t_idx / sample_size(step);
+        vidType parent = t_order[step][old_t_idx];
+        vidType child = t_order[step+1][t_idx];
+        if (parent == (numeric_limits<uint32_t>::max)() || child == (numeric_limits<uint32_t>::max)()) { continue; }
+        if (parent == child) { continue; }
+        parent_map[t_order[step][old_t_idx]].insert(t_order[step+1][t_idx]);
+        if (!is_directed()) { parent_map[t_order[step+1][t_idx]].insert(t_order[step][old_t_idx]); }
       }
     }
   }
@@ -119,6 +102,8 @@ int main(int argc, char* argv[]) {
   eidType offsets = 0;
   unordered_map<vidType, vidType> new_id_map;
   for (auto old_n: parent_map) { new_id_map[old_n.first] = new_idx++; }
+  // for (auto m: new_id_map) cout << m.first << " " << m.second << endl;
+  // cout << "EDGES: " << endl;
   for (auto old_n: parent_map) {
     offsets += old_n.second.size();
     sub_g.fixEndEdge(new_id_map[old_n.first], offsets);
@@ -129,26 +114,5 @@ int main(int argc, char* argv[]) {
     }
   }
   cout << "New sampled subgraph: |V| " << sub_g.V() << " |E| " << sub_g.E() << endl;
-  // cout << "old idx to new idx mapping" << endl;
-  // cout << "{ ";
-  // for (auto m: new_id_map) cout << m.first << ": " << m.second << ", ";
-  // cout << "}" << endl;
-  // cout << "nv: " << sub_g.num_vertices() << ", ne: " << sub_g.num_edges() << endl;
-  // cout << "rowptrs: [ ";
-  // for (int i = 0; i <= sub_g.num_vertices(); i++) {
-  //   cout << sub_g.rowptr()[i] << " ";
-  // }
-  // cout << "]" << endl;
-  // cout << "colptrs: [ ";
-  // for (int i = 0; i < sub_g.num_edges(); i++) {
-  //   cout << sub_g.colidx()[i] << " ";
-  // }
-  // cout << "]" << endl;
-
-  // OMP_Sample(g);
-  // CILK_Sample(g);
-  // CHECK FIXED RANDOMS
-  OMP_Sample(g, random_nums, random_inits);
-  // CILK_Sample(g, random_nums, random_inits);
-  return 0;
+  return;
 };

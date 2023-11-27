@@ -2,22 +2,18 @@
 // writing on a text file
 #include <iostream>
 #include <fstream>
-#include <omp.h>
+#include "cilk.h"
+#include "cilk_api.h"
 #include "sampling_utils.h"
-#include "md_random_walk.h"
+#include "importance_sampling.h"
 #include "samplegraph.h"
 using namespace std;
 
-
-// void OMP_Sample(Graph &g) {
+// void CILK_Sample(Graph &g) {
 // CHECK FIXED RANDOMS
-void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<uint_fast32_t>> &random_ts, vector<vector<vidType>> &random_inits) {
-  int num_threads = 1;
-  #pragma omp parallel
-  {
-    num_threads = omp_get_num_threads();
-  }
-  std::cout << "OpenMP Graph Sampling (" << num_threads << " threads)\n";
+void CILK_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits) {
+  int num_threads = __cilkrts_get_nworkers();
+  std::cout << "Cilk Graph Sampling (" << num_threads << " threads)\n";
 
   Graph sub_g;
   vector<Sample> samples;
@@ -29,65 +25,37 @@ void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vec
     vector<vidType> inits = random_inits[s];
     // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
     Sample sample(inits, &g);
-    int step_count = sample_size(-1);
     for (int step = 0; step < steps(); step++) {
-      step_count *= sample_size(step);
-      sample.allocate_layer(step_count);
+      sample.allocate_layer(sample_size(step));
     }
     samples.push_back(sample);
   }
 
   Timer t;
   t.Start();
+  // sample for defined number of steps
   for (int step = 0; step < steps(); step++) {
     if (sampling_type() == Individual) {
-      // sample every new transit in the step for every sample group
-      #pragma omp parallel for schedule(dynamic, 1)
-      for (int idx = 0; idx < num_samples(); idx++) {
-        // CHECK FIXED RANDOMS
-        int t_idx = random_ts[step][idx] % sample_size(-1);
-        // int t_idx = gen() % sample_size(-1);
-        Sample* sample_g = &samples[idx]; 
-        int old_t_idx = t_idx;
-        vector<vidType> old_t = {sample_g->prev_vertex(1, old_t_idx)};
-        if (old_t[0] == (numeric_limits<uint32_t>::max)()) {
-          sample_g->write_transit(t_idx, (numeric_limits<uint32_t>::max)());
-          continue;
-        }
-        vector<vidType> old_t_edges = sample_g->prev_edges(1, old_t_idx);
-        vidType new_t = (numeric_limits<uint32_t>::max)();
-        if (old_t_edges.size() != 0) { 
-          // CHECK FIXED RANDOMS
-          uint_fast32_t rand_n = random_nums[step][idx];
-          new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);
-          // new_t = sample_next(sample_g, old_t, old_t_edges, step);
-        }
-        sample_g->write_transit(t_idx, new_t);
-      }
+        //;
     }
     else if (sampling_type() == Collective) {;
-      // for (int t_idx = 0; t_idx < sample_size(step); t_idx++) {
-      //   ;
-      // }
+      for (int idx = 0; idx < sample_size(step) * num_samples(); idx++) {
+        int t_idx = idx % sample_size(step);
+        Sample* sample_g = &samples[idx / sample_size(step)]; 
+        vector<vidType> old_t = sample_g->get_transits();
+        vector<vidType> old_t_edges = {};
+        vidType new_t = sample_next(sample_g, old_t, old_t_edges, step);
+        // CHECK FIXED RANDOMS
+        // uint_fast32_t rand_n = random_nums[step][idx];
+        // vidType new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);
+        sample_g->write_transit(t_idx, new_t);
+      }
     }
     for (auto& s: samples) { 
       s.increment_filled_layer();
     }
   }
   t.Stop();
-
-  for (auto& s: samples) {
-    cout << "NEW SAMPLE~~~~~~~~~~~~~~~~~~" << endl;
-    vector<vector<vidType>> t_order = s.get_transits_order();
-    for (uint step = 0; step < t_order.size(); step++) {
-      cout << "[ ";
-      vector<vidType> layer = t_order[step];
-      for (uint l = 0; l < layer.size(); l++) {
-        cout << layer[l] << " ";
-      }
-      cout << "]" << endl;
-    }
-  }
 
   map<vidType, set<vidType>> parent_map;   // maps parent to children
   for (auto sample_g: samples) {
