@@ -4,7 +4,7 @@ VPATH+=../../common
 BIN = ../../../bin
 INCLUDES+=-I$(CILK_CLANG)/include/cilk
 #OBJS += verifier.o
-all: $(OBJS) khop_omp_base
+all: $(OBJS) khop_cilk_base
 
 khop_base: $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) -o $@ -lgomp

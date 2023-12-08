@@ -12,19 +12,31 @@ class Sample {
 protected:
     std::unordered_map<vidType, std::set<vidType>> edges; // parent mapping only for importance sampling
     std::vector<std::vector<vidType>> transits_order;
+    std::vector<vidType> all_transits;
     int filled_layers;
     Graph* g;
 
 public:
-    Sample(std::vector<vidType> inits, Graph* graph) {
-        transits_order.push_back(inits);
+    Sample(int num, Graph* graph) {
+        // transits_order.push_back(inits);
+        // g = graph;
+        // filled_layers = 1;
+        allocate_transits(num);
         g = graph;
-        filled_layers = 1;
     };
 
     void allocate_layer(int num_transits) {
         std::vector<vidType> layer(num_transits, 0);
         transits_order.push_back(layer);
+    }
+
+    void allocate_transits(int num) {
+        std::vector<vidType> empty_transits(num, 0);
+        all_transits = empty_transits;
+    }
+
+    void add_inits(vector<vidType> inits) {
+        for (int i = 0; i < inits.size(); i++) { all_transits[i] = inits[i]; }
     }
 
     void increment_filled_layer() {
@@ -36,15 +48,27 @@ public:
     }
 
     void write_transit(int pos, vidType t_value) {
-        transits_order[filled_layers][pos] = t_value;
+        // transits_order[filled_layers][pos] = t_value;
+        all_transits[pos] = t_value;
     }
 
     vidType prev_vertex(int i, int pos) {
-        int step = filled_layers - i;
-        if (step < 0) return prev_vertex(1, pos);
-        vidType transit = transits_order[step][pos];
-        return transit;
+        // int step = filled_layers - i;
+        // if (step < 0) return prev_vertex(1, pos);
+        // vidType transit = transits_order[step][pos];
+        // return transit;
+        return all_transits[pos];
     }
+
+
+    vidType prev_vertex_degree(int i, vidType v) {
+        // int step = filled_layers - i;
+        // if (step < 0) return prev_vertex_degree(1, pos);
+        // int transit = transits_order[step][pos];
+        // return g->out_degree(transit);
+        return g->out_degree(v);
+    }
+
 
     std::vector<vidType> prev_edges(int i, int pos) {
         int step = filled_layers - i;
@@ -66,6 +90,10 @@ public:
         int step = filled_layers - 1;
         if (step < 0) return transits_order[0];
         return transits_order[step];
+    }
+
+    std::vector<vidType> get_all_transits() {
+        return all_transits;
     }
 
     Graph* get_graph() { return g; }

@@ -11,11 +11,11 @@
 // std::uniform_real_distribution<float> distribution(0.0,1.0);
 
 
-inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
-    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
-    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
-    int idx = gen() % src_edges.size();
-    return src_edges[idx];
+inline vidType sample_next(Sample &s, vidType transit, vidType src_degree, int step) {
+    if (transit == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
+    if (src_degree == 0) { return (numeric_limits<uint32_t>::max)(); }
+    int idx = gen() % src_degree;
+    return s.get_graph()->N(transit, idx);
 }
 
 /**
@@ -47,15 +47,17 @@ inline int steps() {
  * For given step, return number of samples to take. Step of -1 for original sapmle transits
 */
 inline int sample_size(int step) {
-    // if (step == -1) return 100;
-    // return 25;
-    if (step == -1) return 2;
-    return 2;
+    if (step == -1) return 1;
+    if (step == 0) return 25;
+    return 10;
+    // if (step == -1) return 2;
+    // return 2;
 }
 
 
 inline int num_samples() {
-    return 2;
+    return 40000;
+    // return 2;
 }
 
 

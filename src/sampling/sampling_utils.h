@@ -18,13 +18,17 @@ static std::uniform_real_distribution<float> distribution(0.0,1.0);
  * @return vector containing node ids
 */
 inline vector<vidType> get_initial_transits(vidType seeds_size, vidType graph_size) {
-  set<vidType> node_ids;
+  // set<vidType> node_ids;
+  // vector<vidType> n_ids;
+  // while (node_ids.size() < seeds_size) {
+  //   auto sample_id = gen() % graph_size;
+  //   node_ids.insert(sample_id);
+  // }
+  // n_ids.insert(n_ids.end(), node_ids.begin(), node_ids.end());
   vector<vidType> n_ids;
-  while (node_ids.size() < seeds_size) {
-    auto sample_id = gen() % graph_size;
-    node_ids.insert(sample_id);
+  for (int i = 0; i < seeds_size; i++) {
+    n_ids.push_back(gen() % graph_size);
   }
-  n_ids.insert(n_ids.end(), node_ids.begin(), node_ids.end());
   return n_ids;
 }
 
