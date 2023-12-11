@@ -8,24 +8,26 @@
 #include "samplegraph.h"
 using namespace std;
 
-void OMP_Sample(Graph &g) {
+void OMP_Sample(Graph &g, int n_samples, int n_threads) {
 // CHECK FIXED RANDOMS
 // void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits) {
   int num_threads = 1;
+  omp_set_num_threads(n_threads);
   #pragma omp parallel
   {
     num_threads = omp_get_num_threads();
+
   }
   std::cout << "OpenMP Graph Sampling (" << num_threads << " threads)\n";
 
   Graph sub_g;
 
   // create number of samples
-  vector<vidType> inits = get_initial_transits(sample_size(-1) * num_samples(), g.V());
+  vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
   // CHECK FIXED RANDOMS
   // std::vector<vidType> inits = random_inits[s];
   // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
-  int step_count = sample_size(-1) * num_samples();
+  int step_count = sample_size(-1) * n_samples;
   int total_count = step_count;
   for (int step = 0; step < steps(); step++) {
     step_count *= sample_size(step);
@@ -37,8 +39,8 @@ void OMP_Sample(Graph &g) {
   Timer t;
   t.Start();
   // sample for defined number of steps
-  step_count = sample_size(-1) * num_samples();
-  int prev_step_count = num_samples();
+  step_count = sample_size(-1) * n_samples;
+  int prev_step_count = n_samples;
   int t_begin = 0;
   int old_t_begin = 0;
   for (int step = 0; step < steps(); step++) {
@@ -47,7 +49,7 @@ void OMP_Sample(Graph &g) {
     prev_step_count *= sample_size(step-1);
     if (sampling_type() == Individual) {
       // sample every new transit in the step for every sample group in parallel
-      #pragma omp parallel for schedule(dynamic, 1)
+      #pragma omp parallel for
       for (int idx = 0; idx < step_count; idx++) {
         int t_idx = t_begin + idx;
         int old_t_idx = old_t_begin + idx / sample_size(step);
@@ -59,7 +61,7 @@ void OMP_Sample(Graph &g) {
         vidType old_t_degree = sample.prev_vertex_degree(1, old_t);
         vidType new_t = (numeric_limits<uint32_t>::max)();
         if (old_t_degree != 0) { 
-          new_t = sample_next(&sample, old_t, old_t_degree, step);
+          new_t = sample_next(sample, old_t, old_t_degree, step);
           // CHECK FIXED RANDOMS
           // uint_fast32_t rand_n = random_nums[step][idx];
           // new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);

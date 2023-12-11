@@ -8,8 +8,8 @@
 using namespace std;
 
 
-// void OMP_Sample(Graph &g);
-void CILK_Sample(Graph &g);
+void OMP_Sample(Graph &g, int n_samples, int n_threads);
+// void CILK_Sample(Graph &g, int n_samples);
 // CHECK FIXED RANDOMS
 // void OMP_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits);
 // void CILK_Sample(Graph &g, vector<vector<uint_fast32_t>> &random_nums, vector<vector<vidType>> &random_inits);
@@ -21,6 +21,8 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
+  int n_samples = argc >= 3 ? atoi(argv[2]) : num_samples();
+  int n_threads = argc >= 4 ? atoi(argv[3]) : 1;
   // create graph and retrieve node/edge data
   Graph g(argv[1], 0, 0, 0, 0, 0);
   eidType* rptrs = g.rowptr();
@@ -36,11 +38,11 @@ int main(int argc, char* argv[]) {
   Graph sub_g;
 
   // create number of samples
-  vector<vidType> inits = get_initial_transits(sample_size(-1) * num_samples(), g.V());
+  vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
   // CHECK FIXED RANDOMS
   // random_inits.push_back(inits);
   // for (auto init: inits) cout << "Sample " << s << " initial sample: " << init << endl;
-  int step_count = sample_size(-1) * num_samples();
+  int step_count = sample_size(-1) * n_samples;
   int total_count = step_count;
   for (int step = 0; step < steps(); step++) {
     step_count *= sample_size(step);
@@ -52,8 +54,8 @@ int main(int argc, char* argv[]) {
   Timer t;
   t.Start();
   // sample for defined number of steps
-  step_count = sample_size(-1) * num_samples();
-  int prev_step_count = num_samples();
+  step_count = sample_size(-1) * n_samples;
+  int prev_step_count = n_samples;
   int t_begin = 0;
   int old_t_begin = 0;
   for (int step = 0; step < steps(); step++) {
@@ -63,7 +65,7 @@ int main(int argc, char* argv[]) {
     if (sampling_type() == Individual) {
       // sample every new transit in the step for every sample group
       // CHECK FIXED RANDOMS
-      // allocate_transits(random_nums, step_count * num_samples());
+      // allocate_transits(random_nums, step_count * n_samples);
       for (int idx = 0; idx < step_count; idx++) {
         int t_idx = t_begin + idx;
         int old_t_idx = old_t_begin + idx / sample_size(step);
@@ -162,8 +164,8 @@ int main(int argc, char* argv[]) {
   // }
   // cout << "]" << endl;
 
-  // OMP_Sample(g);
-  CILK_Sample(g);
+  OMP_Sample(g, n_samples, n_threads);
+  // CILK_Sample(g, int n_samples);
   // CHECK FIXED RANDOMS
   // OMP_Sample(g, random_nums, random_inits);
   // CILK_Sample(g, random_nums, random_inits);
