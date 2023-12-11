@@ -15,6 +15,7 @@ inline vidType sample_next(Sample &s, vidType transit, vidType src_degree, int s
     if (transit == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
     if (src_degree == 0) { return (numeric_limits<uint32_t>::max)(); }
     int idx = gen() % src_degree;
+    // int idx = 1;
     return s.get_graph()->N(transit, idx);
 }
 
@@ -29,11 +30,12 @@ inline tuple<vidType, uint_fast32_t> sample_next_store(Sample* s, vector<vidType
     return {src_edges[idx], rand_idx};
 }
 
-inline vidType sample_next_fixed(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step, uint_fast32_t rand_idx) {
-    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
-    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
-    int idx = rand_idx % src_edges.size();
-    return src_edges[idx];
+inline vidType sample_next_fixed(Sample &s, vidType transit, vidType src_degree, int step, uint_fast32_t rand_idx) {
+    if (transit == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
+    if (src_degree == 0) { return (numeric_limits<uint32_t>::max)(); }
+    int idx = rand_idx % src_degree;
+    // int idx = 1;
+    return s.get_graph()->N(transit, idx);
 }
 
 /**
