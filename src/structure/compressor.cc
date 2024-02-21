@@ -2,9 +2,18 @@
 #include "scan.h"
 #include "cgr_encoder.hh"
 #include "vbyte_encoder.hh"
+#include <fstream>
 //#include "hybrid_encoder.hh"
 
 #define CHECKPOINT 50000000
+
+
+void copy_meta_file(std::string in_prefix, std::string out_prefix) {
+    std::ifstream  src(in_prefix + ".meta.txt", std::ios::binary);
+    std::ofstream  dst(out_prefix + ".meta.txt", std::ios::binary);
+    dst << src.rdbuf();
+}
+
 
 void Compressor::write_compressed_graph() {
   if (scheme == "cgr")
@@ -19,6 +28,7 @@ void Compressor::compute_ptrs() {
   t.Start();
   rowptr.resize(g->V()+1);
   rowptr[0] = 0;
+  // if (scheme == "cgr" && !word_aligned) {
   if (!word_aligned) {
     assert (scheme == "cgr");
     #pragma omp parallel for
@@ -255,96 +265,98 @@ void printusage() {
        <<                                                          " [-a alignment(0)]\n";
 }
 
-int main(int argc,char *argv[]) {
-  int zeta_k = 2, permutate = 0, degree_threshold = 32;
-  int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
-  bool reverse = false; // reverse hybrid scheme: low-degree vbyte; high-degree unary
-  bool use_interval = false; // use interval for CGR format
-  bool use_segment = false;
-  std::string scheme = "cgr";
-  int c;
-  while ((c = getopt(argc, argv, "s:z:igrpa:d:h")) != -1) {
-    switch (c) {
-      case 's':
-        scheme = optarg;
-        break;
-      case 'z':
-        zeta_k = atoi(optarg);
-        break;
-      case 'i':
-        use_interval = true;
-        break;
-      case 'g':
-        use_segment = true;
-        break;
-      case 'r':
-        reverse = true;
-        break;
-      case 'p':
-        permutate = 1;
-        break;
-      case 'a':
-        alignment = atoi(optarg);
-        break;
-      case 'd':
-        degree_threshold = atoi(optarg);
-        break;
-      case 'h':
-        printusage();
-        return 0;
-      case '?': 
-        printf("unknown option: %c\n", optopt);
-        break;
-      default:
-        abort();
-    }
-  }
-  if (optind + 1 >= argc) {
-    printusage();
-    return -1;
-  }
-  if (use_interval && !use_segment) {
-    printf("Error: non-segmented interval is currently not supported\n");
-    exit(1);
-  }
+// int main(int argc,char *argv[]) {
+//   int zeta_k = 2, permutate = 0, degree_threshold = 32;
+//   int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
+//   bool reverse = false; // reverse hybrid scheme: low-degree vbyte; high-degree unary
+//   bool use_interval = false; // use interval for CGR format
+//   bool use_segment = false;
+//   std::string scheme = "cgr";
+//   int c;
+//   while ((c = getopt(argc, argv, "s:z:igrpa:d:h")) != -1) {
+//     switch (c) {
+//       case 's':
+//         scheme = optarg;
+//         break;
+//       case 'z':
+//         zeta_k = atoi(optarg);
+//         break;
+//       case 'i':
+//         use_interval = true;
+//         break;
+//       case 'g':
+//         use_segment = true;
+//         break;
+//       case 'r':
+//         reverse = true;
+//         break;
+//       case 'p':
+//         permutate = 1;
+//         break;
+//       case 'a':
+//         alignment = atoi(optarg);
+//         break;
+//       case 'd':
+//         degree_threshold = atoi(optarg);
+//         break;
+//       case 'h':
+//         printusage();
+//         return 0;
+//       case '?': 
+//         printf("unknown option: %c\n", optopt);
+//         break;
+//       default:
+//         abort();
+//     }
+//   }
+//   if (optind + 1 >= argc) {
+//     printusage();
+//     return -1;
+//   }
+//   if (use_interval && !use_segment) {
+//     printf("Error: non-segmented interval is currently not supported\n");
+//     exit(1);
+//   }
  
-  GraphTy g(argv[optind]);
-  g.print_meta_data();
+//   GraphTy g(argv[optind]);
+//   g.print_meta_data();
 
-  bool use_unary = (scheme == "cgr" || scheme == "hybrid");
-  std::cout << "Using the " << scheme << " compression scheme\n";
-  if (scheme == "vbyte") {
-    if (alignment != 2) {
-      std::cout << "vbyte scheme must be word-aligned\n";
-      exit(1);
-    }
-  }
-  if (scheme == "hybrid") {
-    if (!permutate) {
-      std::cout << "hybrid scheme must be permutated\n";
-      exit(1);
-    }
-    if (alignment != 2) {
-      std::cout << "hybrid scheme must be word-aligned\n";
-      exit(1);
-    }
-    std::cout << "degree_threshold = " << degree_threshold << "\n";
-  }
+//   bool use_unary = (scheme == "cgr" || scheme == "hybrid");
+//   std::cout << "Using the " << scheme << " compression scheme\n";
+//   if (scheme == "streamvbyte") {
+//     if (alignment != 2) {
+//       std::cout << "vbyte scheme must be word-aligned\n";
+//       exit(1);
+//     }
+//   }
+//   if (scheme == "hybrid") {
+//     if (!permutate) {
+//       std::cout << "hybrid scheme must be permutated\n";
+//       exit(1);
+//     }
+//     if (alignment != 2) {
+//       std::cout << "hybrid scheme must be word-aligned\n";
+//       exit(1);
+//     }
+//     std::cout << "degree_threshold = " << degree_threshold << "\n";
+//   }
 
-  bool pre_encode = g.V() > 1000000;
-  unary_encoder *encoder = NULL;
-  if (use_unary)
-    encoder = new cgr_encoder(g.V(), zeta_k, pre_encode, use_interval, use_segment);
-  Compressor compressor(scheme, argv[optind+1], use_unary, &g, encoder, permutate, degree_threshold, alignment);
-  std::cout << "start compression ...\n";
-  compressor.compress(pre_encode, reverse);
-  compressor.print_stats();
-  std::cout << "writing compressed graph to disk ...\n";
-  compressor.write_compressed_graph();
-  if (scheme == "hybrid") {
-    std::cout << "Start writing degrees (hybrid scheme only) to disk ...\n";
-    compressor.write_degrees();
-  } 
-  std::cout << "compression completed!\n";
-  return 0;
-}
+//   bool pre_encode = g.V() > 1000000;
+//   unary_encoder *encoder = NULL;
+//   if (use_unary)
+//     encoder = new cgr_encoder(g.V(), zeta_k, pre_encode, use_interval, use_segment);
+//   Compressor compressor(scheme, argv[optind+1], use_unary, &g, encoder, permutate, degree_threshold, alignment);
+//   std::cout << "start compression ...\n";
+//   compressor.compress(pre_encode, reverse);
+//   compressor.print_stats();
+//   std::cout << "writing compressed graph to disk ...\n";
+//   compressor.write_compressed_graph();
+//   if (scheme == "hybrid") {
+//     std::cout << "Start writing degrees (hybrid scheme only) to disk ...\n";
+//     compressor.write_degrees();
+//   } 
+//   std::cout << "compression completed!\n";
+//   copy_meta_file(argv[optind], argv[optind+1]);
+//   std::cout << "meta file copied over\n";
+//   return 0;
+// }

@@ -13,6 +13,7 @@
 template<> void GraphT<>::load_compressed_graph(std::string prefix, std::string scheme, bool permutated) {
   // read meta information
   read_meta_info(prefix);
+  std::cout << max_degree << " " << n_vertices << std::endl;
   assert(max_degree > 0 && max_degree < n_vertices);
   std::cout << "Reading compressed graph: |V| " << n_vertices << " |E| " << n_edges << "\n";
   VertexSet::MAX_DEGREE = std::max(max_degree, VertexSet::MAX_DEGREE);

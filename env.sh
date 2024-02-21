@@ -20,7 +20,7 @@ export MKL_DIR=/opt/apps/sysnet/intel/20.0/mkl
 #MKLROOT = /opt/intel/mkl
 
 export GCC_HOME=/usr/bin/gcc
-export CILK_HOME=/home/cxh/OpenCilk/build
-export CILK_CLANG=/home/cxh/OpenCilk/build/lib/clang/14.0.6
+export CILK_HOME=/projects/bbof/mcai1/OpenCilk/build
+export CILK_CLANG=/projects/bbof/mcai1/OpenCilk/build/lib/clang/14.0.6
 
 export DATASET_PATH=/home/cxh/datasets/automine/

@@ -1,8 +1,11 @@
 #pragma once
 #include "graph.h"
 #include "unary_encoder.hh"
+#include <fstream>
 
 typedef OutOfCoreGraph GraphTy;
+void copy_meta_file(std::string in_prefix, std::string out_prefix);
+
 
 class Compressor {
   std::string scheme;          // compression scheme: VByte or Binary Packing

@@ -1,4 +1,5 @@
 #include "graph.h"
+#include <omp.h>
 
 void TCSolver(Graph &g, uint64_t &total, std::string scheme, bool segmented);
 

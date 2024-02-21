@@ -33,6 +33,10 @@ void CILK_Sample(Graph &g, int n_samples) {
 
   Timer t;
   t.Start();
+  vector<uint_fast32_t> rand_gens(total_count, 0);
+  for (int i = 0; i < total_count; i++) {
+    rand_gens[i] = gen();
+  }
   // sample for defined number of steps
   step_count = sample_size(-1) * n_samples;
   int prev_step_count = n_samples;
@@ -58,7 +62,8 @@ void CILK_Sample(Graph &g, int n_samples) {
         vidType old_t_degree = sample.prev_vertex_degree(1, old_t);
         vidType new_t = (numeric_limits<uint32_t>::max)();
         if (old_t_degree != 0) { 
-          new_t = sample_next(sample, old_t, old_t_degree, step);
+          uint_fast32_t rand_n = rand_gens[t_idx];
+          new_t = sample_next_fixed(sample, old_t, old_t_degree, step, rand_n);
           // CHECK FIXED RANDOMS
           // uint_fast32_t rand_n = random_nums[step][idx];
           // new_t = sample_next_fixed(sample_g, old_t, old_t_edges, step, rand_n);

@@ -1,5 +1,5 @@
 #pragma once
-#include <omp.h>
+// #include <omp.h>
 #include <math.h>
 #include <stdio.h>
 #include <fcntl.h>

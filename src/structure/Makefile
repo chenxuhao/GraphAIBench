@@ -5,7 +5,9 @@ CGCUOBJS = graph_gpu_compressed.o cgr_decoder_gpu.o
 NVFLAGS += -dc
 CXXFLAGS += -Wno-narrowing
 #LIBS += $(SIMDCAI_LIB)
-INCLUDES += -I./gpu_kernels #$(SIMDCAI_INC)
+INCLUDES += -I./gpu_kernels -I$(CILK_CLANG)/include/cilk #$(SIMDCAI_INC)
+VPATH+=../common
+BIN = ../../bin
 all: compressor tc_omp_compressed tc_gpu_compressed
 
 compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o

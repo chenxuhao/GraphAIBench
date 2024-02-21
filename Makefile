@@ -1,4 +1,4 @@
-KERNELS = centrality components embedding link_analysis sampling triangle traversal
+KERNELS = centrality components embedding link_analysis sampling compress triangle traversal
 
 .PHONY: all
 all: $(KERNELS)

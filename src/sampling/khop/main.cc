@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
   // cout << "]" << endl;
 
   OMP_Sample(g, n_samples, n_threads);
-  // CILK_Sample(g, int n_samples);
+  // CILK_Sample(g, n_samples);
   // CHECK FIXED RANDOMS
   // OMP_Sample(g, random_nums, random_inits);
   // CILK_Sample(g, random_nums, random_inits);
