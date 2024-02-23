@@ -15,6 +15,30 @@ void copy_meta_file(std::string in_prefix, std::string out_prefix) {
 }
 
 
+void save_compressed_graph(std::string in_prefix, std::string out_prefix) {
+  int permutate = 0, degree_threshold = 32;
+  int alignment = 2; // 0: not aligned; 1: byte aligned; 2: word aligned
+  bool reverse = false; // reverse hybrid scheme: low-degree vbyte; high-degree unary
+  bool use_unary = false;
+  std::string scheme = "streamvbyte";
+
+  GraphTy g(in_prefix);
+  g.print_meta_data();
+
+  bool pre_encode = g.V() > 1000000;
+  unary_encoder *encoder = NULL;
+  Compressor compressor(scheme, out_prefix, use_unary, &g, encoder, permutate, degree_threshold, alignment);
+  std::cout << "start compression ...\n";
+  compressor.compress(pre_encode, reverse);
+  compressor.print_stats();
+  std::cout << "writing compressed graph to disk ...\n";
+  compressor.write_compressed_graph();
+  std::cout << "compression completed!\n";
+  copy_meta_file(in_prefix, out_prefix);
+  std::cout << "meta file copied over\n";
+}
+
+
 void Compressor::write_compressed_graph() {
   if (scheme == "cgr")
     write_compressed_edges_to_disk();

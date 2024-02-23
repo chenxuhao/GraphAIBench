@@ -57,7 +57,7 @@ int main(int argc,char *argv[]) {
   g.set_degree_threshold(degree_threshold);
   if (schemename == "decomp") // uncompressed graph
     g.load_graph(filename);
-  else
+  else 
     g.load_compressed_graph(filename, schemename, permutated);
   g.print_meta_data();
 

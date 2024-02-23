@@ -1,6 +1,7 @@
 // Copyright 2020 MIT
 // Authors: Xuhao Chen <cxh@mit.edu>
 #include "graph.h"
+#include <omp.h>
 
 // roots: root vertices, from which the sampling starts
 void sample(Graph &g, VertexList roots, Graph &subg) {

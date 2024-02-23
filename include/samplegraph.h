@@ -96,7 +96,9 @@ public:
         return all_transits;
     }
 
-    Graph* get_graph() { return g; }
+    Graph* get_graph() { 
+        return g; 
+        }
 
     void copy_transits() {
         int idx = 0;

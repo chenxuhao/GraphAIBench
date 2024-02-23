@@ -5,6 +5,7 @@
 
 typedef OutOfCoreGraph GraphTy;
 void copy_meta_file(std::string in_prefix, std::string out_prefix);
+void save_compressed_graph(std::string in_prefix, std::string out_prefix);
 
 
 class Compressor {

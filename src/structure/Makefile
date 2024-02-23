@@ -8,7 +8,7 @@ CXXFLAGS += -Wno-narrowing
 INCLUDES += -I./gpu_kernels -I$(CILK_CLANG)/include/cilk #$(SIMDCAI_INC)
 VPATH+=../common
 BIN = ../../bin
-all: compressor tc_omp_compressed tc_gpu_compressed
+all: tc_omp_compressed
 
 compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o unary_encoder.o cgr_encoder.o vbyte_encoder.o $(OBJS) -o $@ $(LIBS)

@@ -11,10 +11,14 @@ vpath %cc ../common
 vpath %cc ../structure
 # VPATH+=../common
 BIN = ../../bin
-all: main
+all: cpu_serial_khop cpu_omp_khop
 
-main: $(OBJS) $(CGOBJS) $(COBJS) compressor.o compress.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o compress.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
+cpu_serial_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_serial_khop.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o cpu_serial_khop.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
+cpu_omp_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_omp_khop.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o cpu_omp_khop.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
 compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o
@@ -22,4 +26,4 @@ compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o
 	mv $@ $(BIN)
 
 clean:
-	rm *.o
+	rm cpu_serial_khop.o cpu_omp_khop.o

@@ -11,9 +11,9 @@
 // std::uniform_real_distribution<float> distribution(0.0,1.0);
 
 inline vidType sample_next_vbyte(Sample &s, vidType transit) {
-    if (transit == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
     auto adj_transit = s.get_graph()->N_vbyte(transit, "streamvbyte");
     vidType src_degree = adj_transit.size();
+    if (src_degree == 0) { return (numeric_limits<uint32_t>::max)(); }
     int idx = gen() % src_degree;
     return adj_transit.data()[idx];
 }
