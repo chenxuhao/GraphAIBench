@@ -11,7 +11,7 @@ void kHopOMPSolver(Graph &g, int n_samples, int n_threads) {
   {
     num_threads = omp_get_num_threads();
   }
-  std::cout << "Begin OpenMP sampling (" << num_threads << ") compressed graph..." << std::endl;
+  std::cout << "Begin OpenMP sampling (" << num_threads << " threads) compressed graph..." << std::endl;
 
   // create number of samples
   vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
