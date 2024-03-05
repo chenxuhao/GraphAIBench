@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cooperative_groups;
 
-const int BLOCK_DIM = 32;
+// const int BLOCK_DIM = 32;
 // const vidType MAX_VIDTYPE = 0 - 1;
 
 
@@ -40,18 +40,20 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     int total_threads = pdeg;
     Timer alloc_t, sample_t, dealloc_t;
     int size = sizeof(vidType);
-    size_t nblocks = (g.V()-1)/WARPS_PER_BLOCK+1;
-    size_t num_per_block = WARPS_PER_BLOCK;
+    // size_t warps_per_block = total_threads / WARP_SIZE;
+    // size_t nblocks = (g.V()-1)/warps_per_block+1;
     for (int i = 0; i < cur_num; i++) {
         result[i] = initial[i];
     }
 
+    std::cout << "Allocating buffer for decompressed adjacency lists\n";
     alloc_t.Start();
-    allocate_gpu_buffer(size_t(g.get_max_degree()) * num_per_block * nblocks, buffer);
+    allocate_gpu_buffer(size_t(g.get_max_degree()) * total_threads, buffer);
     cudaMalloc((void **)&d_result, total_num * size);
     cudaMemcpy(d_result, result, cur_num * size, cudaMemcpyHostToDevice);
     alloc_t.Stop();
 
+    std::cout << "Starting sampling with " << total_threads << " threads...\n";
     sample_t.Start();
     int step_count = sample_size(-1) * n_samples;
     int prev_step_count = n_samples;
@@ -61,8 +63,8 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
         t_begin += step_count;
         step_count *= sample_size(step);
         prev_step_count *= sample_size(step-1);
-        int num_blocks = (step_count + BLOCK_DIM - 1) / BLOCK_DIM;
-        khop_sample<<<num_blocks,BLOCK_DIM>>>(gg, d_result, step, t_begin, old_t_begin, step_count, buffer, seed);
+        int num_blocks = (step_count + total_threads - 1) / total_threads;
+        khop_sample<<<num_blocks,total_threads>>>(gg, d_result, step, t_begin, old_t_begin, step_count, buffer, seed);
         cudaDeviceSynchronize();
         old_t_begin += prev_step_count;
     }
@@ -91,8 +93,9 @@ int main(int argc, char* argv[]) {
   // g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
 
-  int n_samples = argc >= 3 ? atoi(argv[3]) : num_samples();
-  int pdeg = argc >= 4 ? atoi(argv[4]) : 128;
+  int n_samples = argc >= 4 ? atoi(argv[3]) : num_samples();
+  int pdeg = argc >= 5 ? atoi(argv[4]) : BLOCK_SIZE;
+  std::cout << "block size: " << pdeg << "\n";
 
   double iElaps;
   vector<vidType> initial = get_initial_transits(sample_size(-1) * n_samples, g.V());
@@ -105,7 +108,7 @@ int main(int argc, char* argv[]) {
   vidType* result = new vidType[total_count];
   iElaps = multilayer_sample(g, initial, n_samples, total_count, result, pdeg);
 
-  cout << "Time elapsed " << iElaps << " sec\n\n";
+  cout << "Time elapsed for sampling " << iElaps << " sec\n\n";
   delete[] result;
 
   return 0;

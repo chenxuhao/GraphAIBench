@@ -16,10 +16,9 @@ __device__ int sample_size_gpu(int step) {
 
 template <int scheme = 0, bool delta = true, int pack_size = 4>
 __device__ vidType next_gpu(GraphTy &g, vidType transit, int thread_id, vidType *buffer, curandState state) {
-    int warp_id = thread_id / WARP_SIZE;
-    int num_warps = (BLOCK_SIZE / WARP_SIZE) * gridDim.x;
+    // int warp_id = thread_id / WARP_SIZE;
     vidType max_degree = g.get_max_degree();
-    vidType *adj_v = buffer + max_degree * warp_id;
+    vidType *adj_v = buffer + max_degree * thread_id;
     vidType src_degree = g.decode_vbyte_warp<scheme,delta,pack_size>(transit, adj_v);
     if (src_degree == 0) { return MAX_VIDTYPE; }
     int idx = (int)(ceil(curand_uniform(&state) * src_degree) - 1);
