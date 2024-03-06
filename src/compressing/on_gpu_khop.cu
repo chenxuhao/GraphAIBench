@@ -109,6 +109,15 @@ int main(int argc, char* argv[]) {
   iElaps = multilayer_sample(g, initial, n_samples, total_count, result, pdeg);
 
   cout << "Time elapsed for sampling " << iElaps << " sec\n\n";
+  std::cout << "results\n\n";
+  int curr = 0;
+  for (int step = 0; step < steps(); step++) {
+    std::cout << "\n";
+    for (int i = 0; i = sample_size(step); i++) {
+        std::cout << result[curr] << " ";
+        curr++;
+    }
+  }
   delete[] result;
 
   return 0;
