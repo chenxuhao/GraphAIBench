@@ -32,6 +32,8 @@ To run khop sampling in parallel using OpenMP, run
 ```
 
 ## Sampling on GPU
+Before sampling on gpu, make sure gpu are available. Check by running `nvidia-smi` and a table of gpu information should output if present. If not, run a slurm job to request. On delta, run the example under "Start a job" section located in this doc: https://docs.google.com/document/d/1MGrXJXV2Q9bgfStQuEVWpDxoJXdNE1hDCgldRVPdFaI/edit#heading=h.rp7lyrv7xmlt. The account name may need to be changed depending on permissions.
+
 ### allocating compressed graph onto gpu
 To run khop sampling on the gpu with the entire compressed graph stored on gpu memory, run
 ```
