@@ -69,8 +69,8 @@ int main(int argc, char* argv[]) {
   // g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
 
-  int n_samples = argc >= 3 ? atoi(argv[3]) : num_samples();
-  int n_threads = argc >= 4 ? atoi(argv[4]) : 1;
+  int n_samples = argc >= 4 ? atoi(argv[3]) : num_samples();
+  int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
   kHopOMPSolver(g, n_samples, n_threads);
   return 0;
 }
