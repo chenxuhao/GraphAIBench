@@ -14,7 +14,7 @@ The command to sample using any of the following methods below follows the same 
 ```
 Note that all our graphs are stored in csr format. Each graph requires 3 files: (1) <GRAPH_PREFIX>.meta.txt (2) <GRAPH_PREFIX>.vertex.bin (3) <GRAPH_PREFIX>.edge.bin
 
-The number of batches is how many initial transits our first khop layer starts with. Number of threads is for parallel and gpu sampling only (can omit for serial or just leave it). Other parameters of khop sampling such as expansion size per transit or number of layers can be directly edited in include/khop.h or include/khop_gpu.cuh (but make sure to change both to match for gpu code to work correctly!!).
+The number of batches is how many initial transits our first khop layer starts with. Number of threads is for parallel and gpu sampling only (can omit for serial or just leave it). Other parameters of khop sampling such as expansion size per transit or number of layers can be directly edited in include/sampling_utils.h or include/khop_gpu.cuh (but make sure to change both to match for gpu code to work correctly!!).
 
 An example command is provided for each of the following sampling methods below using the uk2007 graph with a batch size of 40000 and 64 threads (per block for gpu).
 

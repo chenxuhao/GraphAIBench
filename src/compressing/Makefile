@@ -33,4 +33,6 @@ compressor: $(OBJS) compressor.o cgr_encoder.o unary_encoder.o vbyte_encoder.o
 
 clean:
 	rm *.o
-	# rm cpu_serial_khop.o cpu_omp_khop.o on_gpu_khop.o
+
+main_clean:
+	rm cpu_serial_khop.o cpu_omp_khop.o on_gpu_khop.o

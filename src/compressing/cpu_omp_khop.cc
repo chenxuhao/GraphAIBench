@@ -21,8 +21,10 @@ void kHopOMPSolver(Graph &g, int n_samples, int n_threads) {
     step_count *= sample_size(step);
     total_count += step_count;
   }
-  Sample sample(total_count, &g);
-  sample.add_inits(inits);
+  std::vector<vidType> transits(total_count, 0);
+  for (int i = 0; i < inits.size(); i++) {
+    transits[i] = inits[i];
+  }
   std::cout << "...initialized starting transits..." << std::endl;
 
   Timer t;
@@ -42,13 +44,13 @@ void kHopOMPSolver(Graph &g, int n_samples, int n_threads) {
     for (int idx = 0; idx < step_count; idx++) {
       int t_idx = t_begin + idx;
       int old_t_idx = old_t_begin + idx / sample_size(step);
-      vidType old_t = sample.prev_vertex(1, old_t_idx);
+      vidType old_t = transits[old_t_idx];
       if (old_t == (numeric_limits<uint32_t>::max)()) {
-        sample.write_transit(t_idx, (numeric_limits<uint32_t>::max)());
+        transits[t_idx] = (numeric_limits<uint32_t>::max)();
         continue;
       }
-      vidType new_t = sample_next_vbyte(sample, old_t);
-      sample.write_transit(t_idx, new_t);
+      vidType new_t = sample_next_vbyte(g, old_t);
+      transits[t_idx] = new_t;
     }
     old_t_begin += prev_step_count;
   }

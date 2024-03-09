@@ -6,6 +6,7 @@
 #include "khop_gpu.cuh"
 #include "khop.h"
 #include "graph_gpu_compressed.h"
+#include "compressor.hh"
 using namespace std;
 using namespace cooperative_groups;
 
@@ -13,7 +14,7 @@ using namespace cooperative_groups;
 // const vidType MAX_VIDTYPE = 0 - 1;
 
 
-__global__ void khop_sample(GraphTy g, vidType* result, int step, int t_begin, int old_t_begin, int total_threads, vidType *buffer, int seed) {
+__global__ void khop_sample(GraphGPUCompressed g, vidType* result, int step, int t_begin, int old_t_begin, int total_threads, vidType *buffer, int seed) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (thread_id >= total_threads) {
         return;
@@ -28,6 +29,7 @@ __global__ void khop_sample(GraphTy g, vidType* result, int step, int t_begin, i
     }
     else {
         vidType new_t = next_gpu(g, old_t, thread_id, buffer, ix_state);
+        // printf("old_t: %d, new_t: %d\n", old_t, new_t);
         result[t_idx] = new_t;
     }
 } 
@@ -76,19 +78,20 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     cudaFree(buffer);
     dealloc_t.Stop();
 
-    cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
+    std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
 
     return sample_t.Seconds();
 }
 
 
 int main(int argc, char* argv[]) {
+//   size_t memsize = print_device_info(0);
   Graph g;
   std::string in_prefix = argv[1];
   std::string out_prefix = argv[2];
   std::string scheme = "streamvbyte";
   bool permutated = false;
-  // save_compressed_graph(in_prefix, out_prefix);
+//   save_compressed_graph(in_prefix, out_prefix);
   g.load_compressed_graph(out_prefix, scheme, permutated);
   // g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
@@ -109,15 +112,19 @@ int main(int argc, char* argv[]) {
   iElaps = multilayer_sample(g, initial, n_samples, total_count, result, pdeg);
 
   cout << "Time elapsed for sampling " << iElaps << " sec\n\n";
-  std::cout << "results\n\n";
-  int curr = 0;
-  for (int step = 0; step < steps(); step++) {
+  std::cout << "results\n";
+  int _size = sample_size(-1) * n_samples;
+  int p_size = 0;
+  for (int step = 0; step <= steps(); step++) {
     std::cout << "\n";
-    for (int i = 0; i = sample_size(step); i++) {
-        std::cout << result[curr] << " ";
-        curr++;
+    for (int i = 0; i < _size; i++) {
+        std::cout << result[i + p_size] << " ";
+        // cout << i + p_size << " ";
     }
+    p_size += _size;
+    _size *= sample_size(step);
   }
+  cout << "\n";
   delete[] result;
 
   return 0;

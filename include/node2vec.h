@@ -40,47 +40,17 @@ inline vidType rejection_smpl(vidType v, vector<vidType> v_edges, vidType t, vec
 /**
  * 
 */
-inline vidType sample_next(Sample* s, vector<vidType> transits, vector<vidType> src_edges, int step) {
-    if (transits[0] == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
-    if (src_edges.size() == 0) { return (numeric_limits<uint32_t>::max)(); }
-    vidType t = s->prev_vertex(2, 0);
-    vector<vidType> t_edges = s->prev_edges(2, 0);
+inline vidType sample_next(Graph &g, vidType v, vidType t) {
+    vector<vidType> t_edges;
+    // only if previous transit exists do we find its related edges
+    if (t != (numeric_limits<uint32_t>::max)()) {
+        vidType *t_edge_ptrs = g.adj_ptr(t);
+        vector<vidType> t_edges(t_edge_ptrs, t_edge_ptrs + sizeof t_edge_ptrs / sizeof t_edge_ptrs[0]);
+    }
+    vidType *v_edge_ptrs = g.adj_ptr(v);
+    vector<vidType> v_edges(v_edge_ptrs, v_edge_ptrs + sizeof v_edge_ptrs / sizeof v_edge_ptrs[0]);
     float p = 2.0, q = 0.5;
-    return rejection_smpl(transits[0], src_edges, t, t_edges, p, q);
-}
-
-/**
- * Number of steps in the random walk
-*/
-inline int steps() {
-    return 1000;
-}
-
-/**
- * For given step, return number of samples to take. Step of -1 for original sapmle transits
-*/
-inline int sample_size(int step) {
-    return 1;
-}
-
-
-inline int num_samples() {
-    return 32;
-}
-
-
-/**
- * For given step, should sample only contain unique vertices
-*/
-inline bool unique(int step) {
-    return false;
-}
-
-/**
- * Type of transit sampling
-*/
-inline SamplingType sampling_type() {
-    return Individual;
+    return rejection_smpl(v, v_edges, t, t_edges, p, q);
 }
 
 /**

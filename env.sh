@@ -5,7 +5,7 @@ export KMP_LIBRARY=turnaround
 export KMP_BLOCKTIME=0
 export OMP_NUM_THREADS=32
 
-export GPU_ARCH=70
+export GPU_ARCH=80
 export CUDA_HOME=/software/cuda/11.4
 export NVSHMEM_USE_GDRCOPY=0
 export NVSHMEM_MPI_SUPPORT=1
