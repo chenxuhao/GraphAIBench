@@ -55,14 +55,14 @@ int main(int argc, char* argv[]) {
   std::string out_prefix = argv[2];
   std::string scheme = "streamvbyte";
   bool permutated = false;
-  // save_compressed_graph(in_prefix, out_prefix);
+  save_compressed_graph(in_prefix, out_prefix);
   g.load_compressed_graph(out_prefix, scheme, permutated);
   g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
 
-  std::cout << "Begin sampling compressed graph..." << std::endl;
-  int n_samples = argc >= 4 ? atoi(argv[3]) : num_samples();
-  int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
-  kHopSolver(g, n_samples, n_threads);
+  // std::cout << "Begin sampling compressed graph..." << std::endl;
+  // int n_samples = argc >= 4 ? atoi(argv[3]) : num_samples();
+  // int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
+  // kHopSolver(g, n_samples, n_threads);
   return 0;
 }

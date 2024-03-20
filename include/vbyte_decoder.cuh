@@ -74,7 +74,7 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
       if (thread_lane == 0) val += base;
       // Compute prefix sum for differential/delta coding
       WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
-      if (i < count) out[i] = delta_val;
+      out[i] = delta_val;
       base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
     } else {
       if (i < count) out[i] = val;
@@ -116,7 +116,6 @@ __device__ vidType decode_varintgb_warp(const size_t length, const uint32_t *in,
   typedef cub::WarpScan<uint32_t> WarpScan;
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
   vidType base = 0;
-
   for (int i = 0; i < num_rounds; i ++) {
     __syncwarp();
     int j = thread_lane + i*pack_size; // % pack_size; // k is the element id within a pack

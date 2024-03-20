@@ -7,7 +7,7 @@ COBJS = cgr_encoder.o unary_encoder.o vbyte_encoder.o
 NVFLAGS += -dc
 CXXFLAGS += -Wno-narrowing
 #LIBS += $(SIMDCAI_LIB)
-INCLUDES += -I./gpu_kernels -I$(CILK_CLANG)/include/cilk #$(SIMDCAI_INC)
+INCLUDES += -I./gpu_kernels #-I$(CILK_CLANG)/include/cilk #$(SIMDCAI_INC)
 vpath %cc ../common
 vpath %cc ../structure
 vpath %cu ../structure

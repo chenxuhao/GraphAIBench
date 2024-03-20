@@ -27,6 +27,11 @@ class GraphGPUCompressed : public GraphGPU {
   }
   void init(Graph &hg);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
+  inline __device__ vidType get_degree(vidType v) const {
+    auto start = d_rowptr_compressed[v];
+    auto length = d_rowptr_compressed[v+1] - start;
+    return length;
+  }
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) { return decode_cgr_warp<true>(v, adj); }
   inline __device__ vidType* cta_decompress(vidType v, vidType *buf1, vidType *buf2, vidType &degree);
   inline __device__ vidType intersect_num_warp_compressed(vidType v, vidType u, vidType *v_residuals, vidType *u_residuals);
