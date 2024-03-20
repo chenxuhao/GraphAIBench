@@ -1,4 +1,4 @@
-include ../../common.mk
+include ../common.mk
 #OBJS += verifier.o
 all: $(OBJS) khop_demo
 
