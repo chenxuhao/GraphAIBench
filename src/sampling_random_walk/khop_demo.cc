@@ -7,7 +7,7 @@ void kHopSolver(Graph &g, int n_samples, int n_threads)
     vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
     int step_count = sample_size(-1) * n_samples;
     int total_count = step_count;
-    for (int step = 0; step < steps(); step++)
+    for (int step = 0; step < 3; step++)
     {
         step_count *= sample_size(step);
         total_count += step_count;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
               << std::endl;
 
     std::cout << "Begin sampling compressed graph..." << std::endl;
-    int n_samples = argc >= 4 ? atoi(argv[3]) : num_samples();
+    int n_samples = argc >= 4 ? atoi(argv[3]) : 40000;
     int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
     kHopSolver(g, n_samples, n_threads);
     return 0;
