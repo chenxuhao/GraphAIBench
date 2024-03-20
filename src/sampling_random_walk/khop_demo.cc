@@ -7,7 +7,7 @@ void kHopSolver(Graph &g, int n_samples, int n_threads)
     vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
     int step_count = sample_size(-1) * n_samples;
     int total_count = step_count;
-    for (int step = 0; step < 3; step++)
+    for (int step = 0; step < steps(); step++)
     {
         step_count *= sample_size(step);
         total_count += step_count;

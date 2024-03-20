@@ -12,6 +12,11 @@ std::mt19937 gen(time(nullptr));
  * Content below from Miranda Cai
  */
 
+inline int steps()
+{
+    return 3;
+}
+
 /**
  * Creates the initial seeds.
  *
