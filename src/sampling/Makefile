@@ -1,6 +1,6 @@
 include ../common.mk
 #OBJS += verifier.o
-all: $(OBJS) cpu_khop gpu_khop
+all: $(OBJS) cpu_khop gpu_khop omp_khop
 
 sample_gpu_base: gpu_base.o $(OBJS)
 	$(NVCC) $(NVFLAGS) $(INCLUDES) $(OBJS) gpu_base.o -o $@ $(LIBS)

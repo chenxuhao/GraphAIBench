@@ -21,8 +21,8 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < sample_num; i++) {
     initial[i] = i;
   }
-  int steps = 2;
-  int sample_size[] = {25, 10};
+  int steps = 3;
+  int sample_size[] = {15, 10, 5};
   int total_num = initial.size();
   int cur_num = total_num;
   for (int i = 0; i < steps; i++) {
