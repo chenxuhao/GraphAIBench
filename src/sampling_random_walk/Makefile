@@ -1,5 +1,7 @@
 include ../common.mk
 #OBJS += verifier.o
+OBJS = graph.o VertexSet.o
+
 all: $(OBJS) khop_demo
 
 khop_demo: khop_demo.o $(OBJS)
