@@ -39,7 +39,7 @@ public:
     init(g);
   }
   GraphGPU(int n=0, int m=0, vidType nv=0, eidType ne=0, int vl=1, int el=1,
-           bool directed=false, bool reverse=false) : 
+           bool directed=false, bool reverse=false, vidType max_deg=0) : 
       is_directed_(directed),
       has_reverse(reverse),
       num_vertices(nv),
@@ -47,7 +47,7 @@ public:
       device_id(n), n_gpu(m),
       num_vertex_classes(vl),
       num_edge_classes(el),
-      max_degree(0),
+      max_degree(max_deg),
       d_rowptr(NULL),
       d_in_rowptr(NULL),
       d_colidx(NULL), 

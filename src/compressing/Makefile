@@ -13,7 +13,7 @@ vpath %cc ../structure
 vpath %cu ../structure
 # VPATH+=../common
 BIN = ../../bin
-all: cpu_serial_khop cpu_omp_khop on_gpu_khop
+all: cpu_serial_khop cpu_omp_khop on_gpu_khop unified_gpu_khop
 
 cpu_serial_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_serial_khop.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o cpu_serial_khop.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
@@ -21,6 +21,10 @@ cpu_serial_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_serial_khop.o
 
 cpu_omp_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_omp_khop.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o cpu_omp_khop.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
+unified_gpu_khop: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o unified_gpu_khop.o
+	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o unified_gpu_khop.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
 
 on_gpu_khop: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o on_gpu_khop.o
@@ -35,4 +39,4 @@ clean:
 	rm *.o
 
 main_clean:
-	rm cpu_serial_khop.o cpu_omp_khop.o on_gpu_khop.o
+	rm cpu_serial_khop.o cpu_omp_khop.o on_gpu_khop.o unified_gpu_khop.o

@@ -21,6 +21,36 @@ void GraphGPUCompressed::init(Graph &hg) {
     }
   }
 }
+
+void GraphGPUCompressed::unified_init(Graph &hg) {
+  // GraphGPU::init(hg);
+  std::cout << "LOADING COMPRESSED GRAPH INTO UNIFIED MEMORY\n";
+  auto nv = hg.num_vertices();
+  if (hg.is_compressed()) {
+    CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_rowptr_compressed, (nv + 1) * sizeof(eidType)));
+    auto compressed_rowptr = hg.rowptr_compressed();
+    for (int i = 0; i < nv + 1; i++) {
+      d_rowptr_compressed[i] = compressed_rowptr[i];
+    }    
+    auto len = hg.get_compressed_colidx_length();
+    std::cout << "Number of words in compressed edges: " << len << "\n";
+    CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx_compressed, (len+2) * sizeof(uint32_t))); // allocate two more word for memory safty
+    auto compressed_colidx = hg.colidx_compressed();
+    for (int i = 0; i < len; i++) {
+      d_colidx_compressed[i] = compressed_colidx[i];
+    }
+
+    if (scheme == "hybrid") {
+      const vidType *h_degrees = hg.get_degrees_ptr();
+      assert (h_degrees);
+      assert (d_degrees == NULL);
+      CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_degrees, nv * sizeof(vidType)));
+      for (int i = 0; i < nv * sizeof(vidType); i++) {
+        d_degrees[i] = h_degrees[i];
+      }
+    }
+  }
+}
 /*
 // decompress CGR format to an (unordered/ordered) vertex set using a warp
 inline __device__ vidType GraphGPUCompressed::decode_cgr_warp(vidType v, vidType *adj) {

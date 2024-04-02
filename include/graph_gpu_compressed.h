@@ -19,13 +19,15 @@ class GraphGPUCompressed : public GraphGPU {
     d_rowptr_compressed(NULL),
     d_colidx_compressed(NULL) {
   }
-  GraphGPUCompressed(Graph &g, std::string scheme_name, vidType deg=32, int n=0, int m=1) : 
-      GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
+  GraphGPUCompressed(Graph &g, std::string scheme_name, vidType deg=32, int n=0, int m=1, bool unified_mem=false) : 
+      GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes(), false, false, g.get_max_degree()) {
     scheme = scheme_name;
     degree_threshold = deg;
-    init(g);
+    if (unified_mem) unified_init(g);
+    else init(g);
   }
   void init(Graph &hg);
+  void unified_init(Graph &hg);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
   inline __device__ vidType get_degree(vidType v) const {
     auto start = d_rowptr_compressed[v];
