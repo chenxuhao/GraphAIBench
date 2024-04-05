@@ -37,7 +37,7 @@ void rWalkSolver(Graph &g, int n_samples, int n_threads)
             // }
 
             vidType new_t = sample_next_vbyte(g, sample_transit);
-            transits[step * (n_samples + 1) + sample_i] = new_t;
+            transits[(step + 1) * n_samples + sample_i] = new_t;
         }
     }
     t.Stop();
