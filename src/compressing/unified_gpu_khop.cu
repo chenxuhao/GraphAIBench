@@ -13,35 +13,37 @@ using namespace cooperative_groups;
 // const int BLOCK_DIM = 32;
 // const vidType MAX_VIDTYPE = 0 - 1;
 
-__global__ void khop_next(GraphGPUCompressed g, vidType *result, int sample_size, int t_begin, int old_t_begin, vidType* buffer, int total_threads, int seed) {
+__global__ void khop_next(GraphGPUCompressed g, vidType *result, int sample_size, int t_begin, int old_t_begin, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   int warp_id = thread_id / WARP_SIZE;
   if (thread_id >= total_threads) {
     return;
   }
-  curandState ix_state;
-  curand_init(seed, thread_id, 0, &ix_state);
+  curandState local_state = states[thread_id];
+  // curandState local_state;
+  // curand_init(seed, thread_id, 0, &local_state);
   int old_t_idx = old_t_begin + warp_id;
   vidType old_t = result[old_t_idx];
   vidType old_t_deg = g.get_degree(old_t);
-  vidType *adj = buffer + (g.get_max_degree() * warp_id);
+  vidType *adj = new vidType[g.get_max_degree() * warp_id];
   vidType new_t = MAX_VIDTYPE;
   for (int i = thread_id % WARP_SIZE; i < sample_size; i += WARP_SIZE) {
     int t_idx = t_begin + (warp_id * sample_size) + i;
-    new_t = next_gpu2(adj, old_t_deg, ix_state);
+    new_t = next_gpu2(adj, old_t_deg, local_state);
     result[t_idx] = new_t;
   }
 }
 
 
-__global__ void khop_next_with_buffer(GraphGPUCompressed g, vidType *result, int sample_size, int t_begin, int old_t_begin, vidType* buffer, int total_threads, int seed) {
+__global__ void khop_next_with_buffer(GraphGPUCompressed g, vidType *result, int sample_size, int t_begin, int old_t_begin, vidType* buffer, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   int warp_id = thread_id / WARP_SIZE;
   if (thread_id >= total_threads) {
     return;
   }
-  curandState ix_state;
-  curand_init(seed, thread_id, 0, &ix_state);
+  curandState local_state = states[thread_id];
+  // curandState local_state;
+  // curand_init(seed, thread_id, 0, &local_state);
   int old_t_idx = old_t_begin + warp_id;
   vidType old_t = result[old_t_idx];
   vidType old_t_deg = g.get_degree(old_t);
@@ -49,7 +51,7 @@ __global__ void khop_next_with_buffer(GraphGPUCompressed g, vidType *result, int
   vidType new_t = MAX_VIDTYPE;
   for (int i = thread_id % WARP_SIZE; i < sample_size; i += WARP_SIZE) {
     int t_idx = t_begin + (warp_id * sample_size) + i;
-    new_t = next_gpu2(adj, old_t_deg, ix_state);
+    new_t = next_gpu2(adj, old_t_deg, local_state);
     result[t_idx] = new_t;
   }
 }
@@ -92,10 +94,11 @@ __global__ void khop_sample(GraphGPUCompressed g, vidType* result, int sample_si
 } 
 
 // 40000 * 25 * 10 + 40000 * 25 + 40000
-double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int pdeg=128, int seed=0) {
+double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int pdeg=128) {
     GraphGPUCompressed gg(g, "streamvbyte", g.get_degree_threshold(), 0, 1, true);
     int cur_num = initial.size();
     vidType *d_result, *buffer;
+    curandState *d_states;
     vidType max_degree = g.get_max_degree();
     int block_size = pdeg;
     Timer alloc_t, sample_t, dealloc_t;
@@ -113,7 +116,13 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     // allocate_gpu_buffer(size_t(g.get_max_degree()) * warps_per_block * nblocks, buffer);
     cudaMalloc((void **)&d_result, total_num * size);
     cudaMemcpy(d_result, result, cur_num * size, cudaMemcpyHostToDevice);
+
+    cudaMalloc((void **)&d_states, total_num * sizeof(curandState));
     alloc_t.Stop();
+
+    std::cout << "Sampling random states\n";
+    int total_num_blocks = (total_num + block_size - 1) / block_size;
+    setup_kernel<<<total_num_blocks,block_size>>>(d_states);
 
     std::cout << "Starting sampling with " << block_size << " threads...\n";
     sample_t.Start();
@@ -130,10 +139,11 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
         int total_threads = prev_step_count * WARP_SIZE;
         int num_blocks = (total_threads + block_size - 1) / block_size;
         // int num_blocks = (step_count + block_size - 1) / block_size;
-        // assign_warps<<<num_blocks,block_size>>>(gg, d_result, step_sample_size, old_t_begin, buffer, total_threads);
+        assign_warps<<<num_blocks,block_size>>>(gg, d_result, step_sample_size, old_t_begin, buffer, total_threads);
         // // khop_sample<<<num_blocks,block_size>>>(gg, d_result, step_sample_size, t_begin, old_t_begin, step_count, buffer, seed);
-        // cudaDeviceSynchronize();
-        // khop_next_with_buffer<<<num_blocks,block_size>>>(gg, d_result, step_sample_size, t_begin, old_t_begin, buffer, total_threads, seed);
+        cudaDeviceSynchronize();
+        khop_next_with_buffer<<<num_blocks,block_size>>>(gg, d_result, step_sample_size, t_begin, old_t_begin, buffer, total_threads, d_states);
+        // khop_next<<<num_blocks,block_size>>>(gg, d_result, step_sample_size, t_begin, old_t_begin, total_threads, d_states);
         cudaDeviceSynchronize();
         old_t_begin += prev_step_count;
     }
@@ -143,6 +153,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     cudaMemcpy(result, d_result, total_num * size, cudaMemcpyDeviceToHost);
     cudaFree(d_result);
     cudaFree(buffer);
+    cudaFree(d_states);
     dealloc_t.Stop();
 
     std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
@@ -158,7 +169,7 @@ int main(int argc, char* argv[]) {
   std::string out_prefix = argv[2];
   std::string scheme = "streamvbyte";
   bool permutated = false;
-//   save_compressed_graph(in_prefix, out_prefix);
+  // save_compressed_graph(in_prefix, out_prefix);
   g.load_compressed_graph(out_prefix, scheme, permutated);
   // g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;

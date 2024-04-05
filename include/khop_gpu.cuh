@@ -6,6 +6,14 @@
 const vidType MAX_VIDTYPE = 0 - 1;
 
 
+__global__ void setup_kernel(curandState *state)
+{
+    int id = threadIdx.x + blockIdx.x * blockDim.x;
+    /* Each thread gets a different seed, same sequence
+       number, no offset */
+    curand_init(id, 0, 0, &state[id]);
+}
+
 __device__ int sample_size_gpu(int step) {
     if (step == -1) return 1;
     // if (step == 0) return 25;
