@@ -29,13 +29,6 @@ void rWalkSolver(Graph &g, int n_samples, int n_threads)
 
             vidType sample_transit = transits[step * n_samples + sample_i];
 
-            /// USE THIS?
-            // if (old_t == (numeric_limits<uint32_t>::max)())
-            // {
-            //     transits[t_idx] = (numeric_limits<uint32_t>::max)();
-            //     continue;
-            // }
-
             vidType new_t = sample_next_vbyte(g, sample_transit);
             transits[(step + 1) * n_samples + sample_i] = new_t;
         }
