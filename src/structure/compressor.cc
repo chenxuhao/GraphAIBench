@@ -255,6 +255,7 @@ void printusage() {
        <<                                                          " [-a alignment(0)]\n";
 }
 
+# if 0
 int main(int argc,char *argv[]) {
   int zeta_k = 2, permutate = 0, degree_threshold = 32;
   int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
@@ -348,3 +349,4 @@ int main(int argc,char *argv[]) {
   std::cout << "compression completed!\n";
   return 0;
 }
+#endif
