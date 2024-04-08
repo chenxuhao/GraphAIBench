@@ -216,6 +216,8 @@ public:
   void print_compressed_colidx();
   void load_compressed_graph(std::string prefix, std::string scheme = "", bool permutated = false);
   void load_row_pointers(std::string prefix);
+  vidType get_degree_vbyte(vidType v);
+  std::vector<vidType> get_sizes_vbyte();
   void decompress(std::string scheme = "cgr");
   void decode_vertex_cgr(vidType v, VertexSet &adj, bool ordered = 1);
   vidType decode_vertex_cgr(vidType v, vidType* out_ptr);

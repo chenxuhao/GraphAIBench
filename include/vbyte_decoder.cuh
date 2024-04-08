@@ -75,7 +75,7 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
       // Compute prefix sum for differential/delta coding
       WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
       out[i] = delta_val;
-      base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
+      // base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
     } else {
       if (i < count) out[i] = val;
     }

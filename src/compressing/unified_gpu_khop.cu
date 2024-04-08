@@ -3,6 +3,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <cooperative_groups.h>
+#include <cmath>
 #include "khop_gpu.cuh"
 #include "khop.h"
 #include "graph_gpu_compressed.h"
@@ -28,6 +29,7 @@ __global__ void khop_next(GraphGPUCompressed g, vidType *result, int sample_size
   vidType *adj = new vidType[g.get_max_degree() * warp_id];
   vidType new_t = MAX_VIDTYPE;
   for (int i = thread_id % WARP_SIZE; i < sample_size; i += WARP_SIZE) {
+    // printf("old %d adj %d %d %d %d\n", old_t, adj[0], adj[1], adj[2], adj[3]);
     int t_idx = t_begin + (warp_id * sample_size) + i;
     new_t = next_gpu2(adj, old_t_deg, local_state);
     result[t_idx] = new_t;
@@ -93,6 +95,24 @@ __global__ void khop_sample(GraphGPUCompressed g, vidType* result, int sample_si
     }
 } 
 
+vidType* decompress_top_degrees(Graph &g, float percent) {
+  int num = ceil(percent * g.V());
+  vector<vidType> sizes = g.get_sizes_vbyte();
+  vector<vidType> sorted_id = sort_by_sizes(sizes);
+  int total_size = 0;
+  for (int i = 0; i < num; i++) {
+    vidType v = sorted_id[i];
+    total_size += g.get_degree_vbyte(v);
+  }
+  vidType adj_list[total_size];
+  vidType *output = adj_list;
+  for (int i = 0; i < num; i++) {
+    vidType deg = g.decode_vertex_vbyte(sorted_id[i], output, "streamvbyte");
+    output += deg;
+  }
+  return adj_list;
+}
+
 // 40000 * 25 * 10 + 40000 * 25 + 40000
 double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int pdeg=128) {
     GraphGPUCompressed gg(g, "streamvbyte", g.get_degree_threshold(), 0, 1, true);
@@ -109,6 +129,10 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
         result[i] = initial[i];
     }
 
+    vidType *top_degrees = decompress_top_degrees(g, 0.1);
+    vidType *d_top_degrees;
+    int n_top = sizeof(top_degrees) / size;
+
     std::cout << "Allocating buffer for decompressed adjacency lists\n";
     std::cout << "size_t(max_degree) " << size_t(max_degree) << " total " << size_t(max_degree) * warps_per_block * nblocks << "\n";
     alloc_t.Start();
@@ -116,6 +140,8 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     // allocate_gpu_buffer(size_t(g.get_max_degree()) * warps_per_block * nblocks, buffer);
     cudaMalloc((void **)&d_result, total_num * size);
     cudaMemcpy(d_result, result, cur_num * size, cudaMemcpyHostToDevice);
+    cudaMalloc((void **)&d_top_degrees, n_top);
+    cudaMemcpy(d_top_degrees, top_degrees, n_top, cudaMemcpyHostToDevice);
 
     cudaMalloc((void **)&d_states, total_num * sizeof(curandState));
     alloc_t.Stop();
@@ -154,6 +180,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     cudaFree(d_result);
     cudaFree(buffer);
     cudaFree(d_states);
+    cudaFree(d_top_degrees);
     dealloc_t.Stop();
 
     std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";

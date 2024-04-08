@@ -5,6 +5,8 @@
 #include "graph.h"
 #include "samplegraph.h"
 #include <random>
+#include <numeric>
+#include <algorithm>
 
 static std::mt19937 gen(time(nullptr));
 static std::default_random_engine generator;
@@ -80,3 +82,10 @@ inline bool unique(int step) {
 inline SamplingType sampling_type() {
     return Individual;
 }
+
+inline vector<vidType> sort_by_sizes(vector<vidType> &sizes) {
+  vector<vidType> idx(sizes.size());
+  iota(idx.begin(), idx.end(), 0);
+  stable_sort(idx.begin(), idx.end(),
+      [&sizes](size_t i1, size_t i2) {return sizes[i1] > sizes[i2];});
+  return idx;}

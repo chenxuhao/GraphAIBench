@@ -114,6 +114,23 @@ vidType GraphT<map_vertices, map_edges>::decode_vertex_hybrid(vidType v, vidType
 }
 
 template<bool map_vertices, bool map_edges>
+vidType GraphT<map_vertices, map_edges>::get_degree_vbyte(vidType v) {
+  auto start = vertices_compressed[v];
+  auto in = &edges_compressed[start];
+  vidType deg = *(uint32_t *)in;
+  return deg;
+}
+
+template<bool map_vertices, bool map_edges>
+std::vector<vidType> GraphT<map_vertices, map_edges>::get_sizes_vbyte() {
+  std::vector<vidType> sizes;
+  for (int v = 0; v < V(); v++) {
+    sizes.push_back(get_degree_vbyte(v));
+  }
+  return sizes;
+}
+
+template<bool map_vertices, bool map_edges>
 vidType GraphT<map_vertices, map_edges>::decode_vertex_vbyte(vidType v, vidType* out, std::string scheme) {
   assert(v >= 0 && v < V());
   auto start = vertices_compressed[v];
