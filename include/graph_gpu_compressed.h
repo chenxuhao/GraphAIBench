@@ -199,10 +199,10 @@ class GraphGPUCompressed : public GraphGPU {
   }
 
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
-  inline __device__ void decode_vbyte_warp_thread(vidType v, vidType *adj) {
+  inline __device__ void decode_vbyte_warp_thread(vidType v, vidType *adj, int num) {
     auto start = d_rowptr_compressed[v];
     auto length = d_rowptr_compressed[v+1] - start;
-    decode_streamvbyte_warp_thread<delta>(&d_colidx_compressed[start], adj);
+    decode_streamvbyte_warp_thread<delta>(&d_colidx_compressed[start], adj, num);
   }
   
 

@@ -83,8 +83,9 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
 }
 
 template <bool delta = true>
-__device__ void decode_streamvbyte_warp_thread(const uint32_t *in, uint32_t *out) {
+__device__ void decode_streamvbyte_warp_thread(const uint32_t *in, uint32_t *out, int num) {
   int32_t count = *in;
+  if (num < WARP_SIZE) { ++in; }
   if (count == 0) return;
   uint8_t *keyPtr = (uint8_t *)in; // full list of keys is next
   uint32_t keyLen = ((count + 3) / 4); // 2-bits per key (rounded up)

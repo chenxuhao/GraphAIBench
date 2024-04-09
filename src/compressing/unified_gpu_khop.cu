@@ -48,13 +48,15 @@ __global__ void khop_next(GraphGPUCompressed g, vidType *result, int sample_size
 
   int next_warp_ptr = warp_start_ptr + sample_size;
   int round_threshold = WARP_SIZE;
-  int max_idx = random_idxs[next_warp_ptr - 1];
-  for (int i = thread_lane; i < max_idx; i += WARP_SIZE) {
-    g.decode_vbyte_warp_thread<scheme,delta,pack_size>(old_t, adj_buffer);
+  // int max_idx = random_idxs[next_warp_ptr - 1]; // only works for sorted random_idxs
+  for (int i = thread_lane; i < old_t_deg; i += WARP_SIZE) {
+    g.decode_vbyte_warp_thread<scheme,delta,pack_size>(old_t, adj_buffer, i);
     __syncwarp();
-    for (int v_i = warp_start_ptr + thread_lane; v_i < warp_start_ptr + sample_size; v_i += WARP_SIZE) {
+    int available_threads = min(WARP_SIZE, old_t_deg - (round_threshold - WARP_SIZE));
+    for (int v_i = warp_start_ptr + thread_lane; v_i < warp_start_ptr + sample_size; v_i += available_threads) {
       int n_idx = random_idxs[v_i];
       if (n_idx >= round_threshold - WARP_SIZE && n_idx < round_threshold) {
+        printf("n %d; r %d; v_i %d; w %d\n", n_idx, round_threshold, v_i, warp_start_ptr);
         int t_idx = t_begin + (warp_id * sample_size) + (v_i - warp_start_ptr);
         result[t_idx] = adj_buffer[n_idx % WARP_SIZE];
       }
