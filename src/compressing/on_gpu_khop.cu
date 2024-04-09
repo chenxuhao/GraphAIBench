@@ -45,7 +45,7 @@ __global__ void assign_warps(GraphGPUCompressed g, vidType *result, int sample_s
   vidType old_t = result[old_t_idx];
   vidType old_t_deg = g.get_degree(old_t);
   vidType *adj = buffer + (g.get_max_degree() * warp_id);
-  for (int i = thread_id % WARP_SIZE; i < old_t_deg; i += WARP_SIZE) {
+  if (threadIdx.x % WARP_SIZE < old_t_deg) {
     auto deg_v = decompress_edge(g, old_t, warp_id, adj);
   }
 }

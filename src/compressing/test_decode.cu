@@ -19,7 +19,7 @@ __global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vi
     vidType v_id = (vidType) warp_id;
     vidType deg = g.get_degree(v_id);
     vidType *adj = buffer + (g.get_max_degree() * v_id);
-    for (int i = thread_id % WARP_SIZE; i < deg; i += WARP_SIZE) {
+    if (threadIdx.x % WARP_SIZE < deg) {
         g.decode_vbyte_warp<scheme,delta,pack_size>(v_id, adj);
     }
 }

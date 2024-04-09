@@ -198,6 +198,14 @@ class GraphGPUCompressed : public GraphGPU {
     return degree;
   }
 
+  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
+  inline __device__ void decode_vbyte_warp_thread(vidType v, vidType *adj) {
+    auto start = d_rowptr_compressed[v];
+    auto length = d_rowptr_compressed[v+1] - start;
+    decode_streamvbyte_warp_thread<delta>(&d_colidx_compressed[start], adj);
+  }
+  
+
   // decompress VByte format to an ordered vertex set using a warp
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ void decode_vbyte_warp(vidType v, vidType *adj, vidType degree) {
