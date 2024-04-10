@@ -2,10 +2,10 @@
 #include "compressor.hh"
 #include "khop.h"
 
-void rWalkSolver(Graph &g, int n_samples, int n_threads)
+void rWalkSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
 {
     vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
-    int total_count = (steps() + 1) * n_samples;
+    int total_count = (sample_steps + 1) * n_samples;
 
     std::vector<vidType> transits(total_count, 0);
     for (int i = 0; i < inits.size(); i++)
@@ -18,8 +18,8 @@ void rWalkSolver(Graph &g, int n_samples, int n_threads)
     t.Start();
     // sample for defined number of steps
 
-    // sampling length is set to `steps()` for all samples
-    for (int step = 0; step < steps(); step++)
+    // sampling length is set to `sample_steps` for all samples
+    for (int step = 0; step < sample_steps; step++)
     {
         // std::cout << "STEP " << step << std::endl;
 
@@ -50,9 +50,10 @@ int main(int argc, char *argv[])
     std::cout << "LOADED COMPRESSED GRAPH\n"
               << std::endl;
 
+    int sample_steps = atoi(argv[2]);
+    int n_samples = argc >= 4 ? atoi(argv[3]) : 40000;
+    int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
     std::cout << "Begin sampling compressed graph..." << std::endl;
-    int n_samples = argc >= 3 ? atoi(argv[2]) : 40000;
-    int n_threads = argc >= 4 ? atoi(argv[3]) : 1;
-    rWalkSolver(g, n_samples, n_threads);
+    rWalkSolver(g, sample_steps, n_samples, n_threads);
     return 0;
 }
