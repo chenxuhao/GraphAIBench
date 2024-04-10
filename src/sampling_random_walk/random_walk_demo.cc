@@ -43,18 +43,16 @@ int main(int argc, char *argv[])
 {
     Graph g;
     std::string in_prefix = argv[1];
-    std::string out_prefix = argv[2];
     std::string scheme = "streamvbyte";
     bool permutated = false;
-    // save_compressed_graph(in_prefix, out_prefix);
-    g.load_compressed_graph(out_prefix, scheme, permutated);
+    g.load_compressed_graph(in_prefix, scheme, permutated);
     g.print_meta_data();
     std::cout << "LOADED COMPRESSED GRAPH\n"
               << std::endl;
 
     std::cout << "Begin sampling compressed graph..." << std::endl;
-    int n_samples = argc >= 4 ? atoi(argv[3]) : 40000;
-    int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
+    int n_samples = argc >= 3 ? atoi(argv[2]) : 40000;
+    int n_threads = argc >= 4 ? atoi(argv[3]) : 1;
     rWalkSolver(g, n_samples, n_threads);
     return 0;
 }
