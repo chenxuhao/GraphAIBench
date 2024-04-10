@@ -21,7 +21,7 @@ void rWalkSolver(Graph &g, int n_samples, int n_threads)
     // sampling length is set to `steps()` for all samples
     for (int step = 0; step < steps(); step++)
     {
-        std::cout << "STEP " << step << std::endl;
+        // std::cout << "STEP " << step << std::endl;
 
         // sample every new transit in the step for every sample group
         for (int sample_i = 0; sample_i < n_samples; sample_i++)
