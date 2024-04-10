@@ -1,3 +1,3 @@
 ```
-make rwalk_demo && ../../bin/rwalk_demo /home/lgaitskell/data-xhchen/tester/vbyte 3 40
+make rwalk_cpu && ../../bin/rwalk_cpu /home/lgaitskell/data-xhchen/tester/vbyte 3 40
 ```
