@@ -68,6 +68,7 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
     //if (warp_lane == 0) printf("thread %d in warp %d has %d bytes, offset=%d, total_bytes=%d\n", thread_lane, warp_lane, num_bytes, offset, total_bytes);
     // Extract elements
     uint32_t val = (i < count) ? extract_bytes(&dataPtr[offset], num_bytes) : 0;
+    // printf("o %d; t %d; n %d\n", offset, total_bytes, num_bytes);
     dataPtr += total_bytes;
     if constexpr (delta) {
       uint32_t delta_val = 0;
@@ -75,15 +76,56 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
       // Compute prefix sum for differential/delta coding
       WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
       out[i] = delta_val;
-      // base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
+      base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
     } else {
       if (i < count) out[i] = val;
     }
   }
 }
 
+// template <bool delta = true>
+// __device__ void decode_streamvbyte_warp_thread(const uint32_t *in, uint32_t *out, int num) {
+//   int32_t count = *in;
+//   if (num < WARP_SIZE) { ++in; }
+//   if (count == 0) return;
+//   uint8_t *keyPtr = (uint8_t *)in; // full list of keys is next
+//   uint32_t keyLen = ((count + 3) / 4); // 2-bits per key (rounded up)
+//   uint8_t *dataPtr = keyPtr + keyLen;  // data starts at end of keys
+
+//   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+//   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
+//   typedef cub::WarpScan<uint32_t> WarpScan;
+//   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
+//   uint32_t base = 0;
+
+//   // Read the header
+//   uint32_t num_bytes = (thread_lane < count) ? (extract_bits(keyPtr, thread_lane * 2, 2) + 1) : 0;
+//   keyPtr += 8; // move 8 bytes forward; 8*8 = 64 = 32*2
+//   // Compute prefix sum to get the positions for extracting data elements
+//   uint32_t offset = 0;
+//   uint32_t total_bytes = 0;
+//   WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_bytes, offset, total_bytes);
+//   // Extract elements
+//   uint32_t val = (thread_lane < count) ? extract_bytes(&dataPtr[offset], num_bytes) : 0;
+//   dataPtr += total_bytes;
+//   uint32_t delta_val = 0;
+//   if (thread_lane == 0) val += base;
+//   // Compute prefix sum for differential/delta coding
+//   WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
+//   out[thread_lane] = delta_val;
+//   base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
+// }
+
+// template <bool delta = true>
+// __device__ vidType decode_streamvbyte_warp1(const uint32_t *in, uint32_t *out) {
+//   uint32_t count = *in; // number of elements to decompress
+//   ++in;
+//   decode_streamvbyte_warp<delta>(count, in, out);
+//   return vidType(count);
+// }
+
 template <bool delta = true>
-__device__ void decode_streamvbyte_warp_thread(const uint32_t *in, uint32_t *out, int num) {
+__device__ void decode_streamvbyte_warp_thread(const uint32_t *in, uint32_t *out, int num, int n) {
   int32_t count = *in;
   if (num < WARP_SIZE) { ++in; }
   if (count == 0) return;
@@ -96,23 +138,18 @@ __device__ void decode_streamvbyte_warp_thread(const uint32_t *in, uint32_t *out
   typedef cub::WarpScan<uint32_t> WarpScan;
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
   uint32_t base = 0;
+  vidType sum = 0;
 
-  // Read the header
-  uint32_t num_bytes = (thread_lane < count) ? (extract_bits(keyPtr, thread_lane * 2, 2) + 1) : 0;
-  keyPtr += 8; // move 8 bytes forward; 8*8 = 64 = 32*2
-  // Compute prefix sum to get the positions for extracting data elements
-  uint32_t offset = 0;
-  uint32_t total_bytes = 0;
-  WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_bytes, offset, total_bytes);
-  // Extract elements
-  uint32_t val = (thread_lane < count) ? extract_bytes(&dataPtr[offset], num_bytes) : 0;
-  dataPtr += total_bytes;
-  uint32_t delta_val = 0;
-  if (thread_lane == 0) val += base;
-  // Compute prefix sum for differential/delta coding
-  WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
-  out[thread_lane] = delta_val;
-  base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
+  for (int i = 0; i < n + 1; i ++) {
+    // Read the header
+    uint32_t num_bytes = extract_bits(keyPtr, i * 2, 2) + 1;
+    // keyPtr += 8; // move 8 bytes forward; 8*8 = 64 = 32*2
+    // Compute prefix sum to get the positions for extracting data elements
+    uint32_t offset = i;
+    uint32_t val = extract_bytes(&dataPtr[offset], num_bytes);
+    sum += val;
+  }
+  out[thread_lane] = sum;
 }
 
 template <bool delta = true>
