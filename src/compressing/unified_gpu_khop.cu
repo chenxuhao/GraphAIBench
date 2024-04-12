@@ -79,6 +79,7 @@ __global__ void khop_next2(GraphGPUCompressed g, vidType *result, int smem_bytes
   int warp_id = thread_id / WARP_SIZE;
   int thread_lane = threadIdx.x % WARP_SIZE;
   int warp_lane = threadIdx.x / WARP_SIZE;
+  int warp_start_ptr = warp_lane * sample_size;
   int old_t_idx = old_t_begin + warp_id;
   vidType old_t = result[old_t_idx];
   vidType old_t_deg = 0;
@@ -87,13 +88,13 @@ __global__ void khop_next2(GraphGPUCompressed g, vidType *result, int smem_bytes
   }
   // sample fan out size num of random indices for single transit per warp
   curandState local_state = states[thread_id];
-  for (int i = thread_lane; i < sample_size; i += WARP_SIZE) {
+  for (int i = warp_start_ptr + thread_lane; i < warp_start_ptr + sample_size; i += WARP_SIZE) {
     if (old_t_deg == 0) { // no need to continue sampling indices for 0 degree vertices
-      int t_idx = t_begin + (warp_id * sample_size) + i;
+      int t_idx = t_begin + (warp_id * sample_size) + (i - warp_start_ptr);
       result[t_idx] = MAX_VIDTYPE;
     }
     else {
-      random_idxs[threadIdx.x] = (int)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+      random_idxs[i] = (int)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
     }
   }
   __syncwarp();
@@ -103,9 +104,8 @@ __global__ void khop_next2(GraphGPUCompressed g, vidType *result, int smem_bytes
   // from (threadIdx.x / WARP_SIZE * sample_size, (threadIdx.x / WARP_SIZE + 1) * sample_size)
   // __syncwarp();
 
-  int warp_start_ptr = warp_lane * sample_size;
   for (int i = warp_start_ptr + thread_lane; i < warp_start_ptr + sample_size; i += WARP_SIZE) {
-    if (i == 0) {
+    if (i == warp_start_ptr) {
       round_idxs[i] = warp_start_ptr;
       continue;
     }
@@ -122,26 +122,38 @@ __global__ void khop_next2(GraphGPUCompressed g, vidType *result, int smem_bytes
 
   int round = 1;
   int r_ii = warp_start_ptr;
+  int next_r_ii = (sample_size > 1) ? r_ii + 1: r_ii;
   int next_warp_ptr = warp_start_ptr + sample_size;
   int max_idx = random_idxs[next_warp_ptr - 1];
   for (int i = thread_lane; i < max_idx; i += WARP_SIZE) {
-    g.decode_vbyte_warp_thread<scheme,delta,pack_size>(old_t, adj_buffer);
+    g.decode_vbyte_warp_thread<scheme,delta,pack_size>(old_t, adj_buffer, i);
     __syncwarp();
-    while (round_idxs[r_ii] == -1) {
-      r_ii++;
+    // while (round_idxs[r_ii] == -1) {
+    //   r_ii++;
+    // }
+    while (next_r_ii < next_warp_ptr && round_idxs[next_r_ii] == -1) {
+      next_r_ii++;
     }
-    int round_idx = round_idxs[r_ii];
-    int random_idx = random_idxs[round_idx];
+    bool in_round = false;
+    int round_idx_start = round_idxs[r_ii];
+    int round_range = rounds_idxs[min(next_r_ii, next_warp_ptr - 1)] - round_idx_start;
+    if (round_range == 0) { round_range = 1 };
+    else if (round_range < 0) { round_range = sample_size - round_idx_start };
     int round_threshold = round * WARP_SIZE;
-    for (int v_i = thread_lane; v_i < sample_size; v_i += WARP_SIZE) {
-      round_idx += v_i;
-      if (round_idx >= next_warp_ptr) { break; }
-      random_idx = random_idxs[round_idx];
+    int available_threads = min(WARP_SIZE, max_idx - (round_threshold - WARP_SIZE));
+    for (int v_i = thread_lane; v_i < round_range; v_i += available_threads) {
+      int round_idx = round_idx_start + v_i;
+      // if (round_idx >= next_warp_ptr) { break; }
+      int random_idx = random_idxs[round_idx];
       if (random_idx >= round_threshold) { break; }
-      int t_idx = t_begin + (warp_id * sample_size) + (round_idx - warp_start_ptr);
-      result[t_idx] = adj_buffer[random_idxs[round_idx] % WARP_SIZE];
-      round_idx++;
-      random_idx = random_idxs[round_idx];
+      in_round = true;
+      int t_idx = t_begin + (warp_id * sample_size) + v_i;
+      result[t_idx] = adj_buffer[random_idx % WARP_SIZE];
+      // round_idx++;
+      // random_idx = random_idxs[round_idx];
+    }
+    if (in_round) {
+      r_ii = next_r_ii++; 
     }
     round++;
     __syncwarp();
@@ -286,7 +298,18 @@ int main(int argc, char* argv[]) {
   std::string out_prefix = argv[2];
   std::string scheme = "streamvbyte";
   bool permutated = false;
-  // save_compressed_graph(in_prefix, out_prefix);
+  bool compress_graph = false;
+  int c;
+  while ((c = getopt(argc, argv, "c")) != -1) {
+    switch (c) {
+      case 'c':
+        compress_graph = true;
+        break;
+      default:
+        abort();
+    }
+  }
+  if (compress_graph) { save_compressed_graph(in_prefix, out_prefix); }
   g.load_compressed_graph(out_prefix, scheme, permutated);
   // g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;

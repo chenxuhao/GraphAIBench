@@ -10,7 +10,7 @@ using namespace std;
 using namespace cooperative_groups;
 
 template <int scheme = 0, bool delta = true, int pack_size = 4>
-__global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vidType *buffer) {
+__global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vidType *buffer, int n_idx) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   int warp_id = thread_id / WARP_SIZE;
   if (thread_id >= total_threads) {
@@ -20,15 +20,15 @@ __global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vi
   vidType v_id = 1;
   vidType deg = g.get_degree(v_id);
   vidType *adj = buffer + (g.get_max_degree() * v_id);
-  // if (threadIdx.x % WARP_SIZE < 1) {
-  //   g.decode_vbyte_warp_thread<scheme,delta,pack_size>(v_id, adj, 0, 1);
-  // }
-  if (threadIdx.x % WARP_SIZE < deg) {
-    g.decode_vbyte_warp<scheme,delta,pack_size>(v_id, adj);
+  if (threadIdx.x % WARP_SIZE < 1) {
+    g.decode_vbyte_sums<scheme,delta,pack_size>(v_id, adj, 0, n_idx);
   }
+  // if (threadIdx.x % WARP_SIZE < deg) {
+  //   g.decode_vbyte_warp<scheme,delta,pack_size>(v_id, adj);
+  // }
 }
 
-__global__ void print_buffer(GraphGPUCompressed g, vidType *buffer, int num) {
+__global__ void print_buffer(GraphGPUCompressed g, vidType *buffer, int num, int n_idx) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   if (thread_id >= 1) {
     return;
@@ -39,13 +39,16 @@ __global__ void print_buffer(GraphGPUCompressed g, vidType *buffer, int num) {
     vidType *adj = buffer + (g.get_max_degree() * i);
     // printf("v_id %d; adj %d %d %d %d\n", i, adj[0], adj[1], adj[2], adj[3]);
     // printf("v_id %d; deg %d, adj[0] %d\n", i, g.get_degree(i), adj[0]);
-    for (int j = 0; j < g.get_degree(i); j++) {
-      printf("n_id%d: %d ", j, adj[j]);
-    }
+
+    // for (int j = 0; j < g.get_degree(i); j++) {
+    //   printf("n_id%d: %d ", j, adj[j]);
+    // }
+
+    printf("n_id%d: %d\n", n_idx, adj[0]);
   }
 }
 
-void move_onto_gpu(Graph &g) {
+void move_onto_gpu(Graph &g, int n_idx) {
   GraphGPUCompressed gg(g, "streamvbyte", g.get_degree_threshold(), 0, 1, true);
   vidType *buffer;
   vidType max_degree = g.get_max_degree();
@@ -57,9 +60,9 @@ void move_onto_gpu(Graph &g) {
   allocate_gpu_buffer(size_t(max_degree) * warps_per_block * nblocks, buffer);
   int threads = num * WARP_SIZE;
   int num_blocks = (threads + block_size - 1) / block_size;
-  test_warp_decompress<<<num_blocks,block_size>>>(gg, threads, buffer);
+  test_warp_decompress<<<num_blocks,block_size>>>(gg, threads, buffer, n_idx);
   cudaDeviceSynchronize();
-  print_buffer<<<1,1>>>(gg, buffer, num);
+  print_buffer<<<1,1>>>(gg, buffer, num, n_idx);
   cudaDeviceSynchronize();
   cudaFree(buffer);
 }
@@ -71,17 +74,21 @@ int main(int argc, char* argv[]) {
   std::string scheme = "streamvbyte";
   bool permutated = false;
   bool compress_graph = false;
+  int n_idx = 0;
   int c;
-  while ((c = getopt(argc, argv, "c")) != -1) {
+  while ((c = getopt(argc, argv, "cs:")) != -1) {
     switch (c) {
       case 'c':
-      compress_graph = true;
-      break;
+        compress_graph = true;
+        break;
+      case 's':
+        n_idx = atoi(optarg);
+        break;
       default:
       abort();
     }
   }
   if (compress_graph) { save_compressed_graph(in_prefix, out_prefix); }
   g.load_compressed_graph(out_prefix, scheme, permutated);
-  move_onto_gpu(g);
+  move_onto_gpu(g, n_idx);
 }
