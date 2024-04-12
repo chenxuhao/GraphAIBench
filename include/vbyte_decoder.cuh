@@ -125,7 +125,7 @@ __device__ vidType decode_streamvbyte_warp1(const uint32_t *in, uint32_t *out) {
 }
 
 template <bool delta = true>
-__device__ void decode_streamvbyte_sums(const uint32_t *in, uint32_t *out, int num, int n) {
+__device__ void decode_streamvbyte_sums(const uint32_t *in, uint32_t *out, int n) {
   int32_t count = *in;
   ++in;
   if (count == 0) return;
@@ -134,34 +134,23 @@ __device__ void decode_streamvbyte_sums(const uint32_t *in, uint32_t *out, int n
   uint8_t *dataPtr = keyPtr + keyLen;  // data starts at end of keys
 
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-  int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   uint32_t base = 0;
   vidType sum = 0;
   uint32_t offset = 0;
-//   keyPtr += 8 * (n / WARP_SIZE);
 
-  for (int i = 0; i < n + 1; i ++) {
+  for (int i = 0; i <= n; i ++) {
     int idx = i % WARP_SIZE;
     if (idx == 0 && i > 0) {
         keyPtr += 8;
     }
     // Read the header
     uint32_t num_bytes = extract_bits(keyPtr, idx * 2, 2) + 1;
-    // keyPtr += 8; // move 8 bytes forward; 8*8 = 64 = 32*2
     // Compute prefix sum to get the positions for extracting data elements
     uint32_t val = extract_bytes(&dataPtr[offset], num_bytes);
     offset += num_bytes;
     sum += val;
   }
   out[thread_lane] = sum;
-}
-
-template <bool delta = true>
-__device__ vidType decode_streamvbyte_warp1(const uint32_t *in, uint32_t *out) {
-  uint32_t count = *in; // number of elements to decompress
-  ++in;
-  decode_streamvbyte_warp<delta>(count, in, out);
-  return vidType(count);
 }
 
 // decompress VByte GPU kernel

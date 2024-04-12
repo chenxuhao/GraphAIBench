@@ -21,7 +21,7 @@ __global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vi
   vidType deg = g.get_degree(v_id);
   vidType *adj = buffer + (g.get_max_degree() * v_id);
   if (threadIdx.x % WARP_SIZE < 1) {
-    g.decode_vbyte_sums<scheme,delta,pack_size>(v_id, adj, 0, n_idx);
+    g.decode_vbyte_sums<scheme,delta,pack_size>(v_id, adj, n_idx);
   }
   // if (threadIdx.x % WARP_SIZE < deg) {
   //   g.decode_vbyte_warp<scheme,delta,pack_size>(v_id, adj);
@@ -68,7 +68,7 @@ void move_onto_gpu(Graph &g, int n_idx) {
 }
 
 int main(int argc, char* argv[]) {
-  Graph g;
+  // Graph g;
   std::string in_prefix = argv[1];
   std::string out_prefix = argv[2];
   std::string scheme = "streamvbyte";
@@ -76,7 +76,9 @@ int main(int argc, char* argv[]) {
   bool compress_graph = false;
   int n_idx = 0;
   int c;
-  while ((c = getopt(argc, argv, "cs:")) != -1) {
+  int idx = 0;
+  vidType transit = 0;
+  while ((c = getopt(argc, argv, "cs:t:i:")) != -1) {
     switch (c) {
       case 'c':
         compress_graph = true;
@@ -84,11 +86,19 @@ int main(int argc, char* argv[]) {
       case 's':
         n_idx = atoi(optarg);
         break;
+      case 't':
+        transit = (vidType)atoi(optarg);
+        break;
+      case 'i':
+        idx = atoi(optarg);
+        break;
       default:
-      abort();
+        abort();
     }
   }
-  if (compress_graph) { save_compressed_graph(in_prefix, out_prefix); }
-  g.load_compressed_graph(out_prefix, scheme, permutated);
-  move_onto_gpu(g, n_idx);
+  // if (compress_graph) { save_compressed_graph(in_prefix, out_prefix); }
+  // g.load_compressed_graph(out_prefix, scheme, permutated);
+  Graph g(in_prefix, 0, 0, 0, 0, 0);
+  std::cout << "deg " << g.get_degree(transit) << "\nneighbor " << g.N(transit, idx) << std::endl;
+  // move_onto_gpu(g, n_idx);
 }

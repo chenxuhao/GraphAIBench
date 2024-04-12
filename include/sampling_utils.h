@@ -51,10 +51,10 @@ inline bool is_directed() {
 */
 inline int sample_size(int step) {
     if (step == -1) return 1;
-    // if (step == 0) return 25;
-    // return 10;
-    if (step == 0) return 3;
-    return 3;
+    if (step == 0) return 25;
+    return 10;
+    // if (step == 0) return 3;
+    // return 3;
 }
 
 inline int num_samples() {
