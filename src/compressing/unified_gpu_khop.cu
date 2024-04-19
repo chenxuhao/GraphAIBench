@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
   bool print = false;
   int n_samples = num_samples();
   int pdeg = BLOCK_SIZE;
-  while ((c = getopt(argc, argv, "cn:d:")) != -1) {
+  while ((c = getopt(argc, argv, "cpn:d:")) != -1) {
     switch (c) {
       case 'c':
         compress_graph = true;

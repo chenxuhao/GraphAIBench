@@ -46,3 +46,4 @@ env.sh
 inputs/reddit
 inputs/ogbn-products
 inputs/pubmed
+inputs/tester

@@ -57,6 +57,12 @@ inline int sample_size(int step) {
     // return 3;
 }
 
+void sizes_list(int steps, int *steps_list) {
+  for (int i = 0; i <= steps; i++) {
+    steps_list[i] = sample_size(i-1);
+  }
+}
+
 inline int num_samples() {
     return 40000;
     // return 2;

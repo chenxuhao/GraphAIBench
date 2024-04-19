@@ -44,3 +44,9 @@ __device__ vidType next_gpu2(vidType *adj, int degree, curandState state) {
     int idx = (int)(ceil(curand_uniform(&state) * degree) - 1);
     return adj[idx];
 }
+
+__device__ vidType get_next_gpu(GraphGPU &g, vidType transit, int deg, curandState state) {
+    if (deg == 0) { return MAX_VIDTYPE; }
+    eidType idx = (eidType)(ceil(curand_uniform(&state) * deg) - 1);
+    return g.N(transit, idx);
+}
