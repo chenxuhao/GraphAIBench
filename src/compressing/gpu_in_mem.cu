@@ -66,8 +66,8 @@ __global__ void khop_next(GraphGPU g, int total_threads, int n_steps, int *step_
 }
 
 // 40000 * 25 * 10 + 40000 * 25 + 40000
-double multilayer_sample_relaunch(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int block_size) {
-    GraphGPU gg(g);
+double multilayer_sample_relaunch(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int block_size, bool use_uva) {
+    GraphGPU gg(g, use_uva);
     int cur_num = initial.size();
     vidType *d_result;
     curandState *d_states;
@@ -119,8 +119,8 @@ double multilayer_sample_relaunch(Graph &g, vector<vidType>& initial, int n_samp
     return sample_t.Seconds();
 }
 
-double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int block_size) {
-    GraphGPU gg(g);
+double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int block_size, bool use_uva) {
+    GraphGPU gg(g, use_uva);
     int cur_num = initial.size();
     vidType *d_result;
     int *step_counts = new int[steps() + 1];
@@ -176,19 +176,23 @@ int main(int argc, char* argv[]) {
   int n_samples = num_samples();
   int block_size = BLOCK_SIZE;
   int r = false;
-  while ((c = getopt(argc, argv, "pn:d:r")) != -1) {
+  bool use_uva = false;
+  while ((c = getopt(argc, argv, "pn:d:ru")) != -1) {
     switch (c) {
-      case 'p':
+      case 'p': //print results or not
         print = true;
         break;
-      case 'n':
+      case 'n': //batch size
         n_samples = atoi(optarg);
         break;
       case 'd':
         block_size = atoi(optarg);
         break;
-      case 'r':
+      case 'r': //if use the original khop that relaunches every step
         r = true;
+        break;
+      case 'u': //if use unified virtual memory
+        use_uva = true;
         break;
       default:
         abort();
@@ -207,9 +211,9 @@ int main(int argc, char* argv[]) {
   }
   vidType* result = new vidType[total_count];
   if (r) {
-    iElaps = multilayer_sample_relaunch(g, initial, n_samples, total_count, result, block_size);
+    iElaps = multilayer_sample_relaunch(g, initial, n_samples, total_count, result, block_size, use_uva);
   } else {
-    iElaps = multilayer_sample(g, initial, n_samples, total_count, result, block_size);
+    iElaps = multilayer_sample(g, initial, n_samples, total_count, result, block_size, use_uva);
   }
   cout << "Time elapsed for sampling " << total_count << " nodes: " << iElaps << " sec\n\n";
   if (print) {

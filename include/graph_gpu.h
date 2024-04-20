@@ -38,6 +38,10 @@ public:
       GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
     init(g);
   }
+  GraphGPU(Graph &g, bool use_uva, int n=0, int m=1) : 
+      GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
+    init(g, use_uva);
+  }
   GraphGPU(int n=0, int m=0, vidType nv=0, eidType ne=0, int vl=1, int el=1,
            bool directed=false, bool reverse=false, vidType max_deg=0) : 
       is_directed_(directed),
@@ -131,8 +135,9 @@ public:
   }
   void allocateFrom(vidType nv, eidType ne, bool has_vlabel = false, 
                     bool has_elabel = false, bool use_uva = false, bool has_reverse = false) {
-    std::cout << "Allocating GPU memory for the graph ... ";
+    std::cout << "Allocating GPU memory for the graph ...\n";
     if (use_uva) {
+      std::cout << "Graph too large, using unified virtual memory...\n";
       CUDA_SAFE_CALL(cudaMallocManaged(&d_rowptr, (nv+1) * sizeof(eidType)));
       CUDA_SAFE_CALL(cudaMallocManaged(&d_colidx, ne * sizeof(vidType)));
       if (has_reverse) {
@@ -204,7 +209,7 @@ public:
     n_gpu = m;
     init(g);
   }
-  void init(Graph &hg) {
+  void init(Graph &hg, bool use_uva=false) {
     auto nv = hg.num_vertices();
     auto ne = hg.num_edges();
     size_t mem_vert = size_t(nv+1)*sizeof(eidType);
@@ -213,7 +218,8 @@ public:
     size_t mem_el = mem_edge; // memory for the edgelist
     size_t mem_all = mem_graph + mem_el;
     auto mem_gpu = get_gpu_mem_size();
-    bool use_uva = mem_all > mem_gpu;
+    // bool use_uva = mem_all > mem_gpu;
+    use_uva = (use_uva) ? use_uva : mem_all > mem_gpu;
     auto v_classes = hg.get_vertex_classes();
     auto h_vlabel_freq = hg.get_label_freq_ptr();
     max_degree = hg.get_max_degree();
