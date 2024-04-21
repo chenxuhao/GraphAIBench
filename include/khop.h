@@ -67,12 +67,13 @@ inline vidType sample_next_vbyte(Graph &g, vidType transit)
     return adj_transit.data()[idx];
 }
 
-inline vidType sample_next(Graph &g, vidType transit, vidType src_degree, int step)
+inline vidType sample_next(Graph &g, vidType transit)
 {
     if (transit == (numeric_limits<uint32_t>::max)())
     {
         return (numeric_limits<uint32_t>::max)();
     }
+    vidType src_degree = g.N(transit).size();
     if (src_degree == 0)
     {
         return (numeric_limits<uint32_t>::max)();
