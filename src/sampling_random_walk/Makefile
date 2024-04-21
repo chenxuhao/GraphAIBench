@@ -24,6 +24,10 @@ rwalk_cpu: $(OBJS) $(CGOBJS) $(COBJS) compressor.o random_walk_cpu.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o random_walk_cpu.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
+rwalk_omp: $(OBJS) $(CGOBJS) $(COBJS) compressor.o random_walk_omp.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o random_walk_omp.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
 
 clean:
 	rm *.o
