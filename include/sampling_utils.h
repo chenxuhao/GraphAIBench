@@ -57,7 +57,7 @@ inline int sample_size(int step) {
     // return 3;
 }
 
-void sizes_list(int steps, int *steps_list) {
+inline void sizes_list(int steps, int *steps_list) {
   for (int i = 0; i <= steps; i++) {
     steps_list[i] = sample_size(i-1);
   }
@@ -95,3 +95,10 @@ inline vector<vidType> sort_by_sizes(vector<vidType> &sizes) {
   stable_sort(idx.begin(), idx.end(),
       [&sizes](size_t i1, size_t i2) {return sizes[i1] > sizes[i2];});
   return idx;}
+
+inline double seconds() {
+  struct timeval tp;
+  struct timezone tzp;
+  gettimeofday(&tp, &tzp);
+  return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
+}

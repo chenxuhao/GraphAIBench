@@ -43,6 +43,7 @@ __global__ void khop_next(GraphGPU g, int total_threads, int n_steps, int *step_
     int step_count = step_counts[0];
     int t_begin = 0;
     int old_t_begin = 0;
+    grid_group grid = this_grid();
     for (int step = 0; step < n_steps; step++) {
         int old_t_idx = old_t_begin + warp_id;
         vidType old_t = result[old_t_idx];
@@ -61,7 +62,8 @@ __global__ void khop_next(GraphGPU g, int total_threads, int n_steps, int *step_
             vidType old_t_deg = g.get_degree(old_t);
             result[t_idx] = get_next_gpu(g, old_t, old_t_deg, local_state);
         }
-        __syncthreads();
+        // __syncthreads();
+        grid.sync();
     }
 }
 
@@ -71,25 +73,29 @@ double multilayer_sample_relaunch(Graph &g, vector<vidType>& initial, int n_samp
     int cur_num = initial.size();
     vidType *d_result;
     curandState *d_states;
-    Timer alloc_t, sample_t, dealloc_t;
+    // Timer alloc_t, sample_t, dealloc_t;
+    double alloc_t, sample_t, dealloc_t;
     int size = sizeof(vidType);
     for (int i = 0; i < cur_num; i++) {
         result[i] = initial[i];
     }
 
-    alloc_t.Start();
+    // alloc_t.Start();
+    alloc_t = seconds();
     cudaMalloc((void **)&d_result, total_num * size);
     cudaMemcpy(d_result, result, cur_num * size, cudaMemcpyHostToDevice);
     
     cudaMalloc((void **)&d_states, total_num * sizeof(curandState));
-    alloc_t.Stop();
+    alloc_t = seconds() - alloc_t;
+    // alloc_t.Stop();
 
     std::cout << "Sampling random states\n";
     int total_num_blocks = (total_num + block_size - 1) / block_size;
     setup_kernel<<<total_num_blocks,block_size>>>(d_states);
 
     std::cout << "Starting sampling with " << block_size << " threads...\n";
-    sample_t.Start();
+    // sample_t.Start();
+    sample_t = seconds();
     int step_count = sample_size(-1) * n_samples;
     int prev_step_count = n_samples;
     int t_begin = 0;
@@ -106,17 +112,22 @@ double multilayer_sample_relaunch(Graph &g, vector<vidType>& initial, int n_samp
         cudaDeviceSynchronize();
         old_t_begin += prev_step_count;
     }
-    sample_t.Stop();
+    // sample_t.Stop();
+    sample_t = seconds() - sample_t;
 
-    dealloc_t.Start();
+    dealloc_t = seconds();
+    // dealloc_t.Start();
     cudaMemcpy(result, d_result, total_num * size, cudaMemcpyDeviceToHost);
     cudaFree(d_result);
     cudaFree(d_states);
-    dealloc_t.Stop();
+    // dealloc_t.Stop();
+    dealloc_t = seconds() - dealloc_t;
 
-    std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
+    std::cout << "Time elapsed for allocating and copying " << alloc_t + dealloc_t << " sec\n\n";
+    // std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
 
-    return sample_t.Seconds();
+    return sample_t;
+    // return sample_t.Seconds();
 }
 
 double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, vidType* result, int block_size, bool use_uva) {
@@ -126,44 +137,53 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     int *step_counts = new int[steps() + 1];
     int *d_step_counts;
     curandState *d_states;
-    Timer alloc_t, sample_t, dealloc_t;
+    // Timer alloc_t, sample_t, dealloc_t;
+    double alloc_t, sample_t, dealloc_t;
     int size = sizeof(vidType);
     for (int i = 0; i < cur_num; i++) {
         result[i] = initial[i];
     }
     sizes_list(steps(), step_counts);
     step_counts[0] *= n_samples;
-    alloc_t.Start();
+    // alloc_t.Start();
+    alloc_t = seconds();
     cudaMalloc((void **)&d_result, total_num * size);
     cudaMemcpy(d_result, result, cur_num * size, cudaMemcpyHostToDevice);
     cudaMalloc((void **)&d_step_counts, (steps() + 1) * sizeof(int));
     cudaMemcpy(d_step_counts, step_counts, (steps() + 1) * sizeof(int), cudaMemcpyHostToDevice);
 
     cudaMalloc((void **)&d_states, total_num * sizeof(curandState));
-    alloc_t.Stop();
+    // alloc_t.Stop();
+    alloc_t = seconds() - alloc_t;
 
     std::cout << "Sampling random states\n";
     int total_num_blocks = (total_num + block_size - 1) / block_size;
     setup_kernel<<<total_num_blocks,block_size>>>(d_states);
 
     std::cout << "Starting sampling with " << block_size << " threads...\n";
-    sample_t.Start();
+    // sample_t.Start();
+    sample_t = seconds();
     int total_threads = total_num * WARP_SIZE;
     int num_blocks = (total_threads + block_size - 1) / block_size;
     khop_next<<<num_blocks,block_size>>>(gg, total_threads, steps(), d_step_counts, d_result, d_states);
     cudaDeviceSynchronize();
-    sample_t.Stop();
+    // sample_t.Stop();
+    sample_t = seconds() - sample_t;
 
-    dealloc_t.Start();
+    // dealloc_t.Start();
+    dealloc_t = seconds();
     cudaMemcpy(result, d_result, total_num * size, cudaMemcpyDeviceToHost);
     cudaFree(d_result);
     cudaFree(d_states);
     cudaFree(d_step_counts);
-    dealloc_t.Stop();
+    // dealloc_t.Stop();
+    dealloc_t = seconds() - dealloc_t;
 
-    std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
+    std::cout << "Time elapsed for allocating and copying " << alloc_t + dealloc_t << " sec\n\n";
+    // std::cout << "Time elapsed for allocating and copying " << alloc_t.Seconds() + dealloc_t.Seconds() << " sec\n\n";
 
-    return sample_t.Seconds();
+    // return sample_t.Seconds();
+    return sample_t;
 }
 
 
