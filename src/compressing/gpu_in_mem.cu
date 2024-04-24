@@ -64,7 +64,7 @@ __global__ void khop_next(GraphGPU g, int total_threads, int n_steps, int *step_
     for (int step = 0; step < n_steps; step++) {
       int step_sample_size = step_counts[step + 1];
       step_count *= step_sample_size;
-      for (int i = thread_id % total_threads; i < step_count; i += total_threads) {
+      for (int i = thread_id; i < step_count; i += total_threads) {
         int old_t_idx = old_t_begin + i / step_sample_size;
         vidType old_t = result[old_t_idx];
         int t_idx = t_begin + i;

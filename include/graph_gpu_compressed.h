@@ -198,11 +198,16 @@ class GraphGPUCompressed : public GraphGPU {
     return degree;
   }
 
-  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ void decode_vbyte_sums(vidType v, vidType *adj, int n) {
     auto start = d_rowptr_compressed[v];
     auto length = d_rowptr_compressed[v+1] - start;
-    decode_streamvbyte_sums<delta>(&d_colidx_compressed[start], adj, n);
+    decode_streamvbyte_sums1(&d_colidx_compressed[start], adj, n);
+  }
+
+  inline __device__ vidType decode_vbyte_sums(vidType v, int n) {
+    auto start = d_rowptr_compressed[v];
+    auto length = d_rowptr_compressed[v+1] - start;
+    return decode_streamvbyte_sums(&d_colidx_compressed[start], n);
   }
 
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>

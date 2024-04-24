@@ -51,3 +51,24 @@ __device__ vidType get_next_gpu(GraphGPU &g, vidType transit, int deg, curandSta
     eidType idx = (eidType)(ceil(curand_uniform(&state) * deg) - 1);
     return g.N(transit, idx);
 }
+
+__device__ void set_random_idxs(GraphGPU &g, int old_t_begin, int t_begin, vidType *result, int *random_idxs, int step_sample_size, int step_count, int total_threads, curandState local_state) {
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    // sample fan out size num of random indices for single transit per warp
+    for (int i = thread_id; i < step_count; i += total_threads) {
+        int old_t_idx = old_t_begin + i / step_sample_size;
+        vidType old_t = result[old_t_idx];
+        vidType old_t_deg = 0;
+        if (old_t != MAX_VIDTYPE) {
+            old_t_deg = g.get_degree(old_t);
+        }
+        if (old_t_deg == 0) { // no need to continue sampling indices for 0 degree vertices
+            int t_idx = t_begin + i;
+            result[t_idx] = MAX_VIDTYPE;
+        }
+        else {
+            random_idxs[i] = (int)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+            // printf("old %d; r[i] %d\n", old_t, random_idxs[i]);
+        }
+    }
+}
