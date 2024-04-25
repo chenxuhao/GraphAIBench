@@ -20,11 +20,23 @@ class GraphGPUCompressed : public GraphGPU {
     d_colidx_compressed(NULL) {
   }
   GraphGPUCompressed(Graph &g, std::string scheme_name, vidType deg=32, int n=0, int m=1, bool unified_mem=false) : 
-      GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes(), false, false, g.get_max_degree()) {
+    GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes(), false, false, g.get_max_degree()) {
     scheme = scheme_name;
     degree_threshold = deg;
     if (unified_mem) unified_init(g);
     else init(g);
+  }
+  GraphGPUCompressed(Graph &g, vidType first_v, vidType nv, eidType ne, eidType max_deg=32, std::string scheme_name="streamvbyte") :
+    GraphGPU(0, 1, nv, ne, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
+    scheme = scheme_name;
+    degree_threshold = max_deg;
+    eidType *rowptr = g._rowptr_compressed() + first_v;
+    vidType *colidx = g._colidx_compressed() + rowptr[0];
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
   }
   void init(Graph &hg);
   void unified_init(Graph &hg);
@@ -200,20 +212,17 @@ class GraphGPUCompressed : public GraphGPU {
 
   inline __device__ void decode_vbyte_sums(vidType v, vidType *adj, int n) {
     auto start = d_rowptr_compressed[v];
-    auto length = d_rowptr_compressed[v+1] - start;
     decode_streamvbyte_sums1(&d_colidx_compressed[start], adj, n);
   }
 
   inline __device__ vidType decode_vbyte_sums(vidType v, int n) {
     auto start = d_rowptr_compressed[v];
-    auto length = d_rowptr_compressed[v+1] - start;
     return decode_streamvbyte_sums(&d_colidx_compressed[start], n);
   }
 
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ void decode_vbyte_thread(vidType v, vidType *adj, int num) {
     auto start = d_rowptr_compressed[v];
-    auto length = d_rowptr_compressed[v+1] - start;
     decode_streamvbyte_thread<delta>(&d_colidx_compressed[start], adj, num);
   }
 

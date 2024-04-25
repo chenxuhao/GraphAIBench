@@ -42,6 +42,25 @@ public:
       GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
     init(g, use_uva);
   }
+  GraphGPU(Graph &base_g, vidType nv, eidType ne) {
+    std::cout << "Allocating GPU memory for the subgraph |V| " << nv << " |E| " << ne << "...\n";
+    vidType *edges = new vidType[ne];
+    eidType *vertices = new eidType[nv + 1];
+    vertices[0] = 0;
+    for (int i = 0; i < nv; i++) {
+      vidType deg = base_g.decode_vertex_vbyte(i, edges, "streamvbyte");
+      edges += deg;
+      vertices[i+1] = deg;
+    }
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx, ne * sizeof(vidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_colidx, edges, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr, (nv+1) * sizeof(eidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, vertices, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    num_vertices = nv;
+    num_edges = ne;
+    std::cout << "Done\n";
+  }
   GraphGPU(int n=0, int m=0, vidType nv=0, eidType ne=0, int vl=1, int el=1,
            bool directed=false, bool reverse=false, vidType max_deg=0) : 
       is_directed_(directed),
