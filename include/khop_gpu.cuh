@@ -6,9 +6,12 @@
 const vidType MAX_VIDTYPE = 0 - 1;
 
 
-__global__ void setup_kernel(curandState *state)
+__global__ void setup_kernel(curandState *state, int total_threads)
 {
     int id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (id >= total_threads) {
+        return;
+    }
     /* Each thread gets a different seed, same sequence
        number, no offset */
     // curand_init(id, 0, 0, &state[id]);

@@ -53,6 +53,7 @@ void GraphGPUCompressed::unified_init(Graph &hg) {
 }
 
 void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv) {
+  std::cout << "Allocating GPU memory for the low degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
   eidType *_rowptr = new eidType[nv + 1];
   eidType *base_rowptr = base_g._rowptr_compressed() + first_v;
   vidType *base_colidx = base_g._colidx_compressed() + base_rowptr[0];

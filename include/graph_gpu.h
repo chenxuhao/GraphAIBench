@@ -252,7 +252,7 @@ public:
     std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
   }
   void init_sub(Graph &base_g, vidType nv, eidType ne) {
-    std::cout << "Allocating GPU memory for the subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
+    std::cout << "Allocating GPU memory for the high degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
     vidType *_edges = new vidType[ne];
     eidType *_vertices = new eidType[nv + 1];
     for (int i = 0; i < nv; i++) {
@@ -260,10 +260,11 @@ public:
       _edges += deg;
       _vertices[i+1] = deg + _vertices[i];
     }
+    _edges -= ne;
     CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx, ne * sizeof(vidType)));
     CUDA_SAFE_CALL(cudaMemcpy(d_colidx, _edges, ne * sizeof(vidType), cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr, (nv+1) * sizeof(eidType)));
-    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, &_vertices[0], (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, _vertices, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     num_vertices = nv;
     num_edges = ne;
