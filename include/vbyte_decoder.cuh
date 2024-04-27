@@ -124,11 +124,6 @@ __device__ vidType decode_streamvbyte_warp1(const uint32_t *in, uint32_t *out) {
   return vidType(count);
 }
 
-__device__ void decode_streamvbyte_sums1(const uint32_t *in, uint32_t *out, int n) {
-  int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
-  out[thread_lane] = decode_streamvbyte_sums(in, n);
-}
-
 __device__ vidType decode_streamvbyte_sums(const uint32_t *in, int n) {
   int32_t count = *in;
   ++in;
@@ -154,6 +149,11 @@ __device__ vidType decode_streamvbyte_sums(const uint32_t *in, int n) {
     sum += val;
   }
   return sum;
+}
+
+__device__ void decode_streamvbyte_sums1(const uint32_t *in, uint32_t *out, int n) {
+  int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
+  out[thread_lane] = decode_streamvbyte_sums(in, n);
 }
 
 // decompress VByte GPU kernel

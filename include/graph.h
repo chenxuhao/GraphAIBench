@@ -43,7 +43,7 @@ protected:
   eidType *vertices_compressed; // row pointers of the compressed format
   std::vector<nlf_map> nlf_;    // neighborhood label frequency
   std::vector<eidType> reverse_index_offsets_; // pointers to each vertex group
-  std::vector<uint32_t> edges_compressed;      // compressed edgelist
+  std::vector<vidType> edges_compressed;      // compressed edgelist
   std::vector<vidType> degrees; 
 
 public:
@@ -234,7 +234,7 @@ public:
   const eidType* rowptr_compressed() const { return vertices_compressed; }   // get compressed row pointers array
   const uint32_t* colidx_compressed() const { return &edges_compressed[0]; } // get compressed column indices array
   eidType* _rowptr_compressed() { return vertices_compressed; }
-  uint32_t* _colidx_compressed() { return &edges_compressed[0]; }
+  vidType* _colidx_compressed() { return &edges_compressed[0]; }
   size_t get_compressed_colidx_length() const { return edges_compressed.size(); }
   vidType intersect_num_compressed(vidType v, vidType u);
   vidType intersect_num_compressed(vidType v, vidType u, vidType up);

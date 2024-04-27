@@ -9,7 +9,6 @@
 using namespace std;
 using namespace cooperative_groups;
 
-template <int scheme = 0, bool delta = true, int pack_size = 4>
 __global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vidType *buffer, int n_idx) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   int warp_id = thread_id / WARP_SIZE;
@@ -21,7 +20,7 @@ __global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vi
   vidType deg = g.get_degree(v_id);
   vidType *adj = buffer + (g.get_max_degree() * v_id);
   if (threadIdx.x % WARP_SIZE < 1) {
-    g.decode_vbyte_sums<scheme,delta,pack_size>(v_id, adj, n_idx);
+    g.decode_vbyte_sums(v_id, adj, n_idx);
   }
   // if (threadIdx.x % WARP_SIZE < deg) {
   //   g.decode_vbyte_warp<scheme,delta,pack_size>(v_id, adj);
@@ -129,7 +128,11 @@ int main(int argc, char* argv[]) {
   int block_size = 32;
   for (int v = 0; v < g.V(); v++) {
     int deg = g.get_degree(v);
-    int idx = min(deg / block_size, num_blocks - 1);
+    int idx;
+    if (deg % block_size == 0 && deg != 0) {idx = min(deg / block_size - 1, num_blocks - 1);}
+    else {
+      idx = min(deg / block_size, num_blocks - 1);
+    }
     blocks[idx]++;
     num_neighbors_blocks[idx] += deg;
   }

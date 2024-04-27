@@ -30,16 +30,13 @@ class GraphGPUCompressed : public GraphGPU {
     GraphGPU(0, 1, nv, ne, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
     scheme = scheme_name;
     degree_threshold = max_deg;
-    eidType *rowptr = g._rowptr_compressed() + first_v;
-    vidType *colidx = g._colidx_compressed() + rowptr[0];
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
-    CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
-    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    eidType *_rowptr = g._rowptr_compressed() + first_v;
+    vidType *_colidx = g._colidx_compressed() + _rowptr[0];
+    init_low_sub(g, first_v, ne, nv);
   }
   void init(Graph &hg);
   void unified_init(Graph &hg);
+  void init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
   inline __device__ vidType get_degree(vidType v) const {
     auto start = d_rowptr_compressed[v];
