@@ -14,15 +14,15 @@ using namespace cooperative_groups;
 // const int BLOCK_DIM = 32;
 // const vidType MAX_VIDTYPE = 0 - 1;
 
-__global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
-// __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType *result, int n_steps, int *step_counts, int total_threads, curandState *states) {
+// __global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
+__global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType first_low, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   if (thread_id >= total_threads) {
     return;
   }
   curandState local_state = states[thread_id];
 
-  // vidType high_deg = high_g.V();
+  vidType high_deg = high_g.V();
   int step_count = n_samples;
   int t_begin = step_count;
   int old_t_begin = 0;
@@ -37,21 +37,37 @@ __global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, i
         result[t_idx] = MAX_VIDTYPE;
       } 
       else {
-        vidType old_t_deg = g.get_degree(old_t);
-        eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-        result[t_idx] = g.decode_vbyte_sums(old_t, n_idx);
+        // vidType old_t_deg = g.get_degree(old_t);
+        // eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+        // result[t_idx] = g.decode_vbyte_sums(old_t, n_idx);
 
         // vidType old_t_deg = low_g.get_degree(old_t);
         // eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-        // if (old_t > high_deg) {
-        //   result[t_idx] = high_g.N(old_t, n_idx);
+        // if (old_t_deg == 0) {
+        //   result[t_idx] = MAX_VIDTYPE;
         // }
-        // else if (old_t < WARP_SIZE) {
-        //   result[t_idx] = low_g.decode_vbyte_sums(old_t, n_idx);
-        // }
-        // else {
-        //   result[t_idx] = 0; // placeholder
-        // }
+        if (old_t < high_deg) {
+          vidType old_t_deg = high_g.get_degree(old_t);
+          if (old_t_deg == 0) {
+            result[t_idx] = MAX_VIDTYPE;
+            continue;
+          }
+          eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+          result[t_idx] = high_g.N(old_t, n_idx);
+        } 
+        else if (old_t >= first_low) {
+          old_t -= first_low;
+          vidType old_t_deg = low_g.get_degree(old_t);
+          if (old_t_deg == 0) {
+            result[t_idx] = MAX_VIDTYPE;
+            continue;
+          }
+          eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+          result[t_idx] = low_g.decode_vbyte_sums(old_t, n_idx);
+        }
+        else {
+          result[t_idx] = 0; // placeholder
+        }
       }
     }
     step_count *= step_sample_size;
@@ -197,8 +213,8 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     for (int i = first_low; i < g.V(); i++) {
       total_deg += g.get_degree_vbyte(i);
     }
-    GraphGPUCompressed low_subg(g, first_low, g.V() - last_med, total_deg);
-
+    GraphGPUCompressed low_subg(g, first_low, g.V() - first_low, total_deg);
+    // std::cout << "last_med " << last_med << " deg " << g.get_degree_vbyte(last_med) << " first_low " << first_low << " deg " << g.get_degree_vbyte(first_low) << std::endl;
 
     sizes_list(n_steps, step_counts);
     alloc_t = seconds();
@@ -223,6 +239,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     // void *kernel_args[] = {&gg, &d_result, &n_steps, &n_samples, &d_step_counts, &total_threads, &d_states};
     // void *kernel_args[] = {&low_subg, &high_subg, &d_result, &n_steps, &d_step_counts, &total_threads, &d_states};
     sample_t = seconds();
+    khop_next0<<<num_blocks,block_size>>>(low_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // khop_next0<<<num_blocks,block_size>>>(gg, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // cudaLaunchCooperativeKernel((void*)(khop_next0), grid, block, kernel_args);
     // CUDA_SAFE_CALL(cudaDeviceSynchronize());
