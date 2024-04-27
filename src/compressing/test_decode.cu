@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
   // if (compress_graph) { save_compressed_graph(in_prefix, out_prefix); }
   // g.load_compressed_graph(out_prefix, scheme, permutated);
   Graph g(in_prefix, 0, 0, 0, 0, 0);
-  // std::cout << "deg " << g.get_degree(transit) << "\nneighbor " << g.N(transit, idx) << std::endl;
+  std::cout << "deg " << g.get_degree(transit) << "\nneighbor " << g.N(transit, idx) << std::endl;
   // move_onto_gpu(g, n_idx);
 
   // count number of low, med, and high degree nodes
@@ -122,36 +122,26 @@ int main(int argc, char* argv[]) {
   // std::cout << "num of high(>" << high_threshold << "): " << high << "\n";
   // std::cout << "num of med: " << med << "\n";
 
-  int num_blocks = 33;
-  vidType blocks[num_blocks] = {0};
-  eidType num_neighbors_blocks[num_blocks] = {0};
-  int block_size = 32;
-  for (int v = 0; v < g.V(); v++) {
-    int deg = g.get_degree(v);
-    int idx;
-    if (deg % block_size == 0 && deg != 0) {idx = min(deg / block_size - 1, num_blocks - 1);}
-    else {
-      idx = min(deg / block_size, num_blocks - 1);
-    }
-    blocks[idx]++;
-    num_neighbors_blocks[idx] += deg;
-  }
-  //for reading here
-  // for (int i = 0; i < num_blocks; i++) {
-  //   if (i == 0) {
-  //     std::cout << i * 32 << "-" << (i+1) * 32 << ": " << blocks[i] << " vertices; " << num_neighbors_blocks[i] << " neighbors\n";
-  //   } else if (i == num_blocks - 1) {
-  //     std::cout << i * 32 + 1 << "+: " << blocks[i] << " vertices; " << num_neighbors_blocks[i] << " neighbors\n";
-  //   } else {
-  //     std::cout << i * 32 + 1 << "-" << (i+1) * 32 << ": " << blocks[i] << " vertices; " << num_neighbors_blocks[i] << " neighbors\n";
+  // int num_blocks = 33;
+  // vidType blocks[num_blocks] = {0};
+  // eidType num_neighbors_blocks[num_blocks] = {0};
+  // int block_size = 32;
+  // for (int v = 0; v < g.V(); v++) {
+  //   int deg = g.get_degree(v);
+  //   int idx;
+  //   if (deg % block_size == 0 && deg != 0) {idx = min(deg / block_size - 1, num_blocks - 1);}
+  //   else {
+  //     idx = min(deg / block_size, num_blocks - 1);
   //   }
+  //   blocks[idx]++;
+  //   num_neighbors_blocks[idx] += deg;
   // }
   //for copying into sheets
-  for (int i = 0; i < num_blocks; i++) {
-    std::cout << blocks[i] << "\n";
-  }
-  std::cout << "\n\n";
-  for (int i = 0; i < num_blocks; i++) {
-    std::cout << num_neighbors_blocks[i] << "\n";
-  }
+  // for (int i = 0; i < num_blocks; i++) {
+  //   std::cout << blocks[i] << "\n";
+  // }
+  // std::cout << "\n\n";
+  // for (int i = 0; i < num_blocks; i++) {
+  //   std::cout << num_neighbors_blocks[i] << "\n";
+  // }
 }

@@ -126,6 +126,13 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     for (int i = 0; i < cur_num; i++) {
         result[i] = initial[i];
     }
+
+    int max_threads = 40000;
+    int threads_needed = last_step_num / sample_size(steps() - 1);
+    // int total_threads = min(threads_needed * WARP_SIZE, max_threads);
+    int total_threads = max_threads;
+    int num_blocks = (total_threads + block_size - 1) / block_size;
+
     sizes_list(n_steps, step_counts);
     alloc_t = seconds();
     CUDA_SAFE_CALL(cudaMalloc((void **)&d_result, total_num * size));
@@ -133,16 +140,11 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     CUDA_SAFE_CALL(cudaMalloc((void **)&d_step_counts, (steps() + 1) * sizeof(int)));
     CUDA_SAFE_CALL(cudaMemcpy(d_step_counts, step_counts, (steps() + 1) * sizeof(int), cudaMemcpyHostToDevice));
 
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_states, total_num * sizeof(curandState)));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_states, total_threads * sizeof(curandState)));
     alloc_t = seconds() - alloc_t;
 
-    int max_threads = 40000;
-    int threads_needed = last_step_num / sample_size(steps() - 1);
-    // int total_threads = min(threads_needed * WARP_SIZE, max_threads);
-    int total_threads = max_threads;
-    int num_blocks = (total_threads + block_size - 1) / block_size;
     rand_t = seconds();
-    setup_kernel<<<num_blocks,block_size>>>(d_states);
+    setup_kernel<<<num_blocks,block_size>>>(d_states, total_threads);
     rand_t = seconds() - rand_t;
     std::cout << "Sampled random states in " << rand_t << " sec\n";
 

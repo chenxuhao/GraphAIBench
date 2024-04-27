@@ -17,35 +17,28 @@ using namespace cooperative_groups;
 // __global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
 __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType first_low, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-  if (thread_id >= total_threads) {
+  if (thread_id >= total_threads || thread_id >= n_samples) {
     return;
   }
   curandState local_state = states[thread_id];
 
   vidType high_deg = high_g.V();
-  int step_count = n_samples;
-  int t_begin = step_count;
+  int step_count = step_counts[0];
+  int t_begin = step_count * n_samples;
   int old_t_begin = 0;
   for (int step = 0; step < n_steps; step++) {
-    int prev_step_sample_size = step_counts[step];
     int step_sample_size = step_counts[step + 1];
-    for (int i = 0; i < step_sample_size; i++) {
-      int old_t_idx = old_t_begin + (thread_id * prev_step_sample_size) + (i / step_sample_size);
-      int t_idx = t_begin + (thread_id * step_sample_size) + i;
+    int prev_step_count = step_count;
+    step_count *= step_sample_size;
+    for (int i = 0; i < step_count; i++) {
+      int old_t_idx = old_t_begin + (thread_id * prev_step_count) + (i / step_sample_size);
+      int t_idx = t_begin + (thread_id * step_count) + i;
       vidType old_t = result[old_t_idx];
+      result[t_idx] = 0;
       if (old_t == MAX_VIDTYPE) {
         result[t_idx] = MAX_VIDTYPE;
       } 
       else {
-        // vidType old_t_deg = g.get_degree(old_t);
-        // eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-        // result[t_idx] = g.decode_vbyte_sums(old_t, n_idx);
-
-        // vidType old_t_deg = low_g.get_degree(old_t);
-        // eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-        // if (old_t_deg == 0) {
-        //   result[t_idx] = MAX_VIDTYPE;
-        // }
         if (old_t < high_deg) {
           vidType old_t_deg = high_g.get_degree(old_t);
           if (old_t_deg == 0) {
@@ -54,6 +47,7 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType fi
           }
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = high_g.N(old_t, n_idx);
+          // printf("HIGH deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         } 
         else if (old_t >= first_low) {
           old_t -= first_low;
@@ -64,15 +58,17 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType fi
           }
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = low_g.decode_vbyte_sums(old_t, n_idx);
+          // printf("LOW deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         }
         else {
+          // printf("MED t_idx %d; old_t %d; t %d\n", t_idx, result[old_t_idx], 0);
           result[t_idx] = 0; // placeholder
         }
       }
     }
-    step_count *= step_sample_size;
     old_t_begin = t_begin;
-    t_begin += step_count;
+    t_begin += step_count * n_samples;
+    // printf("\n");
   }
 }
 
@@ -208,13 +204,20 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     while (g.get_degree_vbyte(last_med) <= l_deg) {
       last_med--;
     }
-    total_deg = 0;
     vidType first_low = last_med + 1;
-    for (int i = first_low; i < g.V(); i++) {
-      total_deg += g.get_degree_vbyte(i);
-    }
+    auto g_rptr = g.rowptr_compressed();
+    total_deg = g_rptr[g.V()] - g_rptr[first_low];
     GraphGPUCompressed low_subg(g, first_low, g.V() - first_low, total_deg);
-    // std::cout << "last_med " << last_med << " deg " << g.get_degree_vbyte(last_med) << " first_low " << first_low << " deg " << g.get_degree_vbyte(first_low) << std::endl;
+    std::cout << "last_med " << last_med << " deg " << g.get_degree_vbyte(last_med) << " first_low " << first_low << " deg " << g.get_degree_vbyte(first_low) << std::endl;
+    eidType ttt = 0;
+    auto g_c = g.colidx_compressed();
+    for (int i = first_low; i < g.V(); i++) {
+      ttt += g_c[g_rptr[i]];
+    }
+    std::cout << "total edges in low subgraph " << ttt << " and " << total_deg << std::endl;
+
+    int total_threads = 40000;
+    int num_blocks = (total_threads + block_size - 1) / block_size;
 
     sizes_list(n_steps, step_counts);
     alloc_t = seconds();
@@ -223,13 +226,11 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     CUDA_SAFE_CALL(cudaMalloc((void **)&d_step_counts, (steps() + 1) * sizeof(int)));
     CUDA_SAFE_CALL(cudaMemcpy(d_step_counts, step_counts, (steps() + 1) * sizeof(int), cudaMemcpyHostToDevice));
 
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_states, total_num * sizeof(curandState)));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_states, total_threads * sizeof(curandState)));
     alloc_t = seconds() - alloc_t;
 
-    int total_threads = 40000;
-    int num_blocks = (total_threads + block_size - 1) / block_size;
     rand_t = seconds();
-    setup_kernel<<<num_blocks,block_size>>>(d_states);
+    setup_kernel<<<num_blocks,block_size>>>(d_states, total_threads);
     rand_t = seconds() - rand_t;
     std::cout << "Sampled random states in " << rand_t << " sec\n";
 
@@ -242,7 +243,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     khop_next0<<<num_blocks,block_size>>>(low_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // khop_next0<<<num_blocks,block_size>>>(gg, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // cudaLaunchCooperativeKernel((void*)(khop_next0), grid, block, kernel_args);
-    // CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
     sample_t = seconds() - sample_t;
 
     dealloc_t = seconds();
