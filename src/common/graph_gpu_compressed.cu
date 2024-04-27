@@ -54,15 +54,14 @@ void GraphGPUCompressed::unified_init(Graph &hg) {
 
 void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv) {
   eidType *_rowptr = new eidType[nv + 1];
-  vidType *_colidx = new vidType[ne];
   eidType *base_rowptr = base_g._rowptr_compressed() + first_v;
-  vidType *base_colidx = base_g._colidx_compressed() + _rowptr[0];
-  _rowptr[0] = 0;
+  vidType *base_colidx = base_g._colidx_compressed() + base_rowptr[0];
+  eidType diff = base_rowptr[0];
   for (int i = 1; i <= nv; i++) {
-    _rowptr[i] = base_rowptr[i] - base_rowptr[i-1] + _rowptr[i-1]; 
+    _rowptr[i] = base_rowptr[i] - diff;
   }
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
-  CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, _colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, base_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, _rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());

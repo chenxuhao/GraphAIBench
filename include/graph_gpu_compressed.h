@@ -30,8 +30,6 @@ class GraphGPUCompressed : public GraphGPU {
     GraphGPU(0, 1, nv, ne, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
     scheme = scheme_name;
     degree_threshold = max_deg;
-    eidType *_rowptr = g._rowptr_compressed() + first_v;
-    vidType *_colidx = g._colidx_compressed() + _rowptr[0];
     init_low_sub(g, first_v, ne, nv);
   }
   void init(Graph &hg);
@@ -207,11 +205,13 @@ class GraphGPUCompressed : public GraphGPU {
     return degree;
   }
 
+  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ void decode_vbyte_sums(vidType v, vidType *adj, int n) {
     auto start = d_rowptr_compressed[v];
     decode_streamvbyte_sums1(&d_colidx_compressed[start], adj, n);
   }
 
+  template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ vidType decode_vbyte_sums(vidType v, int n) {
     auto start = d_rowptr_compressed[v];
     return decode_streamvbyte_sums(&d_colidx_compressed[start], n);

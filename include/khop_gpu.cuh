@@ -71,4 +71,4 @@ __device__ void set_random_idxs(GraphGPU &g, int old_t_begin, int t_begin, vidTy
             // printf("old %d; r[i] %d\n", old_t, random_idxs[i]);
         }
     }
-}
+};
