@@ -49,6 +49,13 @@ uint32_t vbyte_encoder::encode(uint32_t count, const uint32_t *in, uint32_t *out
   return 1 + (bytesWritten + 3) / 4;
 }
 
+uint32_t vbyte_encoder::encode(uint32_t count, const uint32_t *in, uint32_t *key_out, uint32_t *out) {
+  uint8_t *keyPtr = (uint8_t *)key_out;              // keys come immediately after 32-bit count
+  uint8_t *dataPtr = (uint8_t *)out; // variable byte data after all keys
+  uint32_t bytesWritten = uint32_t(svb_encode_scalar_d1(in, keyPtr, dataPtr, count) - (uint8_t *)out);
+  return (bytesWritten + 3) / 4;
+}
+
 uint8_t * vbyte_encoder::svb_encode_scalar(const uint32_t *in,
                                            uint8_t *__restrict__ keyPtr,
                                            uint8_t *__restrict__ dataPtr, uint32_t count) {

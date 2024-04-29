@@ -6,6 +6,7 @@ class vbyte_encoder {
 public:
   vbyte_encoder(std::string name) : scheme_name(name) {}
   uint32_t encode(uint32_t count, const uint32_t *in, uint32_t *out, bool add_degree = false);
+  uint32_t encode(uint32_t count, const uint32_t *in, uint32_t *key_out, uint32_t *out);
   std::string get_name() const { return scheme_name; }
 protected:
   std::string scheme_name;

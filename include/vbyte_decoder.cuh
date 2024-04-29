@@ -162,27 +162,22 @@ __device__ vidType decode_streamvbyte_prefix(const uint32_t *in, int n) {
   int32_t count = *in;
   ++in;
   if (count == 0) return;
-  uint8_t *keyPtr = (uint8_t *)in; // full list of keys is next
+  uint32_t *prefixPtr = in; // full list of keys is next
+  uint32_t total_prefix = (count - 1) / WARP_SIZE;
+  uint32_t n_prefix = max(0, (n - 1) / WARP_SIZE);
+  uint32_t prefix_offset = prefixPtr[n_prefix]; 
+  uint8_t *keyPtr = (uint8_t *)(prefixPtr + total_prefix);
   uint32_t keyLen = ((count + 3) / 4); // 2-bits per key (rounded up)
-  uint8_t *dataPtr = keyPtr + keyLen;  // data starts at end of keys
+  uint8_t *dataPtr = keyPtr + keyLen + prefix_offset;  // data starts at end of keys
 
   vidType sum = 0;
   uint32_t offset = 0;
-  int prefix_count = 0;
-  vidType base = 0;
+  int r = n % WARP_SIZE;
+  if (r == 0 && n > 0) r = 32;
 
-  while () {
-    uint32_t num_bytes = extract_bits(keyPtr, 0 * 2, 2) + 1;
-    base = extract_bytes(&dataPtr[offset], num_bytes);
-    offset += num_bytes;
-  }
-  for (int i = prefix_count; i <= n; i ++) {
-    // int idx = i % WARP_SIZE;
-    // if (idx == 0 && i > 0) {
-    //     keyPtr += 8;
-    // }
+  for (int i = r; i >= 0; i--) {
     // Read the header
-    uint32_t num_bytes = extract_bits(keyPtr, i * 2, 2) + 1;
+    uint32_t num_bytes = extract_bits(keyPtr, (n - i) * 2, 2) + 1;
     // Compute prefix sum to get the positions for extracting data elements
     uint32_t val = extract_bytes(&dataPtr[offset], num_bytes);
     offset += num_bytes;

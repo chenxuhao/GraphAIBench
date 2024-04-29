@@ -574,39 +574,50 @@ void GraphT<map_vertices, map_edges>::init_subgraph(GraphT hg, vidType first, vi
   n_vertices = last - first;
   is_compressed_ = true;
   max_degree = m_deg;
+  vidType prefix_interval = WARP_SIZE;
+  vidType interval_key_len = (prefix_interval + 3) / 4;
+
   vertices_compressed = new eidType[n_vertices+1];
+  vertices_compressed[0] = 0;
   vidType *in_buffer = new vidType[m_deg];
   vector<vidType> out_buffer;
   vidType *out_ptr;
+  vidType *key_ptr;
   vbyte_encoder vb_encoder("streamvbyte");
+  // vidType total_rounds = 0;
+
   for (vidType v = first; v < last; v++) {
     vidType deg = hg.decode_vertex_vbyte(v, in_buffer, "streamvbyte");
-    if (out_buffer.size() < deg + 1024) out_buffer.resize(deg + 1024);
-    out_ptr = out_buffer.data();
-    // int last_prefix = 0;
-    eidType n_idx = 0;
-    eidType count = 0;
-    vidType total_size_v = 0;
-    while (n_idx < deg) {
-      vidType n = in_buffer[n_idx];
-      // int prefix = (n_idx - 1) / 32;
-      // if (prefix != last_prefix) {
-      if (count == 32) {
-        vidType prefix_size = vb_encoder.encode(count, in_buffer, out_ptr, true);
-        in_buffer += count;
-        out_ptr += prefix_size;
-        total_size_v += prefix_size;
-        count = 0;
-        // last_prefix = prefix;
-      }
-      count++;
-      n_idx++;
+    if (deg == 0) {
+      vertices_compressed[v+1] = vertices_compressed[v];
+      continue;
     }
-    vidType prefix_size = vb_encoder.encode(count, in_buffer, out_ptr, true);
+    edges_compressed.push_back(deg);
+    if (out_buffer.size() < deg + 1024) out_buffer.resize(deg + 1024);
+    uint32_t key_len = (deg + 3) / 4;
+    key_ptr = out_buffer.data();
+    out_ptr = key_ptr + key_len;
+    vidType n_rounds = deg / prefix_interval;
+    vidType prefix_size = 0;
+
+    for (vidType r = 0; r < n_rounds; r++) {
+      edges_compressed.push_back(prefix_size);
+      prefix_size = vb_encoder.encode(prefix_interval, in_buffer, key_ptr, out_ptr);
+      in_buffer += prefix_interval;
+      key_ptr += interval_key_len;
+      out_ptr += prefix_size;
+    }
+
+    vidType count = deg % prefix_interval;
+    if (count != 0) {
+      edges_compressed.push_back(prefix_size);
+      prefix_size = vb_encoder.encode(count, in_buffer, key_ptr, out_ptr);
+      out_ptr += prefix_size;
+    }
+    vidType total_size_v = out_ptr - out_buffer.begin();
+    edges_compressed.insert(edges_compressed.end(), out_buffer.begin(), out_ptr);
+    vertices_compressed[v+1] = vertices_compressed[v] + 1 + ((deg + WARP_SIZE - 1) / WARP_SIZE) + total_size_v;
     in_buffer -= (deg - count);
-    total_size_v += prefix_size;
-    edges_compressed.insert(edges_compressed.end(), out_buffer.begin(), out_buffer.begin() + total_size_v);
-    vertices_compressed[v+1] = total_size_v;
   }
 }
  

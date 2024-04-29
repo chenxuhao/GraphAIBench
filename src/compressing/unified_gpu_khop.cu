@@ -62,15 +62,14 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
         }
         else {
           old_t -= first_med;
-          vidType old_t_deg = med_g.prefix_get_degree(old_t);
+          vidType old_t_deg = med_g.get_degree(old_t);
           if (old_t_deg == 0) {
             result[t_idx] = MAX_VIDTYPE;
             continue;
           }
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-          
+          result[t_idx] = med_g.decode_vbyte_prefix(old_t, n_idx);
           // printf("MED t_idx %d; old_t %d; t %d\n", t_idx, result[old_t_idx], 0);
-          result[t_idx] = 0; // placeholder
         }
       }
     }
