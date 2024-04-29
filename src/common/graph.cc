@@ -1,6 +1,7 @@
 #include "graph.h"
 #include "scan.h"
 #include "platform_atomics.h"
+#include "vbyte_encoder.hh"
 
 std::map<OPS,double> timers;
 
@@ -566,6 +567,47 @@ void GraphT<map_vertices, map_edges>::allocateFrom(vidType nv, eidType ne) {
   vertices = new eidType[nv+1];
   edges = new vidType[ne];
   vertices[0] = 0;
+}
+
+template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::init_subgraph(GraphT hg, vidType first, vidType last, int m_deg) {
+  n_vertices = last - first;
+  is_compressed_ = true;
+  max_degree = m_deg;
+  vertices_compressed = new eidType[n_vertices+1];
+  vidType *in_buffer = new vidType[m_deg];
+  vector<vidType> out_buffer;
+  vidType *out_ptr;
+  vbyte_encoder vb_encoder("streamvbyte");
+  for (vidType v = first; v < last; v++) {
+    vidType deg = hg.decode_vertex_vbyte(v, in_buffer, "streamvbyte");
+    if (out_buffer.size() < deg + 1024) out_buffer.resize(deg + 1024);
+    out_ptr = out_buffer.data();
+    // int last_prefix = 0;
+    eidType n_idx = 0;
+    eidType count = 0;
+    vidType total_size_v = 0;
+    while (n_idx < deg) {
+      vidType n = in_buffer[n_idx];
+      // int prefix = (n_idx - 1) / 32;
+      // if (prefix != last_prefix) {
+      if (count == 32) {
+        vidType prefix_size = vb_encoder.encode(count, in_buffer, out_ptr, true);
+        in_buffer += count;
+        out_ptr += prefix_size;
+        total_size_v += prefix_size;
+        count = 0;
+        // last_prefix = prefix;
+      }
+      count++;
+      n_idx++;
+    }
+    vidType prefix_size = vb_encoder.encode(count, in_buffer, out_ptr, true);
+    in_buffer -= (deg - count);
+    total_size_v += prefix_size;
+    edges_compressed.insert(edges_compressed.end(), out_buffer.begin(), out_buffer.begin() + total_size_v);
+    vertices_compressed[v+1] = total_size_v;
+  }
 }
  
 template<bool map_vertices, bool map_edges>

@@ -58,7 +58,7 @@ void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne
   eidType *base_rowptr = base_g._rowptr_compressed() + first_v;
   vidType *base_colidx = base_g._colidx_compressed() + base_rowptr[0];
   eidType diff = base_rowptr[0];
-  for (int i = 1; i <= nv; i++) {
+  for (vidType i = 1; i <= nv; i++) {
     _rowptr[i] = base_rowptr[i] - diff;
   }
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));

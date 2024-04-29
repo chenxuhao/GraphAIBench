@@ -255,7 +255,7 @@ public:
     std::cout << "Allocating GPU memory for the high degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
     vidType *_edges = new vidType[ne];
     eidType *_vertices = new eidType[nv + 1];
-    for (int i = 0; i < nv; i++) {
+    for (vidType i = 0; i < nv; i++) {
       vidType deg = base_g.decode_vertex_vbyte(i, _edges, "streamvbyte");
       _edges += deg;
       _vertices[i+1] = deg + _vertices[i];

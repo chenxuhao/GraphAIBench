@@ -40,6 +40,10 @@ class GraphGPUCompressed : public GraphGPU {
     auto start = d_rowptr_compressed[v];
     return d_colidx_compressed[start];
   }
+  inline __device__ vidType prefix_get_degree(vidType v) const {
+    auto next_start = d_rowptr_compressed[v+1];
+    return d_colidx_compressed[next_start-1];
+  }
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) { return decode_cgr_warp<true>(v, adj); }
   inline __device__ vidType* cta_decompress(vidType v, vidType *buf1, vidType *buf2, vidType &degree);
   inline __device__ vidType intersect_num_warp_compressed(vidType v, vidType u, vidType *v_residuals, vidType *u_residuals);

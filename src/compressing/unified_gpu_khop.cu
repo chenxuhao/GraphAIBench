@@ -15,14 +15,14 @@ using namespace cooperative_groups;
 // const vidType MAX_VIDTYPE = 0 - 1;
 
 // __global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
-__global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType first_low, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
+__global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, GraphGPU high_g, vidType first_low, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   if (thread_id >= total_threads || thread_id >= n_samples) {
     return;
   }
   curandState local_state = states[thread_id];
 
-  vidType high_deg = high_g.V();
+  vidType first_med = high_g.V();
   int step_count = step_counts[0];
   int t_begin = step_count * n_samples;
   int old_t_begin = 0;
@@ -39,7 +39,7 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType fi
         result[t_idx] = MAX_VIDTYPE;
       } 
       else {
-        if (old_t < high_deg) {
+        if (old_t < first_med) {
           vidType old_t_deg = high_g.get_degree(old_t);
           if (old_t_deg == 0) {
             result[t_idx] = MAX_VIDTYPE;
@@ -61,6 +61,14 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPU high_g, vidType fi
           // printf("LOW deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         }
         else {
+          old_t -= first_med;
+          vidType old_t_deg = med_g.prefix_get_degree(old_t);
+          if (old_t_deg == 0) {
+            result[t_idx] = MAX_VIDTYPE;
+            continue;
+          }
+          eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+          
           // printf("MED t_idx %d; old_t %d; t %d\n", t_idx, result[old_t_idx], 0);
           result[t_idx] = 0; // placeholder
         }
@@ -189,32 +197,40 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
         result[i] = initial[i];
     }
 
+    // get high degree subgraph
     vidType last_high = 0;
     while (g.get_degree_vbyte(last_high) > h_deg) {
       last_high++;
     }
+    last_high--;
     eidType total_deg = 0;
-    for (int i = 0; i < last_high; i++) {
+    for (int i = 0; i <= last_high; i++) {
       total_deg += g.get_degree_vbyte(i);
     }
-    GraphGPU high_subg(g, last_high, total_deg);
+    GraphGPU high_subg(g, last_high + 1, total_deg);
 
+    // get medium degree subgraph
+    vidType first_med = last_high + 1;
     int l_deg = WARP_SIZE;
     vidType last_med = g.V() - 1;
     while (g.get_degree_vbyte(last_med) <= l_deg) {
       last_med--;
     }
+    Graph cpu_med_subg(g, first_med, last_med + 1, h_deg);
+    GraphGPUCompressed med_subg(cpu_med_subg, "streamvbyte", g.get_degree_vbyte(first_med));
+
+    // get low degree subgraph
     vidType first_low = last_med + 1;
     auto g_rptr = g.rowptr_compressed();
     total_deg = g_rptr[g.V()] - g_rptr[first_low];
     GraphGPUCompressed low_subg(g, first_low, g.V() - first_low, total_deg);
-    std::cout << "last_med " << last_med << " deg " << g.get_degree_vbyte(last_med) << " first_low " << first_low << " deg " << g.get_degree_vbyte(first_low) << std::endl;
-    eidType ttt = 0;
-    auto g_c = g.colidx_compressed();
-    for (int i = first_low; i < g.V(); i++) {
-      ttt += g_c[g_rptr[i]];
-    }
-    std::cout << "total edges in low subgraph " << ttt << " and " << total_deg << std::endl;
+    // std::cout << "last_med " << last_med << " deg " << g.get_degree_vbyte(last_med) << " first_low " << first_low << " deg " << g.get_degree_vbyte(first_low) << std::endl;
+    // eidType ttt = 0;
+    // auto g_c = g.colidx_compressed();
+    // for (int i = first_low; i < g.V(); i++) {
+    //   ttt += g_c[g_rptr[i]];
+    // }
+    // std::cout << "total edges in low subgraph " << ttt << " and " << total_deg << std::endl;
 
     int total_threads = 40000;
     int num_blocks = (total_threads + block_size - 1) / block_size;
@@ -240,7 +256,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     // void *kernel_args[] = {&gg, &d_result, &n_steps, &n_samples, &d_step_counts, &total_threads, &d_states};
     // void *kernel_args[] = {&low_subg, &high_subg, &d_result, &n_steps, &d_step_counts, &total_threads, &d_states};
     sample_t = seconds();
-    khop_next0<<<num_blocks,block_size>>>(low_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
+    khop_next0<<<num_blocks,block_size>>>(low_subg, med_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // khop_next0<<<num_blocks,block_size>>>(gg, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // cudaLaunchCooperativeKernel((void*)(khop_next0), grid, block, kernel_args);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
