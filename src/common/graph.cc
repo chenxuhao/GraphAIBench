@@ -1,7 +1,7 @@
 #include "graph.h"
 #include "scan.h"
 #include "platform_atomics.h"
-#include "vbyte_encoder.hh"
+// #include "vbyte_encoder.hh"
 
 std::map<OPS,double> timers;
 
@@ -567,58 +567,6 @@ void GraphT<map_vertices, map_edges>::allocateFrom(vidType nv, eidType ne) {
   vertices = new eidType[nv+1];
   edges = new vidType[ne];
   vertices[0] = 0;
-}
-
-template<bool map_vertices, bool map_edges>
-void GraphT<map_vertices, map_edges>::init_subgraph(GraphT hg, vidType first, vidType last, int m_deg) {
-  n_vertices = last - first;
-  is_compressed_ = true;
-  max_degree = m_deg;
-  vidType prefix_interval = WARP_SIZE;
-  vidType interval_key_len = (prefix_interval + 3) / 4;
-
-  vertices_compressed = new eidType[n_vertices+1];
-  vertices_compressed[0] = 0;
-  vidType *in_buffer = new vidType[m_deg];
-  vector<vidType> out_buffer;
-  vidType *out_ptr;
-  vidType *key_ptr;
-  vbyte_encoder vb_encoder("streamvbyte");
-  // vidType total_rounds = 0;
-
-  for (vidType v = first; v < last; v++) {
-    vidType deg = hg.decode_vertex_vbyte(v, in_buffer, "streamvbyte");
-    if (deg == 0) {
-      vertices_compressed[v+1] = vertices_compressed[v];
-      continue;
-    }
-    edges_compressed.push_back(deg);
-    if (out_buffer.size() < deg + 1024) out_buffer.resize(deg + 1024);
-    uint32_t key_len = (deg + 3) / 4;
-    key_ptr = out_buffer.data();
-    out_ptr = key_ptr + key_len;
-    vidType n_rounds = deg / prefix_interval;
-    vidType prefix_size = 0;
-
-    for (vidType r = 0; r < n_rounds; r++) {
-      edges_compressed.push_back(prefix_size);
-      prefix_size = vb_encoder.encode(prefix_interval, in_buffer, key_ptr, out_ptr);
-      in_buffer += prefix_interval;
-      key_ptr += interval_key_len;
-      out_ptr += prefix_size;
-    }
-
-    vidType count = deg % prefix_interval;
-    if (count != 0) {
-      edges_compressed.push_back(prefix_size);
-      prefix_size = vb_encoder.encode(count, in_buffer, key_ptr, out_ptr);
-      out_ptr += prefix_size;
-    }
-    vidType total_size_v = out_ptr - out_buffer.begin();
-    edges_compressed.insert(edges_compressed.end(), out_buffer.begin(), out_ptr);
-    vertices_compressed[v+1] = vertices_compressed[v] + 1 + ((deg + WARP_SIZE - 1) / WARP_SIZE) + total_size_v;
-    in_buffer -= (deg - count);
-  }
 }
  
 template<bool map_vertices, bool map_edges>

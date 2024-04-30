@@ -1,4 +1,5 @@
 #include "graph_gpu_compressed.h"
+#include "vbyte_encoder.hh"
 
 void GraphGPUCompressed::init(Graph &hg) {
   GraphGPU::init(hg);
@@ -66,6 +67,65 @@ void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne
   CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
   CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, _rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  std::cout << "Done" << std::endl;
+}
+
+void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vidType m_deg) {
+  vidType nv = last - first;
+  vidType prefix_interval = WARP_SIZE;
+  vidType interval_key_len = (prefix_interval * 2) / 32;
+
+  std::cout << "Allocating GPU memory for the medium degree subgraph |V| " << nv << "..." << std::endl;
+  vector<vidType> edges_compressed;
+  eidType *vertices_compressed = new eidType[nv+1];
+  vertices_compressed[0] = 0;
+  vidType *in_buffer = new vidType[m_deg];
+  vector<vidType> out_buffer;
+  vidType *out_ptr;
+  vidType *key_ptr;
+  vbyte_encoder vb_encoder("streamvbyte");
+
+  for (vidType v = first; v < last; v++) {
+    vidType relabel_v = v - first;
+    vidType deg = hg.decode_vertex_vbyte(v, in_buffer, "streamvbyte");
+    edges_compressed.push_back(deg);
+    if (out_buffer.size() < deg + 1024) out_buffer.resize(deg + 1024);
+    uint32_t key_len8 = (deg + 3) / 4;
+    uint32_t key_len32 = (key_len8 + 3) / 4;
+    key_ptr = out_buffer.data();
+    out_ptr = key_ptr + key_len32;
+    vidType n_rounds = deg / prefix_interval;
+    vidType prefix_size = 0;
+    vidType total_prefix = 0;
+
+    for (vidType r = 0; r < n_rounds; r++) {
+      edges_compressed.push_back(total_prefix);
+      prefix_size = vb_encoder.encode(prefix_interval, in_buffer, key_ptr, out_ptr);
+      total_prefix += prefix_size;
+      in_buffer += prefix_interval;
+      key_ptr += interval_key_len;
+      out_ptr += prefix_size;
+    }
+
+    vidType count = deg % prefix_interval;
+    if (count != 0) {
+      edges_compressed.push_back(total_prefix);
+      prefix_size = vb_encoder.encode(count, in_buffer, key_ptr, out_ptr);
+      // total_prefix += prefix_size;
+      out_ptr += prefix_size;
+    } 
+    vidType total_size_v = out_ptr - out_buffer.data();
+    edges_compressed.insert(edges_compressed.end(), out_buffer.begin(), out_buffer.begin() + total_size_v);
+    vertices_compressed[relabel_v+1] = vertices_compressed[relabel_v] + 1 + ((deg + WARP_SIZE - 1) / WARP_SIZE) + total_size_v;
+    in_buffer -= (deg - count);
+  }
+  vidType ne = edges_compressed.size();
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
+  CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, &edges_compressed[0], ne * sizeof(vidType), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+  CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, vertices_compressed, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  std::cout << "Done" << std::endl;
 }
 /*
 // decompress CGR format to an (unordered/ordered) vertex set using a warp

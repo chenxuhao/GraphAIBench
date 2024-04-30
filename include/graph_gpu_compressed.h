@@ -26,15 +26,22 @@ class GraphGPUCompressed : public GraphGPU {
     if (unified_mem) unified_init(g);
     else init(g);
   }
-  GraphGPUCompressed(Graph &g, vidType first_v, vidType nv, eidType ne, eidType max_deg=32, std::string scheme_name="streamvbyte") :
+  GraphGPUCompressed(Graph &g, vidType first_v, vidType nv, eidType ne, vidType max_deg=32, std::string scheme_name="streamvbyte") :
     GraphGPU(0, 1, nv, ne, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
     scheme = scheme_name;
     degree_threshold = max_deg;
     init_low_sub(g, first_v, ne, nv);
   }
+  GraphGPUCompressed(vidType first_v, vidType last_v, vidType max_deg, Graph &g, std::string scheme_name="streamvbyte") :
+    GraphGPU(0, 1, 0, 0, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
+    scheme = scheme_name;
+    degree_threshold = max_deg;
+    init_med_sub(g, first_v, last_v, max_deg);
+  }
   void init(Graph &hg);
   void unified_init(Graph &hg);
   void init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv);
+  void init_med_sub(Graph &hg, vidType first, vidType last, vidType max_deg);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
   inline __device__ vidType get_degree(vidType v) const {
     auto start = d_rowptr_compressed[v];

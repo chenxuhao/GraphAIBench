@@ -77,7 +77,6 @@ public:
             features(NULL),
             src_list(NULL), dst_list(NULL) { }
   GraphT(vidType nv, eidType ne) : GraphT() { allocateFrom(nv, ne); }
-  GraphT(GraphT &g, vidType first, vidType last, int h_deg) { init_subgraph(g, first, last, h_deg); }
   GraphT() : GraphT(false, false) {}
   ~GraphT();
   GraphT(const GraphT &)=delete;
@@ -91,7 +90,6 @@ public:
                        bool use_dag = false, bool use_vlabel = false, 
                        bool use_elabel = false, bool need_reverse = false);
   void deallocate();
-  void init_subgraph(GraphT hg, vidType first, vidType last, int deg);
 
   // get methods for graph meta information
   vidType V() const { return n_vertices; }
