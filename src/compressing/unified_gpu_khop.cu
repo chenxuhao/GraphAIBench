@@ -15,7 +15,7 @@ using namespace cooperative_groups;
 // const vidType MAX_VIDTYPE = 0 - 1;
 
 // __global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
-__global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, GraphGPU high_g, vidType first_low, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
+__global__ void khop_next3(GraphGPUCompressed low_g, GraphGPUCompressed med_g, GraphGPU high_g, vidType first_low, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   if (thread_id >= total_threads || thread_id >= n_samples) {
     return;
@@ -34,7 +34,6 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
       int old_t_idx = old_t_begin + (thread_id * prev_step_count) + (i / step_sample_size);
       int t_idx = t_begin + (thread_id * step_count) + i;
       vidType old_t = result[old_t_idx];
-      result[t_idx] = 0;
       if (old_t == MAX_VIDTYPE) {
         result[t_idx] = MAX_VIDTYPE;
       } 
@@ -43,7 +42,7 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
           vidType old_t_deg = high_g.get_degree(old_t);
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = high_g.N(old_t, n_idx);
-          printf("HIGH deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
+          // printf("HIGH deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         } 
         else if (old_t >= first_low) {
           old_t -= first_low;
@@ -54,14 +53,14 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
           }
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = low_g.decode_vbyte_sums(old_t, n_idx);
-          printf("LOW deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
+          // printf("LOW deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         }
         else {
           old_t -= first_med;
           vidType old_t_deg = med_g.get_degree(old_t);
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = med_g.decode_vbyte_prefix(old_t, n_idx);
-          printf("MED deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
+          // printf("MED deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         }
       }
     }
@@ -71,110 +70,42 @@ __global__ void khop_next0(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
   }
 }
 
-__global__ void khop_next(GraphGPUCompressed g, vidType *result, int sample_size, int t_begin, int old_t_begin, int total_threads, curandState *states) {
-  extern __shared__ int random_idxs[];
-  __shared__ vidType adj_buffer[WARP_SIZE];
+__global__ void khop_next0(GraphGPUCompressed g, vidType *result, int n_steps, int n_samples, int *step_counts, int total_threads, curandState *states) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-  if (thread_id >= total_threads) {
+  if (thread_id >= total_threads || thread_id >= n_samples) {
     return;
   }
-  int warp_id = thread_id / WARP_SIZE;
-  int thread_lane = threadIdx.x % WARP_SIZE;
-  int warp_lane = threadIdx.x / WARP_SIZE;
-  int warp_start_ptr = warp_lane * sample_size;
-  int old_t_idx = old_t_begin + warp_id;
-  vidType old_t = result[old_t_idx];
-  vidType old_t_deg = 0;
-  if (old_t != MAX_VIDTYPE) {
-    old_t_deg = g.get_degree(old_t);
-  }
-  // sample fan out size num of random indices for single transit per warp
   curandState local_state = states[thread_id];
-  for (int i = warp_start_ptr + thread_lane; i < warp_start_ptr + sample_size; i += WARP_SIZE) {
-    if (old_t_deg == 0) { // no need to continue sampling indices for 0 degree vertices
-      int t_idx = t_begin + (warp_id * sample_size) + (i - warp_start_ptr);
-      result[t_idx] = MAX_VIDTYPE;
-    }
-    else {
-      random_idxs[i] = (int)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-      // printf("old %d; r[i] %d\n", old_t, random_idxs[i]);
-    }
-  }
-  __syncwarp();
-  if (old_t_deg == 0) { return; }
 
-  for (int i = thread_lane; i < sample_size; i += WARP_SIZE) {
-    int r_i = warp_start_ptr + i;
-    int n_idx = random_idxs[r_i];
-    g.decode_vbyte_sums(old_t, adj_buffer, n_idx);
-    int t_idx = t_begin + (warp_id * sample_size) + i;
-    result[t_idx] = adj_buffer[thread_lane];
-  }
-}
-
-__global__ void khop_next1(GraphGPUCompressed g, vidType *result, int sample_size, int t_begin, int old_t_begin, int total_threads, curandState *states) {
-  extern __shared__ int random_idxs[];
-  __shared__ vidType adj_buffer[WARP_SIZE];
-  int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-  if (thread_id >= total_threads) {
-    return;
-  }
-  int warp_id = thread_id / WARP_SIZE;
-  int thread_lane = threadIdx.x % WARP_SIZE;
-  int warp_lane = threadIdx.x / WARP_SIZE;
-  int warp_start_ptr = warp_lane * sample_size;
-  int old_t_idx = old_t_begin + warp_id;
-  vidType old_t = result[old_t_idx];
-  vidType old_t_deg = 0;
-  if (old_t != MAX_VIDTYPE) {
-    old_t_deg = g.get_degree(old_t);
-  }
-  // sample fan out size num of random indices for single transit per warp
-  curandState local_state = states[thread_id];
-  for (int i = warp_start_ptr + thread_lane; i < warp_start_ptr + sample_size; i += WARP_SIZE) {
-    if (old_t_deg == 0) { // no need to continue sampling indices for 0 degree vertices
-      int t_idx = t_begin + (warp_id * sample_size) + (i - warp_start_ptr);
-      result[t_idx] = MAX_VIDTYPE;
-    }
-    else {
-      random_idxs[i] = (int)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-    }
-  }
-  __syncwarp();
-  if (old_t_deg == 0) { return; }
-
-  int next_warp_ptr = warp_start_ptr + sample_size;
-  int round_threshold = WARP_SIZE;
-  // int max_idx = random_idxs[next_warp_ptr - 1]; // only works for sorted random_idxs
-  for (int i = thread_lane; i < old_t_deg; i += WARP_SIZE) {
-    g.decode_vbyte_thread(old_t, adj_buffer, i);
-    __syncwarp();
-    int available_threads = min(WARP_SIZE, old_t_deg - (round_threshold - WARP_SIZE));
-    for (int v_i = warp_start_ptr + thread_lane; v_i < warp_start_ptr + sample_size; v_i += available_threads) {
-      int n_idx = random_idxs[v_i];
-      if (n_idx >= round_threshold - WARP_SIZE && n_idx < round_threshold) {
-        // printf("n %d; r %d; v_i %d; w %d\n", n_idx, round_threshold, v_i, warp_start_ptr);
-        int t_idx = t_begin + (warp_id * sample_size) + (v_i - warp_start_ptr);
-        result[t_idx] = adj_buffer[n_idx % WARP_SIZE];
+  int step_count = step_counts[0];
+  int t_begin = step_count * n_samples;
+  int old_t_begin = 0;
+  for (int step = 0; step < n_steps; step++) {
+    int step_sample_size = step_counts[step + 1];
+    int prev_step_count = step_count;
+    step_count *= step_sample_size;
+    for (int i = 0; i < step_count; i++) {
+      int old_t_idx = old_t_begin + (thread_id * prev_step_count) + (i / step_sample_size);
+      int t_idx = t_begin + (thread_id * step_count) + i;
+      vidType old_t = result[old_t_idx];
+      if (old_t == MAX_VIDTYPE) {
+        result[t_idx] = MAX_VIDTYPE;
+        continue;
+      } 
+      vidType old_t_deg = g.get_degree(old_t);
+      if (old_t_deg == 0) {
+        result[t_idx] = MAX_VIDTYPE;
+        continue;
       }
+      eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
+      result[t_idx] = g.decode_vbyte_sums(old_t, n_idx);
     }
-    round_threshold += WARP_SIZE;
-    __syncwarp();
+    old_t_begin = t_begin;
+    t_begin += step_count * n_samples;
   }
 }
 
-// threshold should be divisible by warp size (32)
-void decompress_top_degrees(Graph &g, vidType *edges, eidType *vertices, int last_v) {
-  vertices[0] = 0;
-  for (int i = 0; i < last_v; i++) {
-    vidType deg = g.decode_vertex_vbyte(i, edges, "streamvbyte");
-    edges += deg;
-    vertices[i+1] = deg;
-  }
-}
-
-double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, int last_step_num, vidType* result, int block_size, int h_deg) {
-    // GraphGPUCompressed gg(g, "streamvbyte", g.get_degree_threshold(), 0, 1, true);
+double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, int last_step_num, vidType* result, int block_size, bool use_subgraphs, int h_deg) {
     int cur_num = initial.size();
     int n_steps = steps();
     vidType *d_result;
@@ -187,40 +118,6 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     for (int i = 0; i < cur_num; i++) {
         result[i] = initial[i];
     }
-
-    // get high degree subgraph
-    vidType last_high = 0;
-    while (g.get_degree_vbyte(last_high) > h_deg) {
-      last_high++;
-    }
-    last_high--;
-    eidType total_deg = 0;
-    for (int i = 0; i <= last_high; i++) {
-      total_deg += g.get_degree_vbyte(i);
-    }
-    GraphGPU high_subg(g, last_high + 1, total_deg);
-
-    // get medium degree subgraph
-    vidType first_med = last_high + 1;
-    int l_deg = WARP_SIZE;
-    vidType last_med = g.V() - 1;
-    while (g.get_degree_vbyte(last_med) <= l_deg) {
-      last_med--;
-    }
-    GraphGPUCompressed med_subg(first_med, last_med + 1, h_deg, g);
-
-    // get low degree subgraph
-    vidType first_low = last_med + 1;
-    auto g_rptr = g.rowptr_compressed();
-    total_deg = g_rptr[g.V()] - g_rptr[first_low];
-    GraphGPUCompressed low_subg(g, first_low, g.V() - first_low, total_deg);
-    // std::cout << "last_med " << last_med << " deg " << g.get_degree_vbyte(last_med) << " first_low " << first_low << " deg " << g.get_degree_vbyte(first_low) << std::endl;
-    // eidType ttt = 0;
-    // auto g_c = g.colidx_compressed();
-    // for (int i = first_low; i < g.V(); i++) {
-    //   ttt += g_c[g_rptr[i]];
-    // }
-    // std::cout << "total edges in low subgraph " << ttt << " and " << total_deg << std::endl;
 
     int total_threads = 40000;
     int num_blocks = (total_threads + block_size - 1) / block_size;
@@ -240,17 +137,60 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     rand_t = seconds() - rand_t;
     std::cout << "Sampled random states in " << rand_t << " sec\n";
 
-    std::cout << "Starting sampling with " << total_threads << " threads...\n";
     // dim3 block(block_size, 1, 1);
     // dim3 grid(num_blocks, 1, 1);    
     // void *kernel_args[] = {&gg, &d_result, &n_steps, &n_samples, &d_step_counts, &total_threads, &d_states};
     // void *kernel_args[] = {&low_subg, &high_subg, &d_result, &n_steps, &d_step_counts, &total_threads, &d_states};
-    sample_t = seconds();
-    khop_next0<<<num_blocks,block_size>>>(low_subg, med_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
+    if (use_subgraphs) {
+      // get high degree subgraph
+      vidType last_high = 0;
+      while (g.get_degree_vbyte(last_high) > h_deg) {
+        last_high++;
+      }
+      last_high--;
+      eidType total_deg = 0;
+      for (int i = 0; i <= last_high; i++) {
+        total_deg += g.get_degree_vbyte(i);
+      }
+      GraphGPU high_subg(g, last_high + 1, total_deg);
+
+      // get medium degree subgraph
+      vidType first_med = last_high + 1;
+      int l_deg = WARP_SIZE;
+      vidType last_med = g.V() - 1;
+      while (g.get_degree_vbyte(last_med) <= l_deg) {
+        last_med--;
+      }
+      GraphGPUCompressed med_subg(first_med, last_med + 1, h_deg, g);
+
+      // get low degree subgraph
+      vidType first_low = last_med + 1;
+      auto g_rptr = g.rowptr_compressed();
+      total_deg = g_rptr[g.V()] - g_rptr[first_low];
+      GraphGPUCompressed low_subg(g, first_low, g.V() - first_low, total_deg);
+
+      std::cout << "Starting sampling on subgraphs version with " << total_threads << " threads...\n";
+      sample_t = seconds();
+      khop_next3<<<num_blocks,block_size>>>(low_subg, med_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
+      CUDA_SAFE_CALL(cudaDeviceSynchronize());
+      sample_t = seconds() - sample_t;
+      std::cout << "Done sampling!" << std::endl;
+    }
+    else {
+      GraphGPUCompressed gg(g, "streamvbyte", g.get_degree_threshold(), 0, 1, true);
+      
+      std::cout << "Starting sampling with " << total_threads << " threads...\n";
+      sample_t = seconds();
+      khop_next0<<<num_blocks,block_size>>>(gg, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
+      CUDA_SAFE_CALL(cudaDeviceSynchronize());
+      sample_t = seconds() - sample_t;
+      std::cout << "Done sampling!" << std::endl;
+    }
+    // if (use_subgraphs)  khop_next3<<<num_blocks,block_size>>>(low_subg, med_subg, high_subg, first_low, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // khop_next0<<<num_blocks,block_size>>>(gg, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     // cudaLaunchCooperativeKernel((void*)(khop_next0), grid, block, kernel_args);
     // CUDA_SAFE_CALL(cudaDeviceSynchronize());
-    sample_t = seconds() - sample_t;
+  
 
     dealloc_t = seconds();
     CUDA_SAFE_CALL(cudaMemcpy(result, d_result, total_num * v_size, cudaMemcpyDeviceToHost));
@@ -277,7 +217,8 @@ int main(int argc, char* argv[]) {
   int n_samples = num_samples();
   int pdeg = BLOCK_SIZE;
   int high_deg = 256;
-  while ((c = getopt(argc, argv, "cpn:d:h:")) != -1) {
+  bool use_subgraphs = false;
+  while ((c = getopt(argc, argv, "cpn:d:h:s")) != -1) {
     switch (c) {
       case 'c':
         compress_graph = true;
@@ -293,6 +234,9 @@ int main(int argc, char* argv[]) {
         break;
       case 'h':
         high_deg = atoi(optarg);
+        break;
+      case 's':
+        use_subgraphs = true;
         break;
       default:
         abort();
@@ -316,7 +260,7 @@ int main(int argc, char* argv[]) {
     total_count += step_count;
   }
   vidType* result = new vidType[total_count];
-  iElaps = multilayer_sample(g, initial, n_samples, total_count, step_count, result, pdeg, high_deg);
+  iElaps = multilayer_sample(g, initial, n_samples, total_count, step_count, result, pdeg, use_subgraphs, high_deg);
 
   std::cout << "Sampled total of " << total_count << " transits in " << steps() << " steps\n";
   std::cout << "Time elapsed for sampling " << iElaps << " sec\n\n";

@@ -8,5 +8,6 @@ int main(int argc, char *argv[]) {
   g.print_meta_data();
   g.symmetrize();
   g.write_to_file(argv[2]);
+  std::cout << "new deg threshold " << g.get_degree_threshold() << std::endl;
   return 0;
 } 

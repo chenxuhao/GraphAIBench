@@ -164,7 +164,7 @@ __device__ vidType decode_streamvbyte_prefix(const uint32_t *in, int n) {
   if (count == 0) return;
   const uint32_t *prefixPtr = in; // full list of keys is next
   uint32_t total_prefix = (count - 1) / WARP_SIZE + 1;
-  uint32_t n_prefix = max(0, (n - 1) / WARP_SIZE);
+  uint32_t n_prefix = n / WARP_SIZE;
   uint32_t prefix_offset = prefixPtr[n_prefix]; 
   uint8_t *keyPtr = (uint8_t *)(prefixPtr + total_prefix);
   uint32_t key_len8 = (count + 3) / 4;
@@ -175,7 +175,6 @@ __device__ vidType decode_streamvbyte_prefix(const uint32_t *in, int n) {
   vidType sum = 0;
   uint32_t offset = 0;
   int r = n % WARP_SIZE;
-  if (r == 0 && n > 0) r = 32;
   for (int i = r; i >= 0; i--) {
     // Read the header
     uint32_t num_bytes = extract_bits(keyPtr, (n - i) * 2, 2) + 1;

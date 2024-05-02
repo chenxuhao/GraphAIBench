@@ -83,32 +83,32 @@ __global__ void khop_next_tp(GraphGPU g, int total_threads, int n_steps, int n_s
 }
 
 __global__ void khop_next_sp(GraphGPU g, int total_threads, int n_steps, int n_samples, int *step_counts, vidType *result, curandState *states) {
-    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-    if (thread_id >= total_threads|| thread_id >= n_samples) {
-        return;
-    }
-    curandState local_state = states[thread_id];
-    
-    int step_count = step_counts[0];
-    int t_begin = step_count * n_samples;
-    int old_t_begin = 0;
-    for (int step = 0; step < n_steps; step++) {
+  int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+  if (thread_id >= total_threads|| thread_id >= n_samples) {
+    return;
+  }
+  curandState local_state = states[thread_id];
+  
+  int step_count = step_counts[0];
+  int t_begin = step_count * n_samples;
+  int old_t_begin = 0;
+  for (int step = 0; step < n_steps; step++) {
     int step_sample_size = step_counts[step + 1];
     int prev_step_count = step_count;
     step_count *= step_sample_size;
-      for (int i = 0; i < step_count; i++) {
-        int old_t_idx = old_t_begin + (thread_id * prev_step_count) + (i / step_sample_size);
-        vidType old_t = result[old_t_idx];
-        int t_idx = t_begin + (thread_id * step_count) + i;
-        if (old_t == MAX_VIDTYPE) {
-          result[t_idx] = MAX_VIDTYPE;
-        } else {
-          vidType old_t_deg = g.get_degree(old_t);
-          result[t_idx] = get_next_gpu(g, old_t, old_t_deg, local_state);
-        }
+    for (int i = 0; i < step_count; i++) {
+      int old_t_idx = old_t_begin + (thread_id * prev_step_count) + (i / step_sample_size);
+      vidType old_t = result[old_t_idx];
+      int t_idx = t_begin + (thread_id * step_count) + i;
+      if (old_t == MAX_VIDTYPE) {
+        result[t_idx] = MAX_VIDTYPE;
+      } else {
+        vidType old_t_deg = g.get_degree(old_t);
+        result[t_idx] = get_next_gpu(g, old_t, old_t_deg, local_state);
       }
-    old_t_begin = t_begin;
-    t_begin += step_count * n_samples;
+    }
+  old_t_begin = t_begin;
+  t_begin += step_count * n_samples;
   }
 }
 
