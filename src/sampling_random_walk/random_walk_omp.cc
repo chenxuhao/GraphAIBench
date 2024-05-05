@@ -17,7 +17,7 @@ void rWalkOMPSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
     std::vector<vidType> transits(total_count, 0);
     for (int i = 0; i < inits.size(); i++)
     {
-        transits[i * sample_steps] = inits[i];
+        transits[i] = inits[i];
     }
     std::cout << "...initialized starting transits..." << std::endl;
 
@@ -27,16 +27,16 @@ void rWalkOMPSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
 
     // sampling length is set to `sample_steps` for all samples
 
-    for (int step = 0; step < sample_steps; step++)
-    {
-        // std::cout << "STEP " << step << std::endl;
 
         // sample every new transit in the step for every sample group
 #pragma omp parallel for
-        for (int sample_i = 0; sample_i < n_samples; sample_i++)
+    for (int sample_i = 0; sample_i < n_samples; sample_i++)
+    {
+        for (int step = 0; step < sample_steps; step++)
         {
+            // std::cout << "STEP " << step << std::endl;
 
-            vidType sample_transit = transits[step + sample_i * sample_steps];
+            vidType sample_transit = transits[step * n_samples + sample_i];
             // std::cout << "sample_transit:  at " << step << " " << sample_i << " " << sample_transit << std::endl;
 
             vidType new_t;
@@ -49,7 +49,7 @@ void rWalkOMPSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
                 new_t = sample_next_vbyte(g, sample_transit);
             }
 
-            transits[step + 1 + sample_i * sample_steps] = new_t;
+            transits[(step + 1) * n_samples + sample_i] = new_t;
         }
     }
     t.Stop();
