@@ -2,7 +2,7 @@
 #include "compressor.hh"
 #include "khop.h"
 
-void rWalkSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
+void rWalkSolver(Graph &g, bool vbyte, int sample_steps, int n_samples)
 {
     vector<vidType> inits = get_initial_transits(sample_size(-1) * n_samples, g.V());
     int total_count = (sample_steps + 1) * n_samples;
@@ -36,7 +36,14 @@ void rWalkSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
             }
             else
             {
-                new_t = sample_next_vbyte(g, sample_transit, gen_global);
+                if (vbyte)
+                {
+                    new_t = sample_next_vbyte(g, sample_transit, gen_global);
+                }
+                else
+                {
+                    new_t = sample_next(g, sample_transit, gen_global);
+                }
             }
 
             transits[(step + 1) * n_samples + sample_i] = new_t;
@@ -51,17 +58,33 @@ int main(int argc, char *argv[])
 {
     Graph g;
     std::string in_prefix = argv[1];
-    std::string scheme = "streamvbyte";
-    bool permutated = false;
-    g.load_compressed_graph(in_prefix, scheme, permutated);
-    g.print_meta_data();
-    std::cout << "LOADED COMPRESSED GRAPH\n"
-              << std::endl;
 
-    int sample_steps = atoi(argv[2]);
-    int n_samples = argc >= 4 ? atoi(argv[3]) : 40000;
-    int n_threads = argc >= 5 ? atoi(argv[4]) : 1;
-    std::cout << "Begin sampling compressed graph..." << std::endl;
-    rWalkSolver(g, sample_steps, n_samples, n_threads);
+    std::string scheme = argv[2];
+    bool vbyte = (scheme == "streamvbyte");
+    if (scheme == "streamvbyte")
+    {
+        std::string scheme = "streamvbyte";
+        bool permutated = false;
+        g.load_compressed_graph(in_prefix, scheme, permutated);
+        std::cout << "Loaded COMPRESSED Graph\n"
+                  << std::endl;
+    }
+    else if (scheme == "uncompressed")
+    {
+        g.load_graph(in_prefix);
+        std::cout << "Loaded UNcompressed Graph\n"
+                  << std::endl;
+    }
+    else
+    {
+        std::cout << "Incorrect or no scheme specified\n"
+                  << std::endl;
+        exit(1);
+    }
+    g.print_meta_data();
+
+    int sample_steps = atoi(argv[3]);
+    int n_samples = argc >= 4 ? atoi(argv[4]) : 40000;
+    rWalkSolver(g, vbyte, sample_steps, n_samples);
     return 0;
 }
