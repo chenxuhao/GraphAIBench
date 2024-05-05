@@ -15,6 +15,7 @@ void rWalkOMPSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
     int total_count = (sample_steps + 1) * n_samples;
 
     std::vector<vidType> transits(total_count, 0);
+#pragma omp parallel for
     for (int i = 0; i < inits.size(); i++)
     {
         transits[i] = inits[i];
