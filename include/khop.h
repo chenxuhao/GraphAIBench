@@ -4,7 +4,7 @@
 #include "utils.h"
 #include "graph.h"
 #include <random>
-std::mt19937 gen(time(nullptr));
+std::mt19937 gen_global(time(nullptr));
 // std::default_random_engine generator;
 // std::uniform_real_distribution<float> distribution(0.0,1.0);
 
@@ -36,7 +36,7 @@ inline vector<vidType> get_initial_transits(vidType seeds_size, vidType graph_si
     vector<vidType> n_ids;
     for (int i = 0; i < seeds_size; i++)
     {
-        n_ids.push_back(gen() % graph_size);
+        n_ids.push_back(gen_global() % graph_size);
     }
     return n_ids;
 }
@@ -55,7 +55,7 @@ inline int sample_size(int step)
     // return 2;
 }
 
-inline vidType sample_next_vbyte(Graph &g, vidType transit)
+inline vidType sample_next_vbyte(Graph &g, vidType transit, std::mt19937 &gen)
 {
     auto adj_transit = g.N_vbyte(transit, "streamvbyte");
     vidType src_degree = adj_transit.size();
@@ -67,7 +67,7 @@ inline vidType sample_next_vbyte(Graph &g, vidType transit)
     return adj_transit.data()[idx];
 }
 
-inline vidType sample_next(Graph &g, vidType transit)
+inline vidType sample_next(Graph &g, vidType transit, std::mt19937 &gen)
 {
     if (transit == (numeric_limits<uint32_t>::max)())
     {

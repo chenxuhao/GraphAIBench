@@ -36,7 +36,7 @@ void rWalkSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
             }
             else
             {
-                new_t = sample_next_vbyte(g, sample_transit);
+                new_t = sample_next_vbyte(g, sample_transit, gen_global);
             }
 
             transits[(step + 1) * n_samples + sample_i] = new_t;

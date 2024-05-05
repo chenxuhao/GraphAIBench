@@ -27,29 +27,34 @@ void rWalkOMPSolver(Graph &g, int sample_steps, int n_samples, int n_threads)
 
     // sampling length is set to `sample_steps` for all samples
 
+#pragma omp parallel
+    {
+        int t_idx = omp_get_thread_num();
+        std::mt19937 gen(t_idx);
 
         // sample every new transit in the step for every sample group
-#pragma omp parallel for
-    for (int sample_i = 0; sample_i < n_samples; sample_i++)
-    {
-        for (int step = 0; step < sample_steps; step++)
+#pragma omp for // schedule(dynamic) // schedule(static) num_threads(8)
+        for (int sample_i = 0; sample_i < n_samples; sample_i++)
         {
-            // std::cout << "STEP " << step << std::endl;
-
-            vidType sample_transit = transits[step * n_samples + sample_i];
-            // std::cout << "sample_transit:  at " << step << " " << sample_i << " " << sample_transit << std::endl;
-
-            vidType new_t;
-            if (sample_transit == (numeric_limits<uint32_t>::max)())
+            for (int step = 0; step < sample_steps; step++)
             {
-                new_t = sample_transit;
-            }
-            else
-            {
-                new_t = sample_next_vbyte(g, sample_transit);
-            }
+                // std::cout << "STEP " << step << std::endl;
 
-            transits[(step + 1) * n_samples + sample_i] = new_t;
+                vidType sample_transit = transits[step * n_samples + sample_i];
+                // std::cout << "sample_transit:  at " << step << " " << sample_i << " " << sample_transit << std::endl;
+
+                vidType new_t;
+                if (sample_transit == (numeric_limits<uint32_t>::max)())
+                {
+                    new_t = sample_transit;
+                }
+                else
+                {
+                    new_t = sample_next_vbyte(g, sample_transit, gen);
+                }
+
+                transits[(step + 1) * n_samples + sample_i] = new_t;
+            }
         }
     }
     t.Stop();
