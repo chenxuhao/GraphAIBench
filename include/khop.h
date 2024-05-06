@@ -26,7 +26,12 @@ inline vidType sample_next(Graph &g, vidType transit, vidType src_degree, int st
     // int idx = 1;
     return g.N(transit, idx);
 }
-
+inline vidType sample_next(Graph &g, vidType transit, vidType src_degree, int step, uint_fast32_t gen_num) {
+    if (transit == (numeric_limits<uint32_t>::max)()) { return (numeric_limits<uint32_t>::max)(); }
+    if (src_degree == 0) { return (numeric_limits<uint32_t>::max)(); }
+    int idx = gen_num % src_degree;
+    return g.N(transit, idx);
+}
 /**
  * 
 */
