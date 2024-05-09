@@ -5,7 +5,8 @@
 
 typedef OutOfCoreGraph GraphTy;
 void copy_meta_file(std::string in_prefix, std::string out_prefix);
-void save_compressed_graph(std::string in_prefix, std::string out_prefix);
+void save_compressed_graph_cgr(std::string in_prefix, std::string out_prefix);
+void save_compressed_graph_vbyte(std::string in_prefix, std::string out_prefix);
 
 
 class Compressor {
@@ -55,7 +56,7 @@ public:
       if (align == 2) word_aligned = true;
       if (use_permutate) assert(word_aligned);
   }
-  void compress(bool pre_encode, bool reverse);
+  void compress(bool pre_encode, bool reverse, bool add_deg=false);
   void write_compressed_graph();
   void write_degrees();
   void print_stats();

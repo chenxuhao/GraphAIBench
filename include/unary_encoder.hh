@@ -17,7 +17,7 @@ public:
   explicit unary_encoder(int zeta_k, size_type num=0) : _zeta_k(zeta_k), PRE_ENCODE_NUM(num) {}
   void pre_encoding();
 
-  virtual size_t encode(vidType id, vidType length, vidType *in) = 0;
+  virtual size_t encode(vidType id, vidType length, vidType *in, bool add_deg=false) = 0;
   virtual void print_stats() = 0;
   virtual eidType get_compressed_size(vidType i) const = 0;
 
@@ -38,7 +38,7 @@ protected:
   size_type zeta_size(size_type x);
   void encode_gamma(bits &bit_array, size_type x);
   void encode_zeta(bits &bit_array, size_type x);
-  void encode(bits &bit_array, size_type x, int len);
+  void encode(bits &bit_array, size_type x, int len, bool add_deg=false);
   int get_significent_bit(size_type x);
   void set_zeta_k(int zeta_k) { _zeta_k = zeta_k; }
 };

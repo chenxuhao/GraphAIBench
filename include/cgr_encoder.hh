@@ -60,7 +60,7 @@ public:
               << (use_segment?"segment enabled, ":"segment disabled, ")
               << (add_degree?"degree appended for all":"degree appended only for zero-residual") << " nodes\n";
   }
-  size_t encode(vidType id, vidType length, vidType *in);
+  size_t encode(vidType id, vidType length, vidType *in, bool add_deg=false);
   void print_stats();
   eidType get_compressed_size(vidType i) const { return get_compressed_bits_size(i); }
   //eidType get_compressed_size(vidType i) const { return bit_arrays[i].size(); }
@@ -72,7 +72,7 @@ protected:
   void intervalize(size_type id, size_type length, vidType *in);
   void encode_intervals(const size_type v);
   size_t encode_residuals(const size_type v);               // return number of words
-  size_t encode_unary(vidType v, vidType deg, vidType *in); // return number of words
+  size_t encode_unary(vidType v, vidType deg, vidType *in, bool add_deg=false); // return number of words
   void append_segment(bits &bit_array, size_type cnt, bits &cur_seg, size_type align);
   void set_min_itv_len(int _min_itv_len) { cgr_encoder::_min_itv_len = _min_itv_len; }
   void set_itv_seg_len(int _itv_seg_len) { cgr_encoder::_itv_seg_len = _itv_seg_len; }
