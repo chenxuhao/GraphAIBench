@@ -13,7 +13,7 @@ void cgr_encoder::print_stats() {
 }
 
 // encode an integer array "*in" with "length" elements using CGR format
-size_t cgr_encoder::encode(vidType id, vidType length, vidType *in) {
+size_t cgr_encoder::encode(vidType id, vidType length, vidType *in, bool add_deg) {
   interval_left[id].clear();
   interval_len[id].clear();
   residuals[id].clear();
@@ -34,7 +34,7 @@ size_t cgr_encoder::encode(vidType id, vidType length, vidType *in) {
   }
   size_t nwords = 0;
   if (use_segment) nwords = encode_residuals(id);
-  else nwords = encode_unary(id, length, in);
+  else nwords = encode_unary(id, length, in, add_deg);
 
   interval_left[id].clear();
   interval_len[id].clear();
@@ -194,11 +194,12 @@ void cgr_encoder::append_segment(bits &bit_array, size_type cnt, bits &cur_seg, 
   bit_array.insert(bit_array.end(), buf.begin(), buf.end());
 }
 
-size_t cgr_encoder::encode_unary(vidType v, vidType deg, vidType *in) {
+size_t cgr_encoder::encode_unary(vidType v, vidType deg, vidType *in, bool add_deg) {
   //printf("unary encoding vertex %d: degree=%d\n", v, deg);
   if (deg == 0) return 0;
   auto &bit_array = bit_arrays[v];
   bit_array.clear();
+  if (add_deg) append_zeta(bit_array, int_2_nat(int64_t(deg) - int64_t(v)));
   int64_t value = int_2_nat(int64_t(in[0]) - int64_t(v));
   append_zeta(bit_array, value);
   for (vidType i = 1; i < deg; i++) {

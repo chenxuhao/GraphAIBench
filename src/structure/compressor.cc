@@ -14,8 +14,7 @@ void copy_meta_file(std::string in_prefix, std::string out_prefix) {
     dst << src.rdbuf();
 }
 
-
-void save_compressed_graph(std::string in_prefix, std::string out_prefix) {
+void save_compressed_graph_vbyte(std::string in_prefix, std::string out_prefix) {
   int permutate = 0, degree_threshold = 32;
   int alignment = 2; // 0: not aligned; 1: byte aligned; 2: word aligned
   bool reverse = false; // reverse hybrid scheme: low-degree vbyte; high-degree unary
@@ -38,6 +37,32 @@ void save_compressed_graph(std::string in_prefix, std::string out_prefix) {
   std::cout << "meta file copied over\n";
 }
 
+void save_compressed_graph_cgr(std::string in_prefix, std::string out_prefix) {
+  int permutate = 0, degree_threshold = 32;
+  int zeta_k = 2;
+  int alignment = 0; // 0: not aligned; 1: byte aligned; 2: word aligned
+  bool reverse = false; // reverse hybrid scheme: low-degree vbyte; high-degree unary
+  bool use_unary = true;
+  bool use_interval = false;
+  bool use_segment = false;
+  bool add_degree = true;
+  std::string scheme = "cgr";
+
+  GraphTy g(in_prefix);
+  g.print_meta_data();
+
+  bool pre_encode = g.V() > 1000000;
+  unary_encoder *encoder = new cgr_encoder(g.V(), zeta_k, pre_encode, use_interval, use_segment);
+  Compressor compressor(scheme, out_prefix, use_unary, &g, encoder, permutate, degree_threshold, alignment);
+  std::cout << "start compression ...\n";
+  compressor.compress(pre_encode, reverse, add_degree);
+  compressor.print_stats();
+  std::cout << "writing compressed graph to disk ...\n";
+  compressor.write_compressed_graph();
+  std::cout << "compression completed!\n";
+  copy_meta_file(in_prefix, out_prefix);
+  std::cout << "meta file copied over\n";
+}
 
 void Compressor::write_compressed_graph() {
   if (scheme == "cgr")
@@ -183,7 +208,7 @@ void Compressor::write_degrees() {
   std::cout << "Writing degrees time: " << t.Seconds() << "\n";
 }
 
-void Compressor::compress(bool pre_encode, bool reverse) {
+void Compressor::compress(bool pre_encode, bool reverse, bool add_deg) {
   if (byte_aligned) std::cout << "Byte alignment enabled for each adj list\n";
   if (word_aligned) std::cout << "Word alignment enabled for each adj list\n";
   Timer t;
@@ -224,7 +249,7 @@ void Compressor::compress(bool pre_encode, bool reverse) {
       if (buffer.size() < deg + 1024) buffer.resize(deg + 1024);
       osizes[v] = vb_encoder.encode(deg, g->N(v).data(), buffer.data(), scheme != "hybrid");
     } else { // unary encoding
-      osizes[v] = encoder->encode(v, deg, g->N(v).data());
+      osizes[v] = encoder->encode(v, deg, g->N(v).data(), add_deg);
     }
 
     // write to disk

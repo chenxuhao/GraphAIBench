@@ -53,9 +53,11 @@ int main(int argc, char* argv[]) {
   Graph g;
   std::string in_prefix = argv[1];
   std::string out_prefix = argv[2];
-  std::string scheme = "streamvbyte";
+  // std::string scheme = "streamvbyte";
+  std::string scheme = "cgr";
   bool permutated = false;
-  save_compressed_graph(in_prefix, out_prefix);
+  // save_compressed_graph(in_prefix, out_prefix);
+  save_compressed_graph_cgr(in_prefix, out_prefix);
   g.load_compressed_graph(out_prefix, scheme, permutated);
   g.print_meta_data();
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;

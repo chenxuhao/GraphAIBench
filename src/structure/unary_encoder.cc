@@ -98,7 +98,7 @@ void unary_encoder::encode_zeta(bits &bit_array, size_type x) {
   }
 }
 
-void unary_encoder::encode(bits &bit_array, size_type x, int len) {
+void unary_encoder::encode(bits &bit_array, size_type x, int len, bool add_deg) {
   for (int i = len - 1; i >= 0; i--) {
     bit_array.emplace_back((x >> i) & 1L);
   }
