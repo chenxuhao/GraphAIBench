@@ -27,14 +27,14 @@ void save_compressed_graph_vbyte(std::string in_prefix, std::string out_prefix) 
   bool pre_encode = g.V() > 1000000;
   unary_encoder *encoder = NULL;
   Compressor compressor(scheme, out_prefix, use_unary, &g, encoder, permutate, degree_threshold, alignment);
-  std::cout << "start compression ..." << std::flush;
+  std::cout << "start compression ..." << "\n" << std::flush;
   compressor.compress(pre_encode, reverse);
   compressor.print_stats();
-  std::cout << "writing compressed graph to disk ..." << std::flush;
+  std::cout << "writing compressed graph to disk ..." << "\n" << std::flush;
   compressor.write_compressed_graph();
-  std::cout << "compression completed!" << std::flush;
+  std::cout << "compression completed!" << "\n" << std::flush;
   copy_meta_file(in_prefix, out_prefix);
-  std::cout << "meta file copied over" << std::flush;
+  std::cout << "meta file copied over" << "\n" << std::flush;
 }
 
 void save_compressed_graph_cgr(std::string in_prefix, std::string out_prefix) {
@@ -54,20 +54,20 @@ void save_compressed_graph_cgr(std::string in_prefix, std::string out_prefix) {
   bool pre_encode = g.V() > 1000000;
   unary_encoder *encoder = new cgr_encoder(g.V(), zeta_k, pre_encode, use_interval, use_segment);
   Compressor compressor(scheme, out_prefix, use_unary, &g, encoder, permutate, degree_threshold, alignment);
-  std::cout << "start compression ..." << std::flush;
+  std::cout << "start compression ..." << "\n" << std::flush;
   compressor.compress(pre_encode, reverse, add_degree);
   compressor.print_stats();
-  std::cout << "writing compressed graph to disk ..." << std::flush;
+  std::cout << "writing compressed graph to disk ..." << "\n" << std::flush;
   compressor.write_compressed_graph();
-  std::cout << "compression completed!" << std::flush;
+  std::cout << "compression completed!" << "\n" << std::flush;
   copy_meta_file(in_prefix, out_prefix);
-  std::cout << "meta file copied over" << std::flush;
+  std::cout << "meta file copied over" << "\n" << std::flush;
 }
 
 void Compressor::write_compressed_graph() {
   if (scheme == "cgr")
     write_compressed_edges_to_disk();
-  std::cout << "Computing the row pointers" << std::flush;
+  std::cout << "Computing the row pointers" << "\n" << std::flush;
   compute_ptrs();
   write_ptrs_to_disk();
 }
@@ -92,23 +92,23 @@ void Compressor::compute_ptrs() {
   }
   parallel_prefix_sum<vidType,eidType>(osizes, rowptr.data());
   t.Stop();
-  std::cout << "Computing row pointers time: " << t.Seconds() << std::flush;;
+  std::cout << "Computing row pointers time: " << t.Seconds() << "\n" << std::flush;;
 }
 
 void Compressor::write_ptrs_to_disk() {
   std::string filename = out_prefix + ".vertex.bin";
-  std::cout << "Writing the row pointers to disk file " << filename << std::flush;;
+  std::cout << "Writing the row pointers to disk file " << filename << "\n" << std::flush;;
   Timer t;
   t.Start();
   std::ofstream outfile((filename).c_str(), std::ios::binary);
   if (!outfile) {
-    std::cout << "File not available" << std::flush;
+    std::cout << "File not available" << "\n" << std::flush;
     throw 1;
   }
   outfile.write(reinterpret_cast<const char*>(rowptr.data()), (g->V()+1)*sizeof(eidType));
   outfile.close();
   t.Stop();
-  std::cout << "Writing row pointers time: " << t.Seconds() << std::flush;;
+  std::cout << "Writing row pointers time: " << t.Seconds() << "\n" << std::flush;;
 }
 
 void Compressor::bits_to_bytes(bits bit_array, std::vector<unsigned char> &buf, unsigned char &cur, int &bit_count) {
@@ -144,10 +144,10 @@ void Compressor::bits_to_bytes(bits bit_array, std::vector<unsigned char> &buf, 
 
 void Compressor::write_compressed_edges_to_disk() {
   std::string edge_file_name = out_prefix + ".edge.bin";
-  std::cout << "writing the compressed edges to disk file " << edge_file_name << std::flush;
+  std::cout << "writing the compressed edges to disk file " << edge_file_name << "\n" << std::flush;
   FILE *of_graph = fopen((edge_file_name).c_str(), "w");
   if (of_graph == 0) {
-    std::cout << "graph file " << edge_file_name << " cannot be created!" << std::flush;
+    std::cout << "graph file " << edge_file_name << " cannot be created!" << "\n" << std::flush;
     abort();
   }
 
@@ -169,7 +169,7 @@ void Compressor::write_compressed_edges_to_disk() {
     permutate_bytes_by_word(buf);
   fwrite(buf.data(), sizeof(unsigned char), buf.size(), of_graph);
   t.Stop();
-  std::cout << "Time writing compressed edges to disk: " << t.Seconds() << std::flush;
+  std::cout << "Time writing compressed edges to disk: " << t.Seconds() << "\n" << std::flush;
   fclose(of_graph);
 }
 
@@ -194,10 +194,10 @@ void Compressor::write_degrees() {
   Timer t;
   t.Start();
   std::string degree_filename = (out_prefix + ".degree.bin").c_str();
-  std::cout << "Writing degrees to disk " << degree_filename << std::flush;
+  std::cout << "Writing degrees to disk " << degree_filename << "\n" << std::flush;
   std::ofstream outfile(degree_filename, std::ios::binary);
   if (!outfile) {
-    std::cout << "File not available" << std::flush;
+    std::cout << "File not available" << "\n" << std::flush;
     throw 1;
   }
   std::vector<vidType> degrees(g->V());
@@ -205,19 +205,19 @@ void Compressor::write_degrees() {
   outfile.write(reinterpret_cast<const char*>(degrees.data()), (g->V())*sizeof(vidType));
   outfile.close();
   t.Stop();
-  std::cout << "Writing degrees time: " << t.Seconds() << std::flush;
+  std::cout << "Writing degrees time: " << t.Seconds() << "\n" << std::flush;
 }
 
 void Compressor::compress(bool pre_encode, bool reverse, bool add_deg) {
-  if (byte_aligned) std::cout << "Byte alignment enabled for each adj list" << std::flush;
-  if (word_aligned) std::cout << "Word alignment enabled for each adj list" << std::flush;
+  if (byte_aligned) std::cout << "Byte alignment enabled for each adj list" << "\n" << std::flush;
+  if (word_aligned) std::cout << "Word alignment enabled for each adj list" << "\n" << std::flush;
   Timer t;
   if (use_unary && pre_encode) {
-    std::cout << "Pre-encoding ..." << std::flush;
+    std::cout << "Pre-encoding ..." << "\n" << std::flush;
     t.Start();
     encoder->pre_encoding();
     t.Stop();
-    std::cout << "Pre-encoding time: " << t.Seconds() << std::flush;
+    std::cout << "Pre-encoding time: " << t.Seconds() << "\n" << std::flush;
   }
   osizes.resize(g->V());
   vbyte_count = 0, unary_count = 0, trivial_count = 0;
@@ -227,19 +227,19 @@ void Compressor::compress(bool pre_encode, bool reverse, bool add_deg) {
   std::string filename = out_prefix + ".edge.bin";
   FILE *of_graph = fopen(filename.c_str(), "w");
   if (of_graph == 0) {
-    std::cout << "graph file cannot create!" << std::flush;
+    std::cout << "graph file cannot create!" << "\n" << std::flush;
     exit(1);
   }
   std::string vbyte_scheme = "streamvbyte";
   vbyte_encoder vb_encoder(vbyte_scheme);
 
-  std::cout << "Start encoding" << std::flush;
+  std::cout << "Start encoding" << "\n" << std::flush;
   t.Start();
   //#pragma omp parallel for
   //#pragma omp parallel for reduction(+:vbyte_count,unary_count,trivial_count,unary_bytes,vbyte_bytes) schedule(dynamic, 1)
   for (vidType v = 0; v < g->V(); v++) {
     if (v > 0 && v%CHECKPOINT==0)
-      std::cout << "(" << v/CHECKPOINT << " * " << CHECKPOINT << ") vertices compressed" << std::flush;
+      std::cout << "(" << v/CHECKPOINT << " * " << CHECKPOINT << ") vertices compressed" << "\n" << std::flush;
     auto deg = g->get_degree(v);
     if (deg == 0) trivial_count ++;
     bool do_vbyte = !use_unary || (scheme == "hybrid" && (reverse? deg <= degree_threshold : deg > degree_threshold));
@@ -255,7 +255,7 @@ void Compressor::compress(bool pre_encode, bool reverse, bool add_deg) {
     // write to disk
     if (do_vbyte) {
       if (fwrite(buffer.data(), sizeof(vidType) * osizes[v], 1, of_graph) != 1) {
-        std::cerr << "[vbyte] write file " << filename << " failed: aborting" << std::flush;
+        std::cerr << "[vbyte] write file " << filename << " failed: aborting" << "\n" << std::flush;
         fclose(of_graph);
         exit(1);
       }
@@ -270,7 +270,7 @@ void Compressor::compress(bool pre_encode, bool reverse, bool add_deg) {
       if (word_aligned && use_permutate)
         permutate_bytes_by_word(buf);
       if (fwrite(buf.data(), sizeof(unsigned char), buf.size(), of_graph) != buf.size()) {
-        std::cerr << "[unary] write file " << filename << " failed: aborting" << std::flush;
+        std::cerr << "[unary] write file " << filename << " failed: aborting" << "\n" << std::flush;
         fclose(of_graph);
         exit(1);
       }
@@ -290,19 +290,19 @@ void Compressor::compress(bool pre_encode, bool reverse, bool add_deg) {
   //if (use_unary) encoder->print_stats();
   fclose(of_graph);
   t.Stop();
-  std::cout << "Encoding time: " << t.Seconds() << std::flush;
+  std::cout << "Encoding time: " << t.Seconds() << "\n" << std::flush;
 }
 
 void Compressor::print_stats() {
-  std::cout << "vbyte_count: " << vbyte_count << " unary_count: " << unary_count << " trivial_count: " << trivial_count << std::flush;
+  std::cout << "vbyte_count: " << vbyte_count << " unary_count: " << unary_count << " trivial_count: " << trivial_count << "\n" << std::flush;
   float vbyte_rate = float(vbyte_adj_count)*4.0/float(vbyte_bytes);
   float unary_rate = float(unary_adj_count)*4.0/float(unary_bytes);
   std::cout << "VByte bytes: " << float(vbyte_bytes)/1024/1024 
             << " MB, original data: " << float(vbyte_adj_count)*4.0/1024/1024 
-            << " MB, compression rate: " << vbyte_rate << std::flush;
+            << " MB, compression rate: " << vbyte_rate << "\n" << std::flush;
   std::cout << "Unary bytes: " << float(unary_bytes)/1024/1024 
             << " MB, original data: " << float(unary_adj_count)*4.0/1024/1024 
-            << " MB, compression rate: " << unary_rate << std::flush;
+            << " MB, compression rate: " << unary_rate << "\n" << std::flush;
 }
 
 void printusage() {
