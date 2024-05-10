@@ -3,6 +3,8 @@
 #include "graph_gpu.h"
 #include "cgr_decoder.cuh"
 #include "vbyte_decoder.cuh"
+#include <curand.h>
+#include <curand_kernel.h>
 
 class GraphGPUCompressed : public GraphGPU {
  private:
@@ -19,29 +21,28 @@ class GraphGPUCompressed : public GraphGPU {
     d_rowptr_compressed(NULL),
     d_colidx_compressed(NULL) {
   }
-  GraphGPUCompressed(Graph &g, std::string scheme_name, vidType deg=32, int n=0, int m=1, bool unified_mem=false) : 
-    GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes(), false, false, g.get_max_degree()) {
+  GraphGPUCompressed(Graph &g, std::string scheme_name, vidType deg=32, int n=0, int m=1, bool unified_mem=false)
+    // : GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes(), false, false, g.get_max_degree()) 
+  {
     scheme = scheme_name;
     degree_threshold = deg;
     if (unified_mem) unified_init(g);
     else init(g);
   }
-  GraphGPUCompressed(Graph &g, vidType first_v, vidType nv, eidType ne, vidType max_deg=32, std::string scheme_name="streamvbyte") :
-    GraphGPU(0, 1, nv, ne, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
+  GraphGPUCompressed(bool use_uva, Graph &g, vidType first_v, vidType nv, eidType ne, vidType max_deg=32, std::string scheme_name="streamvbyte") {
     scheme = scheme_name;
     degree_threshold = max_deg;
-    init_low_sub(g, first_v, ne, nv);
+    init_low_sub(g, first_v, ne, nv, use_uva);
   }
-  GraphGPUCompressed(vidType first_v, vidType last_v, vidType max_deg, Graph &g, std::string scheme_name="streamvbyte") :
-    GraphGPU(0, 1, 0, 0, g.get_vertex_classes(), g.get_edge_classes(), false, false, max_deg) {
+  GraphGPUCompressed(vidType first_v, vidType last_v, vidType max_deg, Graph &g, vidType pref_interval, bool use_uva, std::string scheme_name="streamvbyte") {
     scheme = scheme_name;
     degree_threshold = max_deg;
-    init_med_sub(g, first_v, last_v, max_deg);
+    init_med_sub(g, first_v, last_v, max_deg, pref_interval, use_uva);
   }
   void init(Graph &hg);
   void unified_init(Graph &hg);
-  void init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv);
-  void init_med_sub(Graph &hg, vidType first, vidType last, vidType max_deg);
+  void init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv, bool use_uva);
+  void init_med_sub(Graph &hg, vidType first, vidType last, vidType max_deg, vidType pref_interval, bool use_uva);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
   inline __device__ vidType get_degree(vidType v) const {
     auto start = d_rowptr_compressed[v];
@@ -75,6 +76,11 @@ class GraphGPUCompressed : public GraphGPU {
     }
     return degree;
   }
+  template <bool use_segment>
+  inline __device__ vidType decode_cgr_naive(vidType v, curandState &state) {
+    vidType neighbor = decode_unary_naive(v, state);
+    return neighbor;
+  }
   template <int align_bits>
   inline __device__ vidType decode_unary_segmented_warp(vidType v, vidType *adj) {
     cgr_decoder_gpu decoder(v, d_colidx_compressed, d_rowptr_compressed[v], adj, align_bits);
@@ -103,6 +109,30 @@ class GraphGPUCompressed : public GraphGPU {
     }
     degree = __shfl_sync(FULL_MASK, degree, 0);
     return degree;
+  }
+  // decode residuals without segment
+  inline __device__ vidType decode_unary_naive(vidType v, curandState &local_state) {
+    vidType curr_n;
+    auto begin = d_rowptr_compressed[v];
+    auto end = d_rowptr_compressed[v+1];
+    if (begin == end) return 0;
+    auto in = &d_colidx_compressed[0];
+    UnaryDecoderGPU decoder(in, begin);
+    // decode the first element
+    vidType x = decoder.decode_residual_code();
+    vidType v_deg = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+    if (v_deg == 0) return vidType(0 - 1);
+    vidType n_idx = (vidType)(ceil(curand_uniform(&local_state) * v_deg) - 1);
+    // decode the rest of elements one-by-one
+    x = decoder.decode_residual_code();
+    curr_n = (x & 1) ? v - (x >> 1) - 1 : v + (x >> 1);
+    vidType i = 0;
+    while (i < n_idx) {
+      curr_n += decoder.decode_residual_code() + 1;
+      i++;
+    }
+    // printf("old_t: %d; deg %d; n_idx: %d; new_t: %d\n", v, v_deg, i, curr_n);
+    return curr_n;
   }
   // for hybrid scheme where the degree is known
   inline __device__ void decode_unary_warp_naive(vidType v, vidType* out, vidType degree) {
@@ -225,9 +255,9 @@ class GraphGPUCompressed : public GraphGPU {
   }
 
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
-  inline __device__ vidType decode_vbyte_prefix(vidType v, int n) {
+  inline __device__ vidType decode_vbyte_prefix(vidType v, int n, vidType interval) {
     auto start = d_rowptr_compressed[v];
-    return decode_streamvbyte_prefix(&d_colidx_compressed[start], n);
+    return decode_streamvbyte_prefix(&d_colidx_compressed[start], n, interval);
   }
 
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>

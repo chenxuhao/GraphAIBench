@@ -23,8 +23,12 @@ cpu_omp_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_omp_khop.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o cpu_omp_khop.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
-unified_gpu_khop: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o unified_gpu_khop.o
-	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o unified_gpu_khop.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
+gpu_cgr: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o gpu_cgr.o
+	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o gpu_cgr.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
+	mv $@ $(BIN)
+
+gpu_vbyte: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o gpu_vbyte.o
+	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o gpu_vbyte.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
 
 on_gpu_khop: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o on_gpu_khop.o

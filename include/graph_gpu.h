@@ -42,9 +42,9 @@ public:
       GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
     init(g, use_uva);
   }
-  GraphGPU(Graph &g, vidType nv, eidType ne, int n=0, int m=1, int vl = 0, int el=0) :
+  GraphGPU(bool use_uva, Graph &g, vidType nv, eidType ne, int n=0, int m=1, int vl = 0, int el=0) :
       GraphGPU(n, m, nv, ne, vl, el) {
-    init_sub(g, nv, ne);
+    init_sub(g, nv, ne, use_uva);
   }
   GraphGPU(int n=0, int m=0, vidType nv=0, eidType ne=0, int vl=1, int el=1,
            bool directed=false, bool reverse=false, vidType max_deg=0) : 
@@ -219,11 +219,11 @@ public:
     size_t mem_vert = size_t(nv+1)*sizeof(eidType);
     size_t mem_edge = size_t(ne)*sizeof(vidType);
     size_t mem_graph = mem_vert + mem_edge;
-    size_t mem_el = mem_edge; // memory for the edgelist
-    size_t mem_all = mem_graph + mem_el;
+    // size_t mem_el = mem_edge; // memory for the edgelist
+    // size_t mem_all = mem_graph + mem_el;
     auto mem_gpu = get_gpu_mem_size();
     // bool use_uva = mem_all > mem_gpu;
-    use_uva = (use_uva) ? use_uva : mem_all > mem_gpu;
+    use_uva = (use_uva) ? use_uva : mem_graph > mem_gpu;
     auto v_classes = hg.get_vertex_classes();
     auto h_vlabel_freq = hg.get_label_freq_ptr();
     max_degree = hg.get_max_degree();
@@ -251,7 +251,7 @@ public:
     t.Stop();
     std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
   }
-  void init_sub(Graph &base_g, vidType nv, eidType ne) {
+  void init_sub(Graph &base_g, vidType nv, eidType ne, bool use_uva) {
     std::cout << "Allocating GPU memory for the high degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
     vidType *_edges = new vidType[ne];
     eidType *_vertices = new eidType[nv + 1];
@@ -261,11 +261,24 @@ public:
       _vertices[i+1] = deg + _vertices[i];
     }
     _edges -= ne;
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx, ne * sizeof(vidType)));
-    CUDA_SAFE_CALL(cudaMemcpy(d_colidx, _edges, ne * sizeof(vidType), cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr, (nv+1) * sizeof(eidType)));
-    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, _vertices, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    if (!use_uva) {
+      CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx, ne * sizeof(vidType)));
+      CUDA_SAFE_CALL(cudaMemcpy(d_colidx, _edges, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+      CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr, (nv+1) * sizeof(eidType)));
+      CUDA_SAFE_CALL(cudaMemcpy(d_rowptr, _vertices, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+      CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    } else {
+      std::cout << "Moving high subgraph onto unified virtual memory...\n";
+      CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx, ne * sizeof(vidType)));
+      for (uint64_t e = 0; e < ne; e++) {
+        d_colidx[e] = _edges[e];
+      }      
+      CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_rowptr, (nv+1) * sizeof(eidType)));
+      for (uint32_t v = 0; v <= nv; v++) {
+        d_rowptr[v] = _vertices[v];
+      }      
+      CUDA_SAFE_CALL(cudaDeviceSynchronize());
+    }
     num_vertices = nv;
     num_edges = ne;
     std::cout << "Done\n";

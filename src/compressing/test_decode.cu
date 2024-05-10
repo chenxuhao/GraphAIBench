@@ -27,6 +27,10 @@ __global__ void test_warp_decompress(GraphGPUCompressed g, int total_threads, vi
   // }
 }
 
+__global__ void test_decode_cgr(GraphGPUCompressed g, vidType transit, vidType *buffer, int n_idx) {
+  
+}
+
 __global__ void print_buffer(GraphGPUCompressed g, vidType *buffer, int num, int n_idx) {
   int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
   if (thread_id >= 1) {

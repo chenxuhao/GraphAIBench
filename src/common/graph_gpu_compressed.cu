@@ -2,7 +2,7 @@
 #include "vbyte_encoder.hh"
 
 void GraphGPUCompressed::init(Graph &hg) {
-  GraphGPU::init(hg);
+  // GraphGPU::init(hg);
   auto nv = hg.num_vertices();
   if (hg.is_compressed()) {
     CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
@@ -24,7 +24,6 @@ void GraphGPUCompressed::init(Graph &hg) {
 }
 
 void GraphGPUCompressed::unified_init(Graph &hg) {
-  // GraphGPU::init(hg);
   std::cout << "LOADING COMPRESSED GRAPH INTO UNIFIED MEMORY\n";
   auto nv = hg.num_vertices();
   if (hg.is_compressed()) {
@@ -53,7 +52,7 @@ void GraphGPUCompressed::unified_init(Graph &hg) {
   }
 }
 
-void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv) {
+void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv, bool use_uva) {
   std::cout << "Allocating GPU memory for the low degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
   eidType *_rowptr = new eidType[nv + 1];
   eidType *base_rowptr = base_g._rowptr_compressed() + first_v;
@@ -62,19 +61,30 @@ void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne
   for (vidType i = 1; i <= nv; i++) {
     _rowptr[i] = base_rowptr[i] - diff;
   }
-  CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
-  CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, base_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
-  CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, _rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  if (!use_uva) {
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, base_colidx, ne * sizeof(vidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, _rowptr, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  } else {
+    std::cout << "Moving low subgraph onto unified virtual memory...\n";
+    CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx_compressed, ne * sizeof(vidType)));
+    for (uint64_t e = 0; e < ne; e++) {
+      d_colidx_compressed[e] = base_colidx[e];
+    }
+    CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+    for (uint64_t v = 0; v <= nv; v++) {
+      d_rowptr_compressed[v] = _rowptr[v];
+    }
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());  
+  }
   std::cout << "Done" << std::endl;
 }
 
-void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vidType m_deg) {
+void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vidType m_deg, vidType interval, bool use_uva) {
   vidType nv = last - first;
-  vidType prefix_interval = WARP_SIZE;
-  vidType interval_key_len = (prefix_interval * 2) / 32;
-
+  vidType interval_key_len = (interval * 2) / 32;
   std::cout << "Allocating GPU memory for the medium degree subgraph |V| " << nv << "..." << std::endl;
   vector<vidType> edges_compressed;
   eidType *vertices_compressed = new eidType[nv+1];
@@ -94,20 +104,20 @@ void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vi
     uint32_t key_len32 = (key_len8 + 3) / 4;
     key_ptr = out_buffer.data();
     out_ptr = key_ptr + key_len32;
-    vidType n_rounds = deg / prefix_interval;
+    vidType n_rounds = deg / interval;
     vidType prefix_size = 0;
     vidType total_prefix = 0;
 
     for (vidType r = 0; r < n_rounds; r++) {
       edges_compressed.push_back(total_prefix);
-      prefix_size = vb_encoder.encode(prefix_interval, in_buffer, key_ptr, out_ptr);
+      prefix_size = vb_encoder.encode(interval, in_buffer, key_ptr, out_ptr);
       total_prefix += prefix_size;
-      in_buffer += prefix_interval;
+      in_buffer += interval;
       key_ptr += interval_key_len;
       out_ptr += prefix_size;
     }
 
-    vidType count = deg % prefix_interval;
+    vidType count = deg % interval;
     if (count != 0) {
       edges_compressed.push_back(total_prefix);
       prefix_size = vb_encoder.encode(count, in_buffer, key_ptr, out_ptr);
@@ -116,15 +126,33 @@ void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vi
     } 
     vidType total_size_v = out_ptr - out_buffer.data();
     edges_compressed.insert(edges_compressed.end(), out_buffer.begin(), out_buffer.begin() + total_size_v);
-    vertices_compressed[relabel_v+1] = vertices_compressed[relabel_v] + 1 + ((deg + WARP_SIZE - 1) / WARP_SIZE) + total_size_v;
+    vertices_compressed[relabel_v+1] = vertices_compressed[relabel_v] + 1 + ((deg + interval - 1) / interval) + total_size_v;
     in_buffer -= (deg - count);
   }
   vidType ne = edges_compressed.size();
-  CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
-  CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, &edges_compressed[0], ne * sizeof(vidType), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
-  CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, vertices_compressed, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  size_t mem_vert = size_t(nv + 1)*sizeof(eidType);
+  size_t mem_edge = size_t(ne)*sizeof(vidType);
+  size_t mem_graph = mem_vert + mem_edge;
+  std::cout << "Med deg subgraph: " << (float)mem_graph / (float)1000000000 << "GB; |V| " << nv << "\n";
+  if (!use_uva) {
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx_compressed, ne * sizeof(vidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_colidx_compressed, &edges_compressed[0], ne * sizeof(vidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+    CUDA_SAFE_CALL(cudaMemcpy(d_rowptr_compressed, vertices_compressed, (nv+1) * sizeof(eidType), cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  } else {
+    std::cout << "Moving medium subgraph onto unified virtual memory...\n";
+    CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx_compressed, ne * sizeof(vidType)));
+    for (uint64_t e = 0; e < ne; e++) {
+      d_colidx_compressed[e] = edges_compressed[e];
+    }
+    CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_rowptr_compressed, (nv+1) * sizeof(eidType)));
+    for (uint64_t v = 0; v <= nv; v++) {
+      d_rowptr_compressed[v] = vertices_compressed[v];
+    }
+
+    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+  }
   std::cout << "Done" << std::endl;
 }
 /*

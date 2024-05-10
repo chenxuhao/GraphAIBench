@@ -64,7 +64,7 @@ void GraphT<map_vertices, map_edges>::load_graph_data(std::string prefix,
       std::cout << "This graph maintains both incomming and outgoing edge-list\n";
       has_reverse = true;
     }
-  } else {
+  } else if (need_reverse) {
     has_reverse = true;
     reverse_vertices = vertices;
     reverse_edges = edges;
