@@ -72,16 +72,16 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     rand_t = seconds();
     setup_kernel<<<num_blocks,block_size>>>(d_states, total_threads);
     rand_t = seconds() - rand_t;
-    std::cout << "Sampled random states in " << rand_t << " sec\n";
+    std::cout << "Sampled random states in " << rand_t << " sec\n" << std::flush;
 
     GraphGPUCompressed gg(g, "cgr", g.get_degree_threshold(), 0, 1, use_uva);
     
-    std::cout << "Starting sampling with " << total_threads << " threads...\n";
+    std::cout << "Starting sampling with " << total_threads << " threads...\n" << std::flush;
     sample_t = seconds();
     khop_next0<<<num_blocks,block_size>>>(gg, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     sample_t = seconds() - sample_t;
-    std::cout << "Done sampling!" << std::endl;
+    std::cout << "Done sampling!\n" << std::flush;
   
     dealloc_t = seconds();
     CUDA_SAFE_CALL(cudaMemcpy(result, d_result, total_num * v_size, cudaMemcpyDeviceToHost));
@@ -90,7 +90,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
     CUDA_SAFE_CALL(cudaFree(d_step_counts));
     dealloc_t = seconds() - dealloc_t;
 
-    std::cout << "Time elapsed for allocating and copying " << alloc_t + dealloc_t << " sec\n\n";
+    std::cout << "Time elapsed for allocating and copying " << alloc_t + dealloc_t << " sec\n\n" << std::flush;
 
     return sample_t;
 }
@@ -136,11 +136,11 @@ int main(int argc, char* argv[]) {
   }
   g.load_compressed_graph(in_prefix, scheme, permutated);
   // g.print_meta_data();
-  std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
+  std::cout << "LOADED COMPRESSED GRAPH\n\n" << std::flush;
 
   // int n_samples = argc >= 4 ? atoi(argv[3]) : num_samples();
   // int pdeg = argc >= 5 ? atoi(argv[4]) : BLOCK_SIZE;
-  std::cout << "block size: " << pdeg << "\n";
+  std::cout << "block size: " << pdeg << "\n" << std::flush;
 
   double iElaps;
   vector<vidType> initial = get_initial_transits(sample_size(-1) * n_samples, g.V());
@@ -153,8 +153,8 @@ int main(int argc, char* argv[]) {
   vidType* result = new vidType[total_count];
   iElaps = multilayer_sample(g, initial, n_samples, total_count, step_count, result, pdeg, use_uva);
 
-  std::cout << "Sampled total of " << total_count << " transits in " << steps() << " steps\n";
-  std::cout << "Time elapsed for sampling " << iElaps << " sec\n\n";
+  std::cout << "Sampled total of " << total_count << " transits in " << steps() << " steps\n" << std::flush;
+  std::cout << "Time elapsed for sampling " << iElaps << " sec\n\n" << std::flush;
   if (print) {
     std::cout << "results\n";
     int _size = sample_size(-1) * n_samples;

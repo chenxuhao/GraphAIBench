@@ -31,6 +31,10 @@ gpu_vbyte: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o gpu_vbyte.o
 	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o gpu_vbyte.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
 
+gpu_vbyte_warp: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o gpu_vbyte_warp.o
+	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o gpu_vbyte_warp.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
+	mv $@ $(BIN)
+
 on_gpu_khop: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o on_gpu_khop.o
 	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o on_gpu_khop.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)

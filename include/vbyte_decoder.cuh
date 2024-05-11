@@ -84,36 +84,39 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
 }
 
 template <bool delta = true>
-__device__ void decode_streamvbyte_thread(const uint32_t *in, uint32_t *out, int num) {
+__device__ vidType decode_streamvbyte_thread(const uint32_t *in, uint32_t *out, vidType prefix, vidType prefix_bytes, int num) {
   int32_t count = *in;
-  if (num < WARP_SIZE) { ++in; }
-  if (count == 0) return;
+  ++in;
   uint8_t *keyPtr = (uint8_t *)in; // full list of keys is next
   uint32_t keyLen = ((count + 3) / 4); // 2-bits per key (rounded up)
   uint8_t *dataPtr = keyPtr + keyLen;  // data starts at end of keys
+  // uint32_t keyOffset = (num / WARP_SIZE) * 8;
+  // keyPtr += keyOffset;
 
   int thread_lane = threadIdx.x & (WARP_SIZE-1); // thread index within the warp
   int warp_lane   = threadIdx.x / WARP_SIZE;     // warp index within the CTA
   typedef cub::WarpScan<uint32_t> WarpScan;
   __shared__ typename WarpScan::TempStorage temp_storage[WARPS_PER_BLOCK];
-  uint32_t base = 0;
+  // __shared__ typename WarpScan::TempStorage bit_storage[WARPS_PER_BLOCK];
 
   // Read the header
-  uint32_t num_bytes = (thread_lane < count) ? (extract_bits(keyPtr, thread_lane * 2, 2) + 1) : 0;
-  keyPtr += 8; // move 8 bytes forward; 8*8 = 64 = 32*2
-  // Compute prefix sum to get the positions for extracting data elements
+  int i = (num / WARP_SIZE) * WARP_SIZE + thread_lane;
+  uint32_t num_bytes = extract_bits(keyPtr, i * 2, 2) + 1;
   uint32_t offset = 0;
   uint32_t total_bytes = 0;
+  // if (thread_lane == 0) num_bytes += prefix_bytes;
   WarpScan(temp_storage[warp_lane]).ExclusiveSum(num_bytes, offset, total_bytes);
-  // Extract elements
-  uint32_t val = (thread_lane < count) ? extract_bytes(&dataPtr[offset], num_bytes) : 0;
-  dataPtr += total_bytes;
+  // Compute prefix sum to get the positions for extracting data elements
+  offset += prefix_bytes;
+  total_bytes += prefix_bytes;
+  // if (thread_lane == 31) printf("off %d total %d\n", offset, total_bytes);
+  uint32_t val = extract_bytes(&dataPtr[offset], num_bytes);
+  if (thread_lane == 0) val += prefix;
   uint32_t delta_val = 0;
-  if (thread_lane == 0) val += base;
   // Compute prefix sum for differential/delta coding
   WarpScan(temp_storage[warp_lane]).InclusiveSum(val, delta_val);
   out[thread_lane] = delta_val;
-  base = __shfl_sync(FULL_MASK, delta_val, WARP_SIZE-1);
+  return total_bytes;
 }
 
 template <bool delta = true>

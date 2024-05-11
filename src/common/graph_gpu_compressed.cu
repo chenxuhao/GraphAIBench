@@ -24,7 +24,7 @@ void GraphGPUCompressed::init(Graph &hg) {
 }
 
 void GraphGPUCompressed::unified_init(Graph &hg) {
-  std::cout << "LOADING COMPRESSED GRAPH INTO UNIFIED MEMORY\n";
+  std::cout << "LOADING COMPRESSED GRAPH INTO UNIFIED MEMORY\n" << std::flush;
   auto nv = hg.num_vertices();
   if (hg.is_compressed()) {
     CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_rowptr_compressed, (nv + 1) * sizeof(eidType)));
@@ -33,7 +33,7 @@ void GraphGPUCompressed::unified_init(Graph &hg) {
       d_rowptr_compressed[i] = compressed_rowptr[i];
     }    
     auto len = hg.get_compressed_colidx_length();
-    std::cout << "Number of words in compressed edges: " << len << "\n";
+    std::cout << "Number of words in compressed edges: " << len << "\n" << std::flush;
     CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx_compressed, (len+2) * sizeof(uint32_t))); // allocate two more word for memory safty
     auto compressed_colidx = hg.colidx_compressed();
     for (int i = 0; i < len; i++) {
