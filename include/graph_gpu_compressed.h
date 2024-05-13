@@ -262,9 +262,9 @@ class GraphGPUCompressed : public GraphGPU {
   }
 
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
-  inline __device__ vidType decode_vbyte_thread(vidType v, vidType *adj, vidType prefix, vidType prefix_bit, int num) {
+  inline __device__ vidType decode_1warp(vidType v, vidType *adj, vidType prefix, vidType prefix_bit, int num) {
     auto start = d_rowptr_compressed[v];
-    vidType bytes = decode_streamvbyte_thread<delta>(&d_colidx_compressed[start], adj, prefix, prefix_bit, num);
+    vidType bytes = decode_1vbyte_warp<delta>(&d_colidx_compressed[start], adj, prefix, prefix_bit, num);
     return bytes;
   }
 

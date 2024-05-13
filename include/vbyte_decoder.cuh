@@ -84,7 +84,7 @@ __device__ void decode_streamvbyte_warp(uint32_t count, const uint32_t *in, uint
 }
 
 template <bool delta = true>
-__device__ vidType decode_streamvbyte_thread(const uint32_t *in, uint32_t *out, vidType prefix, vidType prefix_bytes, int num) {
+__device__ vidType decode_1vbyte_warp(const uint32_t *in, uint32_t *out, vidType prefix, vidType prefix_bytes, int num) {
   int32_t count = *in;
   ++in;
   uint8_t *keyPtr = (uint8_t *)in; // full list of keys is next

@@ -42,8 +42,7 @@ public:
       GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
     init(g, use_uva);
   }
-  GraphGPU(bool use_uva, Graph &g, vidType nv, eidType ne, int n=0, int m=1, int vl = 0, int el=0) :
-      GraphGPU(n, m, nv, ne, vl, el) {
+  GraphGPU(bool use_uva, Graph &g, vidType nv, eidType ne, int n=0, int m=1, int vl = 0, int el=0) {
     init_sub(g, nv, ne, use_uva);
   }
   GraphGPU(int n=0, int m=0, vidType nv=0, eidType ne=0, int vl=1, int el=1,
