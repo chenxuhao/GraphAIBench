@@ -29,20 +29,68 @@ class GraphGPUCompressed : public GraphGPU {
     if (unified_mem) unified_init(g);
     else init(g);
   }
-  GraphGPUCompressed(bool use_uva, Graph &g, vidType first_v, vidType nv, eidType ne, vidType max_deg=32, std::string scheme_name="streamvbyte") {
+  GraphGPUCompressed(bool use_uva, Graph &g, vidType first_v, vidType nv, eidType ne, std::string out_file="none", vidType max_deg=32, std::string scheme_name="streamvbyte") {
     scheme = scheme_name;
     degree_threshold = max_deg;
     init_low_sub(g, first_v, ne, nv, use_uva);
+    if (out_file != "none") {
+      write_to_file(out_file, ne, nv, max_deg);
+      CUDA_SAFE_CALL(cudaFree(d_rowptr_compressed));
+      CUDA_SAFE_CALL(cudaFree(d_colidx_compressed));
+    }
   }
-  GraphGPUCompressed(vidType first_v, vidType last_v, vidType max_deg, Graph &g, vidType pref_interval, bool use_uva, std::string scheme_name="streamvbyte") {
+  GraphGPUCompressed(vidType first_v, vidType last_v, vidType max_deg, Graph &g, vidType pref_interval, bool use_uva, std::string out_file="none", std::string scheme_name="streamvbyte") {
     scheme = scheme_name;
     degree_threshold = max_deg;
-    init_med_sub(g, first_v, last_v, max_deg, pref_interval, use_uva);
+    size_t ne = init_med_sub(g, first_v, last_v, max_deg, pref_interval, use_uva);
+    size_t nv = last_v - first_v;
+    if (out_file != "none") {
+      write_to_file(out_file, ne, nv, max_deg);
+      CUDA_SAFE_CALL(cudaFree(d_rowptr_compressed));
+      CUDA_SAFE_CALL(cudaFree(d_colidx_compressed));
+    }
   }
+
+  void write_to_file(std::string outfilename, size_t ne, size_t nv, vidType max_deg) {
+    std::cout << "Writing graph to file\n";
+    std::ofstream outfile((outfilename+".vertex.bin").c_str(), std::ios::binary);
+    if (!outfile) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    eidType *rowptrs = new eidType[nv+1];
+    CUDA_SAFE_CALL(cudaMemcpy(rowptrs, d_rowptr_compressed, (nv+1) * sizeof(eidType), cudaMemcpyDeviceToHost));
+    outfile.write(reinterpret_cast<const char*>(rowptrs), (nv+1)*sizeof(eidType));
+    outfile.close();
+
+    std::ofstream outfile1((outfilename+".edge.bin").c_str(), std::ios::binary);
+    if (!outfile1) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    vidType *colidxs = new vidType[ne];
+    CUDA_SAFE_CALL(cudaMemcpy(colidxs, d_colidx_compressed, ne * sizeof(vidType), cudaMemcpyDeviceToHost));
+    outfile1.write(reinterpret_cast<const char*>(colidxs), (ne)*sizeof(vidType));
+    outfile1.close();
+
+    std::ofstream outfile2((outfilename+".meta.txt").c_str(), std::ios::binary);
+    if (!outfile1) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    std::string meta = std::to_string(nv) + "\n" + std::to_string(ne) + "\n";
+    meta += "4 8 1 4\n";
+    meta += std::to_string(max_deg) + "\n";
+    meta += "0\n0\n0\n";
+    outfile2 << meta;
+    outfile2.close();
+    std::cout << "File name " << outfilename << std::endl;
+  }
+
   void init(Graph &hg);
   void unified_init(Graph &hg);
   void init_low_sub(Graph &base_g, vidType first_v, eidType ne, vidType nv, bool use_uva);
-  void init_med_sub(Graph &hg, vidType first, vidType last, vidType max_deg, vidType pref_interval, bool use_uva);
+  size_t init_med_sub(Graph &hg, vidType first, vidType last, vidType max_deg, vidType pref_interval, bool use_uva);
   inline __device__ vidType read_degree(vidType v) const { return d_degrees[v]; }
   inline __device__ vidType get_degree(vidType v) const {
     if (v == vidType(0-1)) return 0;

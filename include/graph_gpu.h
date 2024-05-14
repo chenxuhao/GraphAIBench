@@ -42,8 +42,13 @@ public:
       GraphGPU(n, m, g.V(), g.E(), g.get_vertex_classes(), g.get_edge_classes()) {
     init(g, use_uva);
   }
-  GraphGPU(bool use_uva, Graph &g, vidType nv, eidType ne, int n=0, int m=1, int vl = 0, int el=0) {
+  GraphGPU(bool use_uva, Graph &g, vidType nv, eidType ne, std::string out_file="none") {
     init_sub(g, nv, ne, use_uva);
+    if (out_file != "none") {
+      write_to_file(out_file, ne, nv, g.get_max_degree());
+      CUDA_SAFE_CALL(cudaFree(d_rowptr));
+      CUDA_SAFE_CALL(cudaFree(d_colidx));
+    }
   }
   GraphGPU(int n=0, int m=0, vidType nv=0, eidType ne=0, int vl=1, int el=1,
            bool directed=false, bool reverse=false, vidType max_deg=0) : 
@@ -66,6 +71,42 @@ public:
       d_degrees(NULL), 
       d_vlabels_frequency(NULL),
       d_adj_buffer(NULL) {
+  }
+
+  void write_to_file(std::string outfilename, size_t ne, size_t nv, vidType max_deg) {
+    std::cout << "Writing graph to file\n";
+    std::ofstream outfile((outfilename+".vertex.bin").c_str(), std::ios::binary);
+    if (!outfile) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    eidType *rowptrs = new eidType[nv+1];
+    CUDA_SAFE_CALL(cudaMemcpy(rowptrs, d_rowptr, (nv+1) * sizeof(eidType), cudaMemcpyDeviceToHost));
+    outfile.write(reinterpret_cast<const char*>(rowptrs), (nv+1)*sizeof(eidType));
+    outfile.close();
+
+    std::ofstream outfile1((outfilename+".edge.bin").c_str(), std::ios::binary);
+    if (!outfile1) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    vidType *colidxs = new vidType[ne];
+    CUDA_SAFE_CALL(cudaMemcpy(colidxs, d_colidx, ne * sizeof(vidType), cudaMemcpyDeviceToHost));
+    outfile1.write(reinterpret_cast<const char*>(colidxs), (ne)*sizeof(vidType));
+    outfile1.close();
+
+    std::ofstream outfile2((outfilename+".meta.txt").c_str(), std::ios::binary);
+    if (!outfile1) {
+      std::cout << "File not available\n";
+      throw 1;
+    }
+    std::string meta = std::to_string(nv) + "\n" + std::to_string(ne) + "\n";
+    meta += "4 8 1 4\n";
+    meta += std::to_string(max_deg) + "\n";
+    meta += "0\n0\n0\n";
+    outfile2 << meta;
+    outfile2.close();
+    std::cout << "File name " << outfilename << std::endl;
   }
   void release() { clean(); clean_edgelist(); clean_labels(); }
   inline __device__ __host__ bool is_directed() { return is_directed_; }
