@@ -6,7 +6,7 @@
 #include "khop.h"
 using namespace std;
 
-int sample_alg(Graph &g, vector<vidType> &all_transits, int n_samples, int n_threads) {
+int sample_alg(Graph &g, vector<vidType> &all_transits, int n_samples, int n_threads, int total_count=0) {
   Timer t;
   t.Start();
   int step_count = sample_size(-1) * n_samples;

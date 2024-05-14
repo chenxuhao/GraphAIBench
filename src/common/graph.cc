@@ -73,7 +73,7 @@ void GraphT<map_vertices, map_edges>::load_graph_data(std::string prefix,
   // compute maximum degree
   if (max_degree == 0) compute_max_degree();
   //else std::cout << "max_degree: " << max_degree << "\n";
-  assert(max_degree > 0 && max_degree < n_vertices);
+  // assert(max_degree > 0 && max_degree < n_vertices);
 
   // read vertex labels
   if (use_vlabel) {
@@ -149,6 +149,33 @@ void GraphT<map_vertices, map_edges>::load_graph_data(std::string prefix,
 }
 
 template<bool map_vertices, bool map_edges>
+void GraphT<map_vertices, map_edges>::load_subgraph(bool is_comp, eidType *rowptrs, vidType *colidxs, vidType nv, eidType ne, vidType max_deg) {
+  if (is_comp) {
+    vertices_compressed = new eidType[nv+1];
+    for (vidType v = 0; v <= nv; v++) {
+      vertices_compressed[v] = rowptrs[v];
+    }
+    for (eidType e = 0; e < ne; e++) {
+      edges_compressed.push_back(colidxs[e]);
+    }
+    is_compressed_ = true;
+  } else {
+    vertices = new eidType[nv+1];
+    for (vidType v = 0; v <= nv; v++) {
+      vertices[v] = rowptrs[v];
+    }
+    edges = new vidType[ne];
+    for (eidType e = 0; e < ne; e++) {
+      edges[e] = colidxs[e];
+    }
+    is_compressed_ = false;
+  }
+  n_vertices = nv;
+  n_edges = ne;
+  max_degree = max_deg;
+}
+
+template<bool map_vertices, bool map_edges>
 GraphT<map_vertices, map_edges>::~GraphT() {
   deallocate();
 }
@@ -172,6 +199,11 @@ void GraphT<map_vertices, map_edges>::deallocate() {
     if constexpr (map_vertices) munmap(vertices, (n_vertices+1)*sizeof(eidType));
     else custom_free(vertices, n_vertices+1);
     vertices = NULL;
+  }
+  if (is_compressed_) {
+    delete [] vertices_compressed;
+    vertices_compressed = NULL;
+    vector<vidType>().swap(edges_compressed);
   }
   if (vlabels != NULL) {
     delete [] vlabels;

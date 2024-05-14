@@ -30,6 +30,14 @@ class GraphGPUCompressed : public GraphGPU {
     else init(g);
   }
   GraphGPUCompressed(bool use_uva, Graph &g, vidType first_v, vidType nv, eidType ne, std::string out_file="none", vidType max_deg=32, std::string scheme_name="streamvbyte") {
+    if (out_file != "none") {
+      std::string meta_file = out_file + ".meta.txt";
+      ifstream f(meta_file.c_str());
+      if (f.good()) {
+        std::cout << "file " << out_file << " already exists! skipping...\n";
+        return;
+      }
+    }
     scheme = scheme_name;
     degree_threshold = max_deg;
     init_low_sub(g, first_v, ne, nv, use_uva);
@@ -40,6 +48,14 @@ class GraphGPUCompressed : public GraphGPU {
     }
   }
   GraphGPUCompressed(vidType first_v, vidType last_v, vidType max_deg, Graph &g, vidType pref_interval, bool use_uva, std::string out_file="none", std::string scheme_name="streamvbyte") {
+    if (out_file != "none") {
+      std::string meta_file = out_file + ".meta.txt";
+      ifstream f(meta_file.c_str());
+      if (f.good()) {
+        std::cout << "file " << out_file << " already exists! skipping...\n";
+        return;
+      }
+    }
     scheme = scheme_name;
     degree_threshold = max_deg;
     size_t ne = init_med_sub(g, first_v, last_v, max_deg, pref_interval, use_uva);
@@ -58,20 +74,26 @@ class GraphGPUCompressed : public GraphGPU {
       std::cout << "File not available\n";
       throw 1;
     }
+    std::cout << "idk\n";
     eidType *rowptrs = new eidType[nv+1];
+    std::cout << "maybe\n";
     CUDA_SAFE_CALL(cudaMemcpy(rowptrs, d_rowptr_compressed, (nv+1) * sizeof(eidType), cudaMemcpyDeviceToHost));
     outfile.write(reinterpret_cast<const char*>(rowptrs), (nv+1)*sizeof(eidType));
     outfile.close();
+    delete [] rowptrs;
 
     std::ofstream outfile1((outfilename+".edge.bin").c_str(), std::ios::binary);
     if (!outfile1) {
       std::cout << "File not available\n";
       throw 1;
     }
+    std::cout << "or here>\n";
     vidType *colidxs = new vidType[ne];
+    std::cout << "here?\n";
     CUDA_SAFE_CALL(cudaMemcpy(colidxs, d_colidx_compressed, ne * sizeof(vidType), cudaMemcpyDeviceToHost));
     outfile1.write(reinterpret_cast<const char*>(colidxs), (ne)*sizeof(vidType));
     outfile1.close();
+    delete [] colidxs;
 
     std::ofstream outfile2((outfilename+".meta.txt").c_str(), std::ios::binary);
     if (!outfile1) {
@@ -96,6 +118,18 @@ class GraphGPUCompressed : public GraphGPU {
     if (v == vidType(0-1)) return 0;
     auto start = d_rowptr_compressed[v];
     return d_colidx_compressed[start];
+  }
+  inline __device__ void run_through(int total_threads) {
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (thread_id >= total_threads) {
+      return;
+    }
+    vidType nv = sizeof(d_rowptr_compressed) / sizeof(eidType);
+    for (vidType v = thread_id; v < nv; v += total_threads) {
+      for (eidType e = 0; e < d_rowptr_compressed[v+1]-d_rowptr_compressed[v]; e++) {
+        vidType _ = d_colidx_compressed[e];
+      }
+    }
   }
   inline __device__ vidType warp_decompress(vidType v, vidType *adj) { return decode_cgr_warp<true>(v, adj); }
   inline __device__ vidType* cta_decompress(vidType v, vidType *buf1, vidType *buf2, vidType &degree);

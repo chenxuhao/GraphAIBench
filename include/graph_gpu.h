@@ -43,6 +43,14 @@ public:
     init(g, use_uva);
   }
   GraphGPU(bool use_uva, Graph &g, vidType nv, eidType ne, std::string out_file="none") {
+    if (out_file != "none") {
+      std::string meta_file = out_file + ".meta.txt";
+      ifstream f(meta_file.c_str());
+      if (f.good()) {
+        std::cout << "file " << out_file << " already exists! skipping...\n";
+        return;
+      }
+    }
     init_sub(g, nv, ne, use_uva);
     if (out_file != "none") {
       write_to_file(out_file, ne, nv, g.get_max_degree());

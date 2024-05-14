@@ -95,10 +95,8 @@ size_t GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, 
   vidType *key_ptr;
   vbyte_encoder vb_encoder("streamvbyte");
   vidType store_interval = min(nv, 10000000);
-
   size_t ne = 0;
   for (vidType v = first; v < last; v++) {
-    if (v % 1000 == 0) std::cout << v << std::endl;
     vidType relabel_v = v - first;
     vidType deg = hg.decode_vertex_vbyte(v, in_buffer, "streamvbyte");
     edges_compressed.push_back(deg);

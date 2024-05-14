@@ -89,6 +89,7 @@ public:
   void load_graph_data(std::string prefix, 
                        bool use_dag = false, bool use_vlabel = false, 
                        bool use_elabel = false, bool need_reverse = false);
+  void load_subgraph(bool compressed, eidType *rowptrs, vidType *colidxs, vidType nv, eidType ne, vidType max_deg);
   void deallocate();
 
   // get methods for graph meta information

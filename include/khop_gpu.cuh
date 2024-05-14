@@ -18,6 +18,10 @@ __global__ void setup_kernel(curandState *state, int total_threads)
     curand_init(1234, id, 0, &state[id]);
 }
 
+__global__ void warm_up_gpu(GraphGPUCompressed g, int total_threads) {
+    g.run_through(total_threads);
+}
+
 __device__ int sample_size_gpu(int step) {
     if (step == -1) return 1;
     // if (step == 0) return 25;
