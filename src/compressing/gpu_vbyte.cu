@@ -42,7 +42,7 @@ __global__ void khop_next3(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
           vidType old_t_deg = high_g.get_degree(old_t);
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = high_g.N(old_t, n_idx);
-          printf("HIGH deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
+          // printf("HIGH deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         } 
         else if (old_t >= first_low) {
           old_t -= first_low;
@@ -53,14 +53,14 @@ __global__ void khop_next3(GraphGPUCompressed low_g, GraphGPUCompressed med_g, G
           }
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = low_g.decode_vbyte_sums(old_t, n_idx);
-          printf("LOW deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
+          // printf("LOW deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         }
         else {
           old_t -= first_med;
           vidType old_t_deg = med_g.get_degree(old_t);
           eidType n_idx = (eidType)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
           result[t_idx] = med_g.decode_vbyte_prefix(old_t, n_idx, interval);
-          printf("MED deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
+          // printf("MED deg %d; n_idx %d; t_idx %d; old_t %d; t %d\n", old_t_deg, (int)n_idx, t_idx, result[old_t_idx], result[t_idx]);
         }
       }
     }
@@ -152,7 +152,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
       for (int i = 0; i <= last_high; i++) {
         total_deg += g.get_degree_vbyte(i);
       }
-      GraphGPU high_subg(true, g, last_high + 1, total_deg);
+      GraphGPU high_subg(false, g, last_high + 1, total_deg);
       size_t mem_vert = size_t(last_high + 2)*sizeof(eidType);
       size_t mem_edge = size_t(total_deg)*sizeof(vidType);
       size_t mem_graph = mem_vert + mem_edge;
@@ -171,7 +171,7 @@ double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int 
       vidType first_low = last_med + 1;
       auto g_rptr = g.rowptr_compressed();
       total_deg = g_rptr[g.V()] - g_rptr[first_low];
-      GraphGPUCompressed low_subg(true, g, first_low, g.V() - first_low, total_deg);
+      GraphGPUCompressed low_subg(false, g, first_low, g.V() - first_low, total_deg);
       mem_vert = size_t(first_low - last_high)*sizeof(eidType);
       mem_edge = size_t(g_rptr[first_low] - g_rptr[first_med])*sizeof(vidType);
       mem_graph = mem_vert + mem_edge;

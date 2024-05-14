@@ -82,7 +82,7 @@ void GraphGPUCompressed::init_low_sub(Graph &base_g, vidType first_v, eidType ne
   std::cout << "Done" << std::endl;
 }
 
-void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vidType m_deg, vidType interval, bool use_uva) {
+size_t GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vidType m_deg, vidType interval, bool use_uva) {
   vidType nv = last - first;
   vidType interval_key_len = (interval * 2) / 32;
   std::cout << "Allocating GPU memory for the medium degree subgraph |V| " << nv << "..." << std::endl;
@@ -98,6 +98,7 @@ void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vi
 
   size_t ne = 0;
   for (vidType v = first; v < last; v++) {
+    if (v % 1000 == 0) std::cout << v << std::endl;
     vidType relabel_v = v - first;
     vidType deg = hg.decode_vertex_vbyte(v, in_buffer, "streamvbyte");
     edges_compressed.push_back(deg);
@@ -135,7 +136,7 @@ void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vi
     }
     in_buffer -= (deg - count);
   }
-  std::cout << "Med deg subgraph: " << ne * sizeof(vidType) + (nv + 1) * sizeof(eidType) << "; |V| " << nv << std::endl;
+  std::cout << "Subgraph Colidxs size: " << ne * sizeof(vidType) << "; Rowptrs size: " << (nv + 1) * sizeof(eidType) << "; |V| " << nv << std::endl;
   if (use_uva) {
     CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx_compressed, ne * sizeof(vidType)));
   } else {
@@ -205,6 +206,7 @@ void GraphGPUCompressed::init_med_sub(Graph &hg, vidType first, vidType last, vi
   }
   d_colidx_compressed -= ne;
   std::cout << "Done" << std::endl;
+  return ne;
 }
 /*
 // decompress CGR format to an (unordered/ordered) vertex set using a warp
