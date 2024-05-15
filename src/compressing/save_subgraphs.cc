@@ -144,25 +144,33 @@ void build_low(Graph &g, vidType first_v, eidType ne, vidType nv, vidType m_deg,
   write_to_file(out_file, ne, nv, m_deg, _rowptr, _colidx);
 }
 
-void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_mem, int low_deg, int high_deg, vidType prefix_interval, std::string out_prefix) {
+void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_mem, int low_deg, int high_deg, int uncomp_deg, vidType prefix_interval, std::string out_prefix) {
   std::cout << "file name! " << out_prefix << std::endl;
   std::string file_specs = std::to_string(low_deg) + "_" + std::to_string(high_deg);
   // get high degree subgraph
 
   vidType last_uncomp = 0;
-  vidType curr_deg = g.get_degree_vbyte(last_uncomp);
-  eidType total_deg = curr_deg;
-  while (total_deg < uncomp_mem) {
-    last_uncomp++;
-    curr_deg = g.get_degree_vbyte(last_uncomp);
-    total_deg += curr_deg;
+  if (add_uncomp) {
+    vidType curr_deg = g.get_degree_vbyte(last_uncomp);
+    eidType u_total_deg = curr_deg;
+    while (u_total_deg < uncomp_mem) {
+      last_uncomp++;
+      curr_deg = g.get_degree_vbyte(last_uncomp);
+      u_total_deg += curr_deg;
+    }
+    last_uncomp--;
+    u_total_deg -= curr_deg;
+    build_uncomp(g, last_uncomp + 1, u_total_deg, out_prefix + "u" + std::to_string(total_mem / uncomp_mem));
   }
-  last_uncomp--;
-  total_deg -= curr_deg;
-  if (!add_uncomp) {
-    total_deg = 0;
+  else {
+    vidType curr_deg = g.get_degree_vbyte(last_uncomp);
+    while (curr_deg > uncomp_deg) {
+      last_uncomp++;
+      curr_deg = g.get_degree_vbyte(last_uncomp);
+    }
+    last_uncomp--;
+    build_med(g, 0, last_uncomp + 1, g.get_max_degree(), prefix_interval, out_prefix + "h" + std::to_string(high_deg));
   }
-  build_uncomp(g, last_uncomp + 1, total_deg, out_prefix + "u" + std::to_string(total_mem / uncomp_mem));
   std::cout << "Allocated uncompressed subgraph\n";
 
   // get high degree subgraph
@@ -173,7 +181,7 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
     first_high = 0;
   }
   vidType last_high = first_high;
-  curr_deg = g.get_degree_vbyte(last_high);
+  vidType curr_deg = g.get_degree_vbyte(last_high);
   size_t curr_mem = g_rptr[first_high+1] - g_rptr[first_high];
   while (curr_mem < mem_left && curr_deg > high_deg) {
     last_high++;
@@ -199,13 +207,13 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
   // get low degree subgraph
   vidType first_low = last_med + 1;
   // auto g_rptr = g.rowptr_compressed();
-  total_deg = g_rptr[g.V()] - g_rptr[first_low];
+  eidType l_total_deg = g_rptr[g.V()] - g_rptr[first_low];
   size_t mem_vert = size_t(g.V() - first_low + 1)*sizeof(eidType);
-  size_t mem_edge = size_t(total_deg)*sizeof(vidType);
+  size_t mem_edge = size_t(l_total_deg)*sizeof(vidType);
   size_t mem_graph = mem_vert + mem_edge;
   std::cout << "Low deg subgraph: " << (float)mem_graph / (float)1000000000 << "GB; |V| " << g.V() - first_low << "\n";
 
-  build_low(g, first_low, total_deg, g.V() - first_low, low_deg, out_prefix + "l" + std::to_string(low_deg));
+  build_low(g, first_low, l_total_deg, g.V() - first_low, low_deg, out_prefix + "l" + std::to_string(low_deg));
   std::cout << "Allocated low subgraph\n";
   std::cout << "First low is " << first_low << " first med is " << first_med << std::endl;
 }
@@ -221,12 +229,13 @@ int main(int argc, char* argv[]) {
   int pdeg = BLOCK_SIZE;
   int low_deg = 32;
   int high_deg = 256;
+  int uncomp_deg = 256;
   vidType prefix_interval = WARP_SIZE;
   size_t gpu_mem = 10000000000;
   int uncomp_mem_ratio = 4;
   size_t gpu_mem_uncomp = gpu_mem / uncomp_mem_ratio;
   bool add_uncomp = true;
-  while ((c = getopt(argc, argv, "d:l:h:v:a")) != -1) {
+  while ((c = getopt(argc, argv, "d:l:h:u:v:a")) != -1) {
     switch (c) {
       case 'd':
         pdeg = atoi(optarg);
@@ -236,6 +245,9 @@ int main(int argc, char* argv[]) {
         break;
       case 'h':
         high_deg = atoi(optarg);
+        break;
+      case 'u':
+        uncomp_deg = atoi(optarg);
         break;
       case 'v':
         prefix_interval = (vidType)atoi(optarg);
@@ -250,6 +262,6 @@ int main(int argc, char* argv[]) {
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
   Graph g;
   g.load_compressed_graph(in_prefix, scheme, permutated);
-  write_subgraphs(g, add_uncomp, gpu_mem_uncomp, gpu_mem, low_deg, high_deg, prefix_interval, out_prefix);
+  write_subgraphs(g, add_uncomp, gpu_mem_uncomp, gpu_mem, low_deg, high_deg, uncomp_deg, prefix_interval, out_prefix);
   return 0;
 }
