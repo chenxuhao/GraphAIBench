@@ -300,6 +300,10 @@ public:
     std::cout << "Time on copying graph to GPU" << device_id << ": " << t.Seconds() << " sec\n";
   }
   void init_sub(Graph &base_g, vidType nv, eidType ne, bool use_uva) {
+    if (ne == 0) {
+      std::cout << "Skipping subgraph\n";
+      return;
+    }
     std::cout << "Allocating GPU memory for the high degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
     vidType *_edges = new vidType[ne];
     eidType *_vertices = new eidType[nv + 1];
