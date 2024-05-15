@@ -27,6 +27,10 @@ test: $(OBJS) $(CGOBJS) $(COBJS) test.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) test.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
+save_subgraphs: $(OBJS) $(CGOBJS) $(COBJS) save_subgraphs.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) save_subgraphs.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
 gpu_cgr: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o gpu_cgr.o
 	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o gpu_cgr.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
