@@ -382,9 +382,6 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       std::cout << "Done sampling!" << std::endl;
     }
     else if (use_subgraphs == 3) {
-      vidType max_deg = g.get_max_degree();
-      vidType num_vertices = g.V();
-      std::cout << "max " << max_deg << " nv " << num_vertices << "\n";
       // get uncompressed top graph
       vidType last_uncomp = 0;
       vidType curr_deg = g.get_degree_vbyte(last_uncomp);
@@ -396,7 +393,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       }
       last_uncomp--;
       u_total_deg -= curr_deg;
-      u_total_deg = 0;
+      GraphGPU uncomp_subg(uncomp_uva, g, last_uncomp + 1, u_total_deg);
     
       size_t mem_vert = size_t(last_uncomp + 2)*sizeof(eidType);
       size_t mem_edge = size_t(u_total_deg)*sizeof(vidType);
@@ -407,7 +404,6 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       auto g_rptr = g._rowptr_compressed();
       size_t mem_left = (total_mem - uncomp_mem) * 3 / 4;
       vidType first_high = last_uncomp + 1;
-      first_high = 0;
       vidType last_high = first_high;
       curr_deg = g.get_degree_vbyte(last_high);
       size_t curr_mem = g_rptr[first_high+1] - g_rptr[first_high];
@@ -419,11 +415,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       last_high--;
       std::cout << "high deg cutoff " << g.get_degree_vbyte(first_high) << " " << g.get_degree_vbyte(last_high) << " " << g.get_degree_vbyte(last_high+1) << std::endl;
       std::cout << "mem left " << mem_left << std::endl;
-
-      // size_t mem_vert = size_t(last_high + 2)*sizeof(eidType);
-      // size_t mem_edge = size_t(total_deg)*sizeof(vidType);
-      // size_t mem_graph = mem_vert + mem_edge;
-      // std::cout << "High deg subgraph: " << (float)mem_graph / (float)1000000000 << "GB; |V| " << last_high + 1 << "\n";
+      GraphGPUCompressed high_subg(first_high, last_high + 1, g.get_degree_vbyte(first_high), g, prefix_interval, high_uva);
 
       // get medium degree subgraph
       vidType first_med = last_high + 1;
@@ -432,40 +424,18 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
         last_med++;
       }
       last_med--;
+      GraphGPUCompressed med_subg(first_med, last_med + 1, g.get_degree_vbyte(first_med), g, prefix_interval, med_uva);
 
       // get low degree subgraph
       vidType first_low = last_med + 1;
-      // auto g_rptr = g._rowptr_compressed();
-      // auto g_cidx = g._colidx_compressed();
-      eidType l_total_deg = g_rptr[num_vertices] - g_rptr[first_low];
-      mem_vert = size_t(num_vertices - first_low + 1)*sizeof(eidType);
+      eidType l_total_deg = g_rptr[g.V()] - g_rptr[first_low];
+      mem_vert = size_t(g.V() - first_low + 1)*sizeof(eidType);
       mem_edge = size_t(l_total_deg)*sizeof(vidType);
       mem_graph = mem_vert + mem_edge;
       std::cout << "Low deg subgraph: " << (float)mem_graph / (float)1000000000 << "GB; |V| " << g.V() - first_low << "\n";
 
-      // Graph uncomp_cpu, high_cpu, med_cpu, low_cpu;
-      // uncomp_cpu.load_subgraph(false, g_rptr, g_cidx, first_high, u_total_deg, max_deg);
-      // std::cout << "Allocated uncompressed on cpu\n";
-      // high_cpu.load_subgraph(true, g_rptr+first_high, g_cidx+g_rptr[first_high], first_med-first_high, g_rptr[first_med]-g_rptr[first_high], g.get_degree_vbyte(first_high));
-      // std::cout << "Allocated high on cpu\n";
-      // med_cpu.load_subgraph(true, g_rptr+first_med, g_cidx+g_rptr[first_med], first_low-first_med, g_rptr[first_low]-g_rptr[first_med], g.get_degree_vbyte(first_med));
-      // std::cout << "Allocated medium on cpu\n";
-      // low_cpu.load_subgraph(true, g_rptr+first_low, g_cidx+g_rptr[first_low], num_vertices-first_low, l_total_deg, l_deg-1);
-      // std::cout << "Allocated low on cpu\n";
-      // g.deallocate();
-      // std::cout << "Deallocated original graph\n";
-      GraphGPU uncomp_subg(uncomp_uva, g, last_uncomp + 1, u_total_deg);
-      // uncomp_cpu.deallocate();
-      // std::cout << "Allocated uncompressed subgraph\n";
-      GraphGPUCompressed high_subg(first_high, last_high + 1, g.get_degree_vbyte(first_high), g, prefix_interval, high_uva);
-      // high_cpu.deallocate();
-      // std::cout << "Allocated high subgraph\n";
-      GraphGPUCompressed med_subg(first_med, last_med + 1, g.get_degree_vbyte(first_med), g, prefix_interval, med_uva);
-      // med_cpu.deallocate();
-      // std::cout << "Allocated medium subgraph\n";
-      GraphGPUCompressed low_subg(low_uva, g, first_low, num_vertices - first_low, l_total_deg);
-      // low_cpu.deallocate();
-      // std::cout << "Allocated low subgraph\n";
+      GraphGPUCompressed low_subg(low_uva, g, first_low, g.V() - first_low, l_total_deg);
+
       // warm_up_gpu<<<num_blocks,block_size>>>(med_subg, total_threads);
       // CUDA_SAFE_CALL(cudaDeviceSynchronize());
       
