@@ -219,7 +219,7 @@ __global__ void khop_next_4subs(GraphGPUCompressed low_g, GraphGPUCompressed med
         vidType old_t = result[old_t_idx];
         int t_idx = t_begin + (warp_id * step_count) + (j * step_sample_size);
         vidType *adj_buffer = buffer + warp_lane * WARP_SIZE;
-        printf("old t %d\n", old_t);
+        // printf("old t %d\n", old_t);
 	if (old_t == MAX_VIDTYPE) {
           result[t_idx] = MAX_VIDTYPE;
         }
@@ -395,6 +395,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       }
       last_uncomp--;
       u_total_deg -= curr_deg;
+      // u_total_deg = 0;
       GraphGPU uncomp_subg(uncomp_uva, g, last_uncomp + 1, u_total_deg);
     
       size_t mem_vert = size_t(last_uncomp + 2)*sizeof(eidType);
@@ -406,6 +407,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       auto g_rptr = g._rowptr_compressed();
       size_t mem_left = (total_mem - uncomp_mem) * 3 / 4;
       vidType first_high = last_uncomp + 1;
+      // first_high = 0;
       vidType last_high = first_high;
       curr_deg = g.get_degree_vbyte(last_high);
       size_t curr_mem = g_rptr[first_high+1] - g_rptr[first_high];

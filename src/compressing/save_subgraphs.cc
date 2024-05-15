@@ -188,8 +188,8 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
 
 int main(int argc, char* argv[]) {
   // size_t memsize = print_device_info(0);
-  std::string in_prefix = argv[1];
-  std::string out_prefix = argv[2];
+  std::string out_prefix = argv[1];
+  std::string in_prefix = out_prefix + "order-vbyte";
   // std::string out_prefix = argv[2];
   std::string scheme = "streamvbyte";
   bool permutated = false;
