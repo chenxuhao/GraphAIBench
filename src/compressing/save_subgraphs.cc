@@ -41,6 +41,14 @@ void write_to_file(std::string outfilename, size_t ne, size_t nv, vidType max_de
 
 void build_uncomp(Graph &g, vidType nv, eidType ne, std::string out_file) {
   if (ne == 0) return;
+  if (out_file != "none") {
+    std::string meta_file = out_file + ".meta.txt";
+    ifstream f(meta_file.c_str());
+    if (f.good()) {
+      std::cout << "file " << out_file << " already exists! skipping...\n";
+      return;
+    }
+  }
   vidType *_edges = new vidType[ne];
   vidType *_buff = _edges;
   eidType *_vertices = new eidType[nv + 1];
@@ -56,6 +64,14 @@ void build_uncomp(Graph &g, vidType nv, eidType ne, std::string out_file) {
 }
 
 void build_med(Graph &g, vidType first, vidType last, vidType m_deg, vidType interval, std::string out_file) {
+  if (out_file != "none") {
+    std::string meta_file = out_file + ".meta.txt";
+    ifstream f(meta_file.c_str());
+    if (f.good()) {
+      std::cout << "file " << out_file << " already exists! skipping...\n";
+      return;
+    }
+  }
   vidType nv = last - first;
   vidType interval_key_len = (interval * 2) / 32;
   vector<vidType> edges_compressed;
@@ -106,6 +122,14 @@ void build_med(Graph &g, vidType first, vidType last, vidType m_deg, vidType int
 }
 
 void build_low(Graph &g, vidType first_v, eidType ne, vidType nv, vidType m_deg, std::string out_file) {
+  if (out_file != "none") {
+    std::string meta_file = out_file + ".meta.txt";
+    ifstream f(meta_file.c_str());
+    if (f.good()) {
+      std::cout << "file " << out_file << " already exists! skipping...\n";
+      return;
+    }
+  }
   eidType *_rowptr = new eidType[nv + 1];
   vidType *_colidx = new vidType[ne];
   eidType *base_rowptr = g._rowptr_compressed() + first_v;
