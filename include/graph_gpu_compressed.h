@@ -91,6 +91,7 @@ class GraphGPUCompressed : public GraphGPU {
     vidType *colidxs = new vidType[ne];
     std::cout << "here?\n";
     CUDA_SAFE_CALL(cudaMemcpy(colidxs, d_colidx_compressed, ne * sizeof(vidType), cudaMemcpyDeviceToHost));
+    std::cout << "here!\n";
     outfile1.write(reinterpret_cast<const char*>(colidxs), (ne)*sizeof(vidType));
     outfile1.close();
     delete [] colidxs;

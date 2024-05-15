@@ -219,7 +219,8 @@ __global__ void khop_next_4subs(GraphGPUCompressed low_g, GraphGPUCompressed med
         vidType old_t = result[old_t_idx];
         int t_idx = t_begin + (warp_id * step_count) + (j * step_sample_size);
         vidType *adj_buffer = buffer + warp_lane * WARP_SIZE;
-        if (old_t == MAX_VIDTYPE) {
+        printf("old t %d\n", old_t);
+	if (old_t == MAX_VIDTYPE) {
           result[t_idx] = MAX_VIDTYPE;
         }
         else {
@@ -228,9 +229,9 @@ __global__ void khop_next_4subs(GraphGPUCompressed low_g, GraphGPUCompressed med
               vidType old_t_deg = uncomp_g.get_degree(old_t);
               int n = (int)(ceil(warp_idxs[(j * step_sample_size) + ni] * old_t_deg) - 1);
               // int n = (int)(ceil(curand_uniform(&local_state) * old_t_deg) - 1);
-              // printf("HIGH n_idx %d; t_idx %d; old_t %d\n", n, t_idx+ni, result[old_t_idx]);
+              // printf("UNCOMP n_idx %d; t_idx %d; old_t %d\n", n, t_idx+ni, result[old_t_idx]);
               result[t_idx+ni] = uncomp_g.N(old_t, n);
-              // printf("UNCOMP n_idx %d; t_idx %d; old_t %d; t %d\n", n, t_idx+ni, result[old_t_idx], result[t_idx+ni]);
+              // printf("UNCOMP n_idx %d; old_deg %d; old_t %d; t %d\n", n, old_t_deg, result[old_t_idx], result[t_idx+ni]);
             }
           }
           else if (old_t < first_med) {
@@ -289,7 +290,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
     bool uncomp_uva = use_uvas[0];
     bool high_uva = use_uvas[1];
     bool med_uva = use_uvas[2];
-    bool low_uva = use_uvas[4];
+    bool low_uva = use_uvas[3];
     int cur_num = initial.size();
     int n_steps = steps();
     vidType *d_result;
@@ -299,6 +300,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
     double alloc_t, rand_t, sample_t, dealloc_t;
     int v_size = sizeof(vidType);
     int e_size = sizeof(eidType);
+    initial[0] = 626;
     for (int i = 0; i < cur_num; i++) {
         result[i] = initial[i];
     }
@@ -444,6 +446,7 @@ double multilayer_sample(Graph &g, size_t uncomp_mem, size_t total_mem, vector<v
       idxs_bytes = last_step_num * n_block_warps * sizeof(float);
       smem_bytes = buffer_bytes + idxs_bytes;
       sample_t = seconds();
+      std::cout << "initial " << initial[0] << std::endl;
       khop_next_4subs<<<num_blocks,block_size,smem_bytes>>>(low_subg, med_subg, high_subg, uncomp_subg, block_size, l_deg, first_low, first_med, first_high, prefix_interval, d_result, n_steps, n_samples, d_step_counts, total_threads, d_states);
       CUDA_SAFE_CALL(cudaDeviceSynchronize());
       sample_t = seconds() - sample_t;
@@ -698,11 +701,13 @@ int main(int argc, char* argv[]) {
     }
   }
   bool uva_flags[4];
-  std::ifstream file("/u/mcai1/GraphAIBench/src/compressing/config.txt");
+  std::ifstream file("/home/mcai1/GraphAIBench/src/compressing/config.txt");
   std::string str; 
   for (int i = 0; i < 4; i++) {
     std::getline(file, str);
-    istringstream(str) >> std::boolalpha >> uva_flags[i];
+    if (str == "true") uva_flags[i] = true;
+    else uva_flags[i] = false;
+    std::cout << uva_flags[i] << " " << str << std::endl;
   }
   if (compress_graph) { 
     save_compressed_graph_vbyte(in_prefix, out_prefix); 

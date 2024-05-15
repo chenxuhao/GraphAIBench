@@ -306,13 +306,17 @@ public:
     }
     std::cout << "Allocating GPU memory for the high degree subgraph |V| " << nv << " |E| " << ne << "..." << std::endl;
     vidType *_edges = new vidType[ne];
+    vidType *_buff = _edges;
     eidType *_vertices = new eidType[nv + 1];
-    for (vidType i = 0; i < nv; i++) {
+    _vertices[0] = 0;
+    std::cout << "nv " << nv << " ne " << ne << std::endl;
+    for (vidType i = 0; i < nv; i++) {	    
       vidType deg = base_g.decode_vertex_vbyte(i, _edges, "streamvbyte");
       _edges += deg;
       _vertices[i+1] = deg + _vertices[i];
     }
     _edges -= ne;
+    std::cout << _vertices[0] << " " << _vertices[626] << std::endl;
     if (!use_uva) {
       CUDA_SAFE_CALL(cudaMalloc((void **)&d_colidx, ne * sizeof(vidType)));
       CUDA_SAFE_CALL(cudaMemcpy(d_colidx, _edges, ne * sizeof(vidType), cudaMemcpyHostToDevice));

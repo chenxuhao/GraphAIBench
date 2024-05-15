@@ -23,6 +23,10 @@ cpu_omp_khop: $(OBJS) $(CGOBJS) $(COBJS) compressor.o cpu_omp_khop.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) compressor.o cpu_omp_khop.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
 	mv $@ $(BIN)
 
+test: $(OBJS) $(CGOBJS) $(COBJS) test.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) test.o $(OBJS) $(CGOBJS) $(COBJS) -o $@ $(LIBS)
+	mv $@ $(BIN)
+
 gpu_cgr: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o gpu_cgr.o
 	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o gpu_cgr.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
