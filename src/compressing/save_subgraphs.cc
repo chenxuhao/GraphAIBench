@@ -169,7 +169,8 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
       curr_deg = g.get_degree_vbyte(last_uncomp);
     }
     last_uncomp--;
-    build_med(g, 0, last_uncomp + 1, g.get_max_degree(), prefix_interval, out_prefix + "h" + std::to_string(high_deg));
+    build_med(g, 0, last_uncomp + 1, g.get_max_degree(), prefix_interval, out_prefix + "u" + std::to_string(uncomp_deg));
+    std::cout << "high deg on uva |V|: " << last_uncomp + 1 << " " << g.get_degree_vbyte(last_uncomp) << " " << g.get_degree_vbyte(last_uncomp+1) << std::endl;
   }
   std::cout << "Allocated uncompressed subgraph\n";
 
@@ -177,9 +178,6 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
   auto g_rptr = g.rowptr_compressed();
   size_t mem_left = (total_mem - uncomp_mem) * 3 / 4;
   vidType first_high = last_uncomp + 1;
-  if (!add_uncomp) {
-    first_high = 0;
-  }
   vidType last_high = first_high;
   vidType curr_deg = g.get_degree_vbyte(last_high);
   size_t curr_mem = g_rptr[first_high+1] - g_rptr[first_high];
@@ -191,6 +189,9 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
   last_high--;
   std::cout << "high deg cutoff " << g.get_degree_vbyte(first_high) << " " << g.get_degree_vbyte(last_high) << " " << g.get_degree_vbyte(last_high+1) << std::endl;
   std::cout << "mem left " << mem_left << std::endl;
+  std::string high_out_file;
+  if (add_uncomp) high_out_file = out_prefix + "h" + std::to_string(high_deg);
+  else high_out_file = out_prefix + "h" + std::to_string(high_deg) + "_" + std::to_string(uncomp_deg);
   build_med(g, first_high, last_high + 1, g.get_degree_vbyte(first_high), prefix_interval, out_prefix + "h" + std::to_string(high_deg));
   std::cout << "Allocated high subgraph\n";
 
@@ -202,6 +203,7 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
   }
   last_med--;
   build_med(g, first_med, last_med + 1, g.get_degree_vbyte(first_med), prefix_interval, out_prefix + "m" + file_specs);
+  std::cout << "med deg |V|: " << last_med + 1 - first_med << ", " << g.get_degree_vbyte(first_med) << ", " << g.get_degree_vbyte(last_med) << std::endl;
   std::cout << "Allocated medium subgraph\n";
 
   // get low degree subgraph
@@ -259,6 +261,8 @@ int main(int argc, char* argv[]) {
         abort();
     }
   }
+  if (add_uncomp) out_prefix += "type3/";
+  else out_prefix += "type4/";
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
   Graph g;
   g.load_compressed_graph(in_prefix, scheme, permutated);
