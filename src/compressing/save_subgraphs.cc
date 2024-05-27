@@ -270,22 +270,22 @@ int main(int argc, char* argv[]) {
   bool add_uncomp = true;
   while ((c = getopt(argc, argv, "d:l:h:u:v:a")) != -1) {
     switch (c) {
-      case 'd':
+      case 'd': // block size
         pdeg = atoi(optarg);
         break;
-      case 'l':
+      case 'l': // low degree threshold
         low_deg = atoi(optarg);
         break;
-      case 'h':
+      case 'h': // high degree threshold
         high_deg = atoi(optarg);
         break;
-      case 'u':
+      case 'u': // top degree threshold
         uncomp_deg = atoi(optarg);
         break;
-      case 'v':
+      case 'v': // prefix interval for hybrid compression
         prefix_interval = (vidType)atoi(optarg);
         break;
-      case 'a':
+      case 'a': // make top subgraph uncompressed or not
         add_uncomp = false;
         break;
       default:
