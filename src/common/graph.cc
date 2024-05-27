@@ -222,6 +222,7 @@ void GraphT<map_vertices, map_edges>::deallocate() {
 template<bool map_vertices, bool map_edges>
 void GraphT<map_vertices, map_edges>::read_meta_info(std::string prefix) {
   std::ifstream f_meta((prefix + ".meta.txt").c_str());
+  std::cout << "FILE " << prefix + ".meta.txt\n";
   assert(f_meta);
   int64_t nv = 0;
   if (is_bipartite_) {

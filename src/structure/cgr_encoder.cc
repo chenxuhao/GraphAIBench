@@ -209,4 +209,3 @@ size_t cgr_encoder::encode_unary(vidType v, vidType deg, vidType *in, bool add_d
   assert(bit_array.size() > 0);
   return (bit_arrays[v].size() - 1)/32 + 1; // number of bits --> number of words
 }
-

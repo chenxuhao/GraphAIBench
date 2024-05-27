@@ -63,6 +63,31 @@ void build_uncomp(Graph &g, vidType nv, eidType ne, std::string out_file) {
   write_to_file(out_file, ne, nv, g.get_max_degree(), _vertices, _edges);
 }
 
+void build_low_uncomp(Graph &g, vidType first_v, vidType nv, eidType ne, std::string out_file) {
+  if (ne == 0) return;
+  if (out_file != "none") {
+    std::string meta_file = out_file + ".meta.txt";
+    ifstream f(meta_file.c_str());
+    if (f.good()) {
+      std::cout << "file " << out_file << " already exists! skipping...\n";
+      return;
+    }
+  }
+
+  vidType *_edges = new vidType[ne];
+  vidType *_buff = _edges;
+  eidType *_vertices = new eidType[nv + 1];
+  _vertices[0] = 0;
+  std::cout << "nv " << nv << " ne " << ne << std::endl;
+  for (vidType i = 0; i < g.V()-first_v; i++) {	    
+    vidType deg = g.decode_vertex_vbyte(i+first_v, _edges, "streamvbyte");
+    _edges += deg;
+    _vertices[i+1] = deg + _vertices[i];
+  }
+  _edges -= ne;
+  write_to_file(out_file, ne, nv, g.get_max_degree(), _vertices, _edges);
+}
+
 void build_med(Graph &g, vidType first, vidType last, vidType m_deg, vidType interval, std::string out_file) {
   if (out_file != "none") {
     std::string meta_file = out_file + ".meta.txt";
@@ -117,7 +142,8 @@ void build_med(Graph &g, vidType first, vidType last, vidType m_deg, vidType int
     vertices_compressed[relabel_v+1] = vertices_compressed[relabel_v] + 1 + ((deg + interval - 1) / interval) + total_size_v;
     in_buffer -= (deg - count);
   }
-  vidType ne = edges_compressed.size();
+  size_t ne = edges_compressed.size();
+  std::cout << " size of med " << ne << std::endl;
   write_to_file(out_file, ne, nv, m_deg, vertices_compressed, &edges_compressed[0]);
 }
 
@@ -192,7 +218,7 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
   std::string high_out_file;
   if (add_uncomp) high_out_file = out_prefix + "h" + std::to_string(high_deg);
   else high_out_file = out_prefix + "h" + std::to_string(high_deg) + "_" + std::to_string(uncomp_deg);
-  build_med(g, first_high, last_high + 1, g.get_degree_vbyte(first_high), prefix_interval, out_prefix + "h" + std::to_string(high_deg));
+  build_med(g, first_high, last_high + 1, g.get_degree_vbyte(first_high), prefix_interval, high_out_file);
   std::cout << "Allocated high subgraph\n";
 
   // get medium degree subgraph
@@ -215,7 +241,12 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
   size_t mem_graph = mem_vert + mem_edge;
   std::cout << "Low deg subgraph: " << (float)mem_graph / (float)1000000000 << "GB; |V| " << g.V() - first_low << "\n";
 
+  eidType ul_total_deg = 0;
+  for (int i = first_low; i < g.V(); i++) {
+    ul_total_deg += g.get_degree_vbyte(i);
+  }
   build_low(g, first_low, l_total_deg, g.V() - first_low, low_deg, out_prefix + "l" + std::to_string(low_deg));
+  build_low_uncomp(g, first_low, g.V() - first_low, ul_total_deg, out_prefix + "lu" + std::to_string(low_deg));
   std::cout << "Allocated low subgraph\n";
   std::cout << "First low is " << first_low << " first med is " << first_med << std::endl;
 }
@@ -233,7 +264,7 @@ int main(int argc, char* argv[]) {
   int high_deg = 256;
   int uncomp_deg = 256;
   vidType prefix_interval = WARP_SIZE;
-  size_t gpu_mem = 10000000000;
+  size_t gpu_mem = 80000000000; // gpu mem size in bytes
   int uncomp_mem_ratio = 4;
   size_t gpu_mem_uncomp = gpu_mem / uncomp_mem_ratio;
   bool add_uncomp = true;

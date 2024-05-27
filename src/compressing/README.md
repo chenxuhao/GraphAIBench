@@ -7,46 +7,72 @@ source ../../env.sh
 make clean
 make
 ```
-
-The command to sample using any of the following methods below follows the same structure of the executable followed by the 4 arguments:
+Depending on the server, you may need to run another command for nvcc
 ```
-../../bin/<OBJECT_FILE> <PATH_TO_GRAPH>/<INPUT_GRAPH_PREFIX> <PATH_TO_GRAPH>/<OUTPUT_GRAPH_PREFIX> <NUM_OF_BATCHES> <NUM_OF_THREADS>
+# rockfish
+module load cuda/11.8.0
+
+# anvil
+source /etc/profile.d/modules.sh
+module load modtree/gpu
+module load gcc/11.2.0
 ```
-Note that all our graphs are stored in csr format. Each graph requires 3 files: (1) <GRAPH_PREFIX>.meta.txt (2) <GRAPH_PREFIX>.vertex.bin (3) <GRAPH_PREFIX>.edge.bin
 
-The number of batches is how many initial transits our first khop layer starts with. Number of threads is for parallel and gpu sampling only (can omit for serial or just leave it). Other parameters of khop sampling such as expansion size per transit or number of layers can be directly edited in include/sampling_utils.h or include/khop_gpu.cuh (but make sure to change both to match for gpu code to work correctly!!).
+Note that all our graphs are stored using the following 3 files (even compressed subgraphs): (1) <GRAPH_PREFIX>.meta.txt (2) <GRAPH_PREFIX>.vertex.bin (3) <GRAPH_PREFIX>.edge.bin. We also require that all input graphs be relabeled first such that they are in order of decreasing degrees. This is better to be done on anvil as a background sbatch job since it can take hours and requires big memory for larger input graphs.
 
-An example command is provided for each of the following sampling methods below using the uk2007 graph with a batch size of 40000 and 64 threads (per block for gpu).
+The number of batches is how many initial transits our first khop layer starts with. Other parameters of khop sampling such as expansion size per transit or number of steps can be directly edited in include/sampling_utils.h.
+
+An example command is provided for each of the following sampling methods below using the uk2007 graph with a batch size of 40000 and 256 threads (per block for gpu). Examples are for **ROCKFISH ONLY since we need the A100 GPU with 80GB memory.
 
 ## Sampling on CPU
-### khop in serial
-To run khop sampling in serial (one thread), run
-```
-../../bin/cpu_serial_khop /projects/bbof/chen27/automine-inputs/uk2007/graph /projects/bbof/chen27/automine-inputs/uk2007/vbyte 40000
-```
-
 ### parallel khop
-To run khop sampling in parallel using OpenMP, run
+To run khop sampling in parallel using OpenMP (with batch size of 40000 and 32 threads) for a compressed graph, run
 ```
-../../bin/cpu_omp_khop /projects/bbof/chen27/automine-inputs/uk2007/graph /projects/bbof/chen27/automine-inputs/uk2007/vbyte 40000 64
+../../bin/cpu_omp_khop ~/data-xhchen/mcai1/inputs/uk2007/order-vbyte 40000 32
+```
+To do so for an *uncompressed* graph, go to the sampling directory and run
+```
+cd ../sampling
+make khop_omp
+../../bin/khop_omp ~/data-xhchen/mcai1/inputs/uk2007/order 40000 32
 ```
 
 ## Sampling on GPU
-Before sampling on gpu, make sure gpu are available. Check by running `nvidia-smi` and a table of gpu information should output if present. If not, run a slurm job to request. On delta, run the example under "Start a job" section located in this doc: https://docs.google.com/document/d/1MGrXJXV2Q9bgfStQuEVWpDxoJXdNE1hDCgldRVPdFaI/edit#heading=h.rp7lyrv7xmlt. The account name may need to be changed depending on permissions.
+Before sampling on gpu, make sure gpu are available. Check by running `nvidia-smi` and a table of gpu information should output if present. If not, run a slurm job to request. On rockfish, use the gpu.sh executable. 
 
-### allocating compressed graph onto gpu
-To run khop sampling on the gpu with the entire compressed graph stored on gpu memory, run
-```
-../../bin/on_gpu_khop /projects/bbof/chen27/automine-inputs/uk2007/graph /projects/bbof/chen27/automine-inputs/uk2007/vbyte 40000 64
-```
-This gpu version has the benefits of fast decompression on gpu with low communication overhead, but has the drawback of limited memory for the graph.
 
-### using unified memory (TBD)
-this version will store compressed graph on unified memory and communicate compressed transit neighborhood when needed, will update when finished
+### using uncompressed graph
+```
+# in-memory
+../../bin/gpu_uncomp ~/data-xhchen/mcai1/inputs/uk2007/order
+
+# on uva
+../../bin/gpu_uncomp ~/data-xhchen/mcai1/inputs/uk2007/order -u
+```
+
+### using normal compressed graph
+```
+# in-memory
+../../bin/gpu_vbyte_warp ~/data-xhchen/mcai1/inputs/uk2007/order-vbyte -s 0
+
+# on uva
+../../bin/gpu_vbyte_warp ~/data-xhchen/mcai1/inputs/uk2007/order-vbyte -s 1
+```
+
+### using prefix sums compressed subgraphs
+Here, we have a config.txt that has four lines, one line for each subgraph that should have *true* if move to uva, *false* if leave in-memory. The lines are in order of top degree, high degree, medium degree, and low degree subgraphs respectively. Note that there are four subgraphs in code but only two subgraphs (just low and high) in our paper. This is because of a prior implementation with more subgraphs, but now subgraphs medium, high, and top are all encoded and decoded the same to make up the high subgraph in the paper.
+
+The below commands are for loading in pre-saved subgraphs. For details on how to save subgraphs, go to section on saving subgraphs. Flags -l, -h, -u must match degree thresholds from when graphs were originally made, can be found in the saved file names.
+```
+# in-memory
+../../bin/gpu_vbyte_warp ~/data-xhchen/mcai1/inputs/uk2007/type4/ -r -s 2 -l 32 -h 160 -u 256
+```
 
 ## Creating a compressed graph
-In any of the main .cu or .cuh files, there should be a commented out line
-```
-// save_compressed_graph(in_prefix, out_prefix);
-```
-If you do not already have a compressed version of the graph you are passing in, then uncomment this line and the sampling process will include creating and saving a compressed version of your input to the output location provided by the described first two arguments in the command line.
+In gpu_vbyte_warp.cu, there is a -c flag you can use during execution to create a compressed graph if it doesn't exist already. 
+The program will then create and save a compressed version of your input to the output location provided by the described first two arguments in the command line.
+
+## Datasets
+There are already saved original graphs (graph.\*), relabeled graphs (order.\*), streamvbyte compressed graphs (order-vbyte.\*), and subgraphs (u\.*, l.\*, h.\*, m.\*) in the corresponding graph directories under ~/data-xhchen/mcai1/inputs/. While our hybrid sampling method only uses 2 subgraphs in the paper, it is split into 4 subgraphs (low, medium, high, and top) in this codebase due to convenience from prior experiments. The medium, high, and top subgraphs are all just treated the same now (the high subgraph in the paper)
+
+ For larger graphs that require big memory, run the bigmem.sh executable in this directory to request allocation for cpu operations.

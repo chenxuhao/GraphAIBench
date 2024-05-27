@@ -51,7 +51,8 @@ void save_compressed_graph_cgr(std::string in_prefix, std::string out_prefix) {
   GraphTy g(in_prefix);
   g.print_meta_data();
 
-  bool pre_encode = g.V() > 1000000;
+  bool pre_encode = true;
+  std::cout << "asdsad " << g.V()  << std::endl;
   unary_encoder *encoder = new cgr_encoder(g.V(), zeta_k, pre_encode, use_interval, use_segment);
   Compressor compressor(scheme, out_prefix, use_unary, &g, encoder, permutate, degree_threshold, alignment);
   std::cout << "start compression ..." << "\n" << std::flush;

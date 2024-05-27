@@ -47,8 +47,8 @@ on_gpu_khop: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o on_gpu_khop.o
 	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) compressor.o on_gpu_khop.o $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
 
-gpu_in_mem: $(OBJS) gpu_in_mem.o
-	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) gpu_in_mem.o $(OBJS) -o $@ $(LIBS) $(NVLIBS)
+gpu_uncomp: $(OBJS) gpu_uncomp.o
+	$(NVCC) $(CUDA_ARCH) -O3 -w $(INCLUDES) gpu_uncomp.o $(OBJS) -o $@ $(LIBS) $(NVLIBS)
 	mv $@ $(BIN)
 
 test_decode: $(OBJS) $(CGOBJS) $(CGCUOBJS) $(COBJS) compressor.o test_decode.o

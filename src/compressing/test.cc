@@ -32,9 +32,9 @@ int main(int argc, char* argv[]) {
     }
   }
   Graph g(in_prefix, 0, 0, 0, 0, 0);
- // std::cout << "deg " << g.get_degree(transit) << "\nneighbor " << g.N(transit, idx) << std::endl;
-  std::cout << "deg " << g.get_degree(81023274) << "\nneighbor " << g.N(81023274, 51) << std::endl;
-  std::cout << "deg " << g.get_degree(280280417) << "\nneighbor " << g.N(280280417, 50) << std::endl;
-  std::cout << "deg " << g.get_degree(626) << "\nneighbor " << g.N(626, 49880) << std::endl;
-  std::cout << "deg " << g.get_degree(938454) << "\nneighbor " << g.N(938454, 1138) << std::endl; 
+ std::cout << "deg " << g.get_degree(transit) << "\nneighbor " << g.N(transit, idx) << std::endl;
+  // std::cout << "deg " << g.get_degree(81023274) << "\nneighbor " << g.N(81023274, 51) << std::endl;
+  // std::cout << "deg " << g.get_degree(280280417) << "\nneighbor " << g.N(280280417, 50) << std::endl;
+  // std::cout << "deg " << g.get_degree(626) << "\nneighbor " << g.N(626, 49880) << std::endl;
+  // std::cout << "deg " << g.get_degree(938454) << "\nneighbor " << g.N(938454, 1138) << std::endl; 
 }

@@ -120,15 +120,16 @@ class GraphGPUCompressed : public GraphGPU {
     auto start = d_rowptr_compressed[v];
     return d_colidx_compressed[start];
   }
-  inline __device__ void run_through(int total_threads) {
+  inline __device__ void run_through(int num, vidType first_low, vidType *buff, int total_threads) {
     int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
     if (thread_id >= total_threads) {
       return;
     }
-    vidType nv = sizeof(d_rowptr_compressed) / sizeof(eidType);
-    for (vidType v = thread_id; v < nv; v += total_threads) {
-      for (eidType e = 0; e < d_rowptr_compressed[v+1]-d_rowptr_compressed[v]; e++) {
-        vidType _ = d_colidx_compressed[e];
+    for (vidType i = thread_id; i < num; i += total_threads) {
+      vidType v = i;
+      for (eidType e = d_rowptr_compressed[v]; e < d_rowptr_compressed[v+1]; e++) {
+        buff[0] = d_colidx_compressed[e];
+        buff[1] += buff[0] + 7;
       }
     }
   }
@@ -365,7 +366,7 @@ class GraphGPUCompressed : public GraphGPU {
   template <int scheme = 0, bool delta = true, int pack_size = WARP_SIZE>
   inline __device__ void decode_vbyte_warp(vidType v, vidType degree, vidType *adj) {
     auto start = d_rowptr_compressed[v];
-    decode_streamvbyte_warp<delta>(degree, &d_colidx_compressed[start], adj);
+    decode_streamvbyte_warp<delta>(degree, &d_colidx_compressed[start+1], adj);
   }
   template <bool use_segment = true>
   inline __device__ vidType decode_hybrid_warp(vidType v, vidType *adj) {

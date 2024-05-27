@@ -78,4 +78,3 @@ protected:
   void set_itv_seg_len(int _itv_seg_len) { cgr_encoder::_itv_seg_len = _itv_seg_len; }
   void set_res_seg_len(int _res_seg_len) { cgr_encoder::_res_seg_len = _res_seg_len; }
 };
-

@@ -115,6 +115,7 @@ __global__ void khop_next_sp(GraphGPU g, int total_threads, int n_steps, int n_s
 
 double multilayer_sample(Graph &g, vector<vidType>& initial, int n_samples, int total_num, int last_step_num, vidType* result, int block_size, bool use_uva) {
     GraphGPU gg(g, use_uva);
+    g.deallocate();
     int cur_num = initial.size();
     int n_steps = steps();
     vidType *d_result;

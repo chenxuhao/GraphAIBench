@@ -35,6 +35,7 @@ void GraphGPUCompressed::unified_init(Graph &hg) {
     auto len = hg.get_compressed_colidx_length();
     std::cout << "Number of words in compressed edges: " << len << "\n" << std::flush;
     CUDA_SAFE_CALL(cudaMallocManaged((void **)&d_colidx_compressed, (len+2) * sizeof(uint32_t))); // allocate two more word for memory safty
+    std::cout << "Allocated compressed\n";
     auto compressed_colidx = hg.colidx_compressed();
     for (int i = 0; i < len; i++) {
       d_colidx_compressed[i] = compressed_colidx[i];

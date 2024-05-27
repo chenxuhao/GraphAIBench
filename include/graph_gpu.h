@@ -159,6 +159,19 @@ public:
   inline __device__ __host__ vlabel_t* get_vlabel_ptr() { return d_vlabels; }
   inline __device__ __host__ elabel_t* get_elabel_ptr() { return d_elabels; }
  
+  inline __device__ void run_through(int num, vidType first_low, vidType *buff, int total_threads) {
+    int thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (thread_id >= total_threads) {
+      return;
+    }
+    for (vidType i = thread_id; i < num; i += total_threads) {
+      vidType v = i;
+      for (eidType e = d_rowptr[v]; e < d_rowptr[v+1]; e++) {
+        buff[0] = d_colidx[e];
+        buff[1] += buff[0] + 7;
+      }
+    }
+  }
   inline __device__ __host__ bool is_freq_vertex(vidType v, int threshold) {
     auto label = int(d_vlabels[v]);
     assert(label <= num_vertex_classes);
