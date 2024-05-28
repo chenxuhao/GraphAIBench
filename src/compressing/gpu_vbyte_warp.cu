@@ -265,7 +265,7 @@ double multilayer_sample(Graph &g, size_t top_mem, size_t total_mem, vector<vidT
 
       // get high degree subgraph
       auto g_rptr = g._rowptr_compressed();
-      size_t mem_left = (total_mem - top_mem) * 3 / 4;
+      size_t mem_left = (total_mem - top_mem) * 3 / 4; // for some buffer space
       vidType first_high = last_top + 1;
       // first_high = 0;
       vidType last_high = first_high;
@@ -472,7 +472,7 @@ void write_subgraphs(Graph &g, size_t top_mem, size_t total_mem, int use_subgrap
 
   // get high degree subgraph
   auto g_rptr = g.rowptr_compressed();
-  size_t mem_left = (total_mem - top_mem) * 3 / 4;
+  size_t mem_left = (total_mem - top_mem) * 3 / 4; // for some buffer space
   vidType first_high = last_top + 1;
   vidType last_high = first_high;
   curr_deg = g.get_degree_vbyte(last_high);
@@ -534,7 +534,8 @@ int main(int argc, char* argv[]) {
   vidType prefix_interval = WARP_SIZE;
   size_t gpu_mem = 80000000000; // 80GB
   int top_mem_ratio = 4;
-  size_t gpu_mem_top = gpu_mem / top_mem_ratio;
+  // size_t gpu_mem_top = gpu_mem / top_mem_ratio; // only used when we divide top partition by memory usage
+  size_t gpu_mem_top = 0; // not used when we divide top partition by degree threshold
   while ((c = getopt(argc, argv, "wrcn:d:l:h:u:s:v:")) != -1) {
     switch (c) {
       case 'w': // saving subgraphs
@@ -561,7 +562,7 @@ int main(int argc, char* argv[]) {
       case 'u': // top degree threshold
         top_deg = atoi(optarg);
         break;
-      case 's':  // version
+      case 's':  // version: s=0 is in-memory normal compressed, s=1 is uva normal compressed, s=2 is hybrid prefix compression
         use_subgraphs = atoi(optarg);
         break;
       case 'v': // prefix interval for compressed medium subgraph

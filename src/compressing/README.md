@@ -38,7 +38,7 @@ make khop_omp
 ```
 
 ## Sampling on GPU
-Before sampling on gpu, make sure gpu are available. Check by running `nvidia-smi` and a table of gpu information should output if present. If not, run a slurm job to request. On rockfish, use the gpu.sh executable. 
+Before sampling on gpu, make sure gpu are available. Check by running `nvidia-smi` and a table of gpu information should output if present. If not, run a slurm job to request. On rockfish, use the `gpu.sh` executable. 
 
 
 ### using uncompressed graph
@@ -60,7 +60,7 @@ Before sampling on gpu, make sure gpu are available. Check by running `nvidia-sm
 ```
 
 ### using prefix sums compressed subgraphs
-Here, we have a `config.txt` that has four lines, one line for each subgraph that should have *true* if move to uva, *false* if leave in-memory. The lines are in order of top degree, high degree, medium degree, and low degree subgraphs respectively. Note that there are four partitions in this code but only two subgraphs (just low $G_{l}$ and high $G_{h}$) in our paper. This is because of a prior implementation with more subgraphs, but now subgraphs medium, high, and top are all encoded and decoded the same to make up $G_{h}$ in the paper.
+Here, we have a `config.txt` that has four lines, one line for each subgraph that should have *true* if move to uva, *false* if leave in-memory. The lines are in order of top degree, high degree, medium degree, and low degree subgraphs respectively. Note that there are four partitions in this code but only two subgraphs (just low $G_{l}$ and high $G_{h}$) in our paper. This is because of a prior implementation with more subgraphs, but now subgraphs medium, high, and top are all encoded and decoded the same to make up $G_{h}$ in the paper. The line `std::ifstream file("/home/mcai1/GraphAIBench/src/compressing/config.txt");` in `gpu_vbyte_warp.cu` should be changed with the correct path this config file is stored in.
 
 The below commands are for loading in pre-saved subgraphs. For details on how to save subgraphs, go to section on saving subgraphs. Flags `-l`, `-h`, `-u` must match degree thresholds from when graphs were originally made, and can be found in the saved file names.
 ```
@@ -70,6 +70,8 @@ The below commands are for loading in pre-saved subgraphs. For details on how to
 # with warm-up kernel to cache G_l
 ../../bin/gpu_vbyte_warp ~/data-xhchen/mcai1/inputs/uk2007/type4/ -r -k -s 2 -l 32 -h 160 -u 256
 ```
+
+Though it's always better to pre-save the partitions before running to not waste time on loading the large original graph and creating the partitions each call, you can also create the subgraph temporarily for a single run if it hasn't been saved yet by simply removing the `-r` flag.
 
 The `config.txt` should look like the following for different versions, with **no comments or extra lines** other than the four booleans.
 ```
@@ -104,6 +106,6 @@ When creating subgraphs, we also want to specify the degree thresholds that divi
 ```
 
 ## Datasets
-There are already saved original graphs (graph.\*), relabeled graphs (order.\*), streamvbyte compressed graphs (order-vbyte.\*), and subgraphs (u\.*, l.\*, h.\*, m.\*) in the corresponding graph directories under ~/data-xhchen/mcai1/inputs/. While our hybrid sampling method only uses 2 subgraphs in the paper, it is split into 4 subgraphs (low, medium, high, and top) in this codebase due to convenience from prior experiments. The medium, high, and top subgraphs are all just treated the same now (the high subgraph in the paper)
+There are already saved original graphs (graph.\*), relabeled graphs (order.\*), streamvbyte compressed graphs (order-vbyte.\*), and subgraphs (u\.*, l.\*, h.\*, m.\*) in the corresponding graph directories under `~/data-xhchen/mcai1/inputs/`. While our hybrid sampling method only uses 2 partitions in the paper, it is split into 4 partitions (low, medium, high, and top) in this codebase due to convenience from prior experiments. The medium, high, and top subgraphs are all just treated the same now (the high subgraph in the paper) to make $G_{h}$ when combined.
 
- For larger graphs that require big memory, run the bigmem.sh executable in this directory to request allocation for cpu operations.
+ For larger graphs that require big memory, run the `bigmem.sh` executable in this directory to request allocation for cpu operations.

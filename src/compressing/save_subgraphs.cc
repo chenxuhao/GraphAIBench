@@ -202,7 +202,7 @@ void write_subgraphs(Graph &g, bool add_uncomp, size_t uncomp_mem, size_t total_
 
   // get high degree subgraph
   auto g_rptr = g.rowptr_compressed();
-  size_t mem_left = (total_mem - uncomp_mem) * 3 / 4;
+  size_t mem_left = (total_mem - uncomp_mem) * 3 / 4; // for some buffer space
   vidType first_high = last_uncomp + 1;
   vidType last_high = first_high;
   vidType curr_deg = g.get_degree_vbyte(last_high);
@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
   int c;
   int pdeg = BLOCK_SIZE;
   int low_deg = 32;
-  int high_deg = 256;
+  int high_deg = 160;
   int uncomp_deg = 256;
   vidType prefix_interval = WARP_SIZE;
   size_t gpu_mem = 80000000000; // gpu mem size in bytes
@@ -293,7 +293,10 @@ int main(int argc, char* argv[]) {
     }
   }
   if (add_uncomp) out_prefix += "type3/";
-  else out_prefix += "type4/";
+  else {
+    out_prefix += "type4/";
+    gpu_mem_uncomp = 0; // unused when top partition is chosen by degree threshold instead of memory usage
+  }
   std::cout << "LOADED COMPRESSED GRAPH\n" << std::endl;
   Graph g;
   g.load_compressed_graph(in_prefix, scheme, permutated);
