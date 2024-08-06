@@ -14,5 +14,13 @@ sample_omp_base: omp_base.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) omp_base.o $(OBJS) -o $@ -lgomp
 	mv $@ $(BIN)
 
+deepwalk_omp: deepwalk_omp.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) deepwalk_omp.o $(OBJS) -o $@ -lgomp
+	mv $@ $(BIN)
+
+deepwalk_serial: deepwalk_serial.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) deepwalk_serial.o $(OBJS) -o $@ -lgomp
+	mv $@ $(BIN)
+
 clean:
 	rm *.o

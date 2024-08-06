@@ -28,27 +28,11 @@ inline vidType sample_next(Graph &g, vidType transit, vidType src_degree, int st
 }
 
 /**
- * @returns for a given step, whether the sample should only contain unique vertices
-*/
-bool unique(int step) {
-    return false;
-}
-
-enum SamplingType {Individual, Collective};
-
-/**
- * @returns collective or individual transit sampling
-*/
-SamplingType sampling_type() {
-    return Individual;
-}
-
-/**
  * @param step
  * @param s is the sample
  * @param transitIdx is the index of transit of all transits to return
  * @returns the vertices added at previous step as transits
 */
 vidType step_transits(int step, Sample * s, int transitIdx) {
-    return s->prev_vertex(1, transit_idx);
+    return s->prev_vertex(1, transitIdx);
 }

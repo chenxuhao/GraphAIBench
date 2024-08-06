@@ -97,3 +97,7 @@ int RandomWalk(Graph &g, int n_samples=1, int n_threads, int steps, int gamma) {
 
     return 0;
 };
+
+int main() {
+  return;
+}
